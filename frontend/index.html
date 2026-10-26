@@ -40,6 +40,11 @@
           <span class="chip">🫑 Bell Pepper</span>
         </div>
 
+        <button type="button" id="encyclopedia-open-btn" class="btn btn-secondary btn-sm" aria-label="Open Solanaceae Disease Encyclopedia">
+          <span aria-hidden="true">📖</span>
+          <span>Disease Encyclopedia</span>
+        </button>
+
         <!-- Backend Readiness Indicator -->
         <div id="connection-status" class="status-pill status-checking" role="status" aria-live="polite">
           <span class="status-dot" aria-hidden="true"></span>
@@ -48,6 +53,37 @@
       </div>
     </div>
   </header>
+
+  <!-- Hero Intro Section & Performance Statistics -->
+  <section class="hero-section" aria-label="System Overview">
+    <div class="hero-card">
+      <div class="hero-content">
+        <span class="hero-tag">🌱 Agricultural Intelligence &bull; Sem 5 Capstone</span>
+        <h2 class="hero-title">Solanaceae Foliar Health & Pathogen Diagnostic Engine</h2>
+        <p class="hero-description">
+          Automated foliar pathology classification paired with peer-reviewed Integrated Pest Management (IPM) protocols. Powered by a class-balanced MobileNetV2 architecture trained on verified agricultural crop leaves.
+        </p>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-item">
+          <span class="stat-value">15</span>
+          <span class="stat-label">Crop Conditions</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">96.86%</span>
+          <span class="stat-label">Macro-F1 Score</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">2.26M</span>
+          <span class="stat-label">Neural Weights</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">&lt; 100ms</span>
+          <span class="stat-label">Inference Time</span>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Main Application Body -->
   <main class="app-container">
@@ -74,24 +110,40 @@
           </div>
         </div>
 
-        <!-- Quick Test Specimen Presets -->
+        <!-- Quick Test Specimen Presets with Verified Leaf Photographs -->
         <div class="samples-bar">
           <div class="samples-header">
             <span class="samples-title">⚡ Instant Test Presets</span>
-            <span class="samples-hint">Click a sample to test without uploading</span>
+            <span class="samples-hint">Click a real leaf specimen to test immediately</span>
           </div>
-          <div class="samples-buttons">
-            <button type="button" class="btn-sample" data-sample="sample_potato_early_blight.jpg" data-crop="Potato" data-condition="Early Blight">
-              <span>🥔</span>
-              <span>Potato: Early Blight</span>
+          <div class="samples-grid">
+            <button type="button" class="btn-sample" data-sample="sample_potato_early_blight.jpg" data-crop="Potato" data-condition="Early Blight" title="Load Potato Early Blight specimen">
+              <img src="samples/sample_potato_early_blight.jpg" alt="Potato early blight thumbnail">
+              <div class="sample-meta">
+                <span class="sample-name">Early Blight</span>
+                <span class="sample-crop">🥔 Potato</span>
+              </div>
             </button>
-            <button type="button" class="btn-sample" data-sample="sample_tomato_bacterial_spot.jpg" data-crop="Tomato" data-condition="Bacterial Spot">
-              <span>🍅</span>
-              <span>Tomato: Bacterial Spot</span>
+            <button type="button" class="btn-sample" data-sample="sample_tomato_bacterial_spot.jpg" data-crop="Tomato" data-condition="Bacterial Spot" title="Load Tomato Bacterial Spot specimen">
+              <img src="samples/sample_tomato_bacterial_spot.jpg" alt="Tomato bacterial spot thumbnail">
+              <div class="sample-meta">
+                <span class="sample-name">Bacterial Spot</span>
+                <span class="sample-crop">🍅 Tomato</span>
+              </div>
             </button>
-            <button type="button" class="btn-sample" data-sample="sample_pepper_healthy.jpg" data-crop="Bell Pepper" data-condition="Healthy">
-              <span>🫑</span>
-              <span>Pepper: Healthy</span>
+            <button type="button" class="btn-sample" data-sample="sample_pepper_healthy.jpg" data-crop="Bell Pepper" data-condition="Healthy" title="Load Healthy Bell Pepper specimen">
+              <img src="samples/sample_pepper_healthy.jpg" alt="Healthy bell pepper thumbnail">
+              <div class="sample-meta">
+                <span class="sample-name">Healthy Leaf</span>
+                <span class="sample-crop">🫑 Pepper</span>
+              </div>
+            </button>
+            <button type="button" data-sample="sample_tomato_curl.jpg" data-crop="Tomato" data-condition="Yellow Leaf Curl Virus" class="btn-sample" title="Load Tomato Yellow Leaf Curl Virus specimen">
+              <img src="samples/sample_tomato_curl.jpg" alt="Tomato leaf curl virus thumbnail">
+              <div class="sample-meta">
+                <span class="sample-name">Leaf Curl Virus</span>
+                <span class="sample-crop">🍅 Tomato</span>
+              </div>
             </button>
           </div>
         </div>
@@ -174,7 +226,10 @@
             <h2 id="results-card-title" class="card-title">Diagnostic Results</h2>
             <p class="card-description">Model prediction output and class distribution breakdown.</p>
           </div>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" id="copy-guidance-btn" class="btn btn-secondary btn-sm hidden" aria-label="Copy IPM advisory to clipboard">
+              <span>📋 Copy Advisory</span>
+            </button>
             <button type="button" id="print-advisory-btn" class="btn btn-secondary btn-sm hidden" aria-label="Print advisory report">
               <span>🖨️ Print</span>
             </button>
@@ -191,7 +246,25 @@
             <circle cx="9" cy="9" r="2"/>
             <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
           </svg>
-          <p>Select a leaf photograph or click an <strong>Instant Test Preset</strong> above to display automated classification results.</p>
+          <p>Select a foliar photograph or click an <strong>Instant Test Preset</strong> above to trigger neural classification and view disease treatment recommendations.</p>
+
+          <div class="empty-steps-container">
+            <div class="empty-step">
+              <span class="empty-step-icon">📸</span>
+              <strong class="empty-step-title">1. Capture or Select</strong>
+              <span class="empty-step-desc">Clear single-leaf image with uniform natural illumination</span>
+            </div>
+            <div class="empty-step">
+              <span class="empty-step-icon">⚡</span>
+              <strong class="empty-step-title">2. Edge Inference</strong>
+              <span class="empty-step-desc">MobileNetV2 analyzes foliar lesion patterns in &lt;100ms</span>
+            </div>
+            <div class="empty-step">
+              <span class="empty-step-icon">📋</span>
+              <strong class="empty-step-title">3. IPM Protocols</strong>
+              <span class="empty-step-desc">Access biological, cultural & chemical control measures</span>
+            </div>
+          </div>
         </div>
 
         <!-- Populated Results Content -->
@@ -295,6 +368,62 @@
       </div>
     </div>
   </footer>
+
+  <!-- Disease Encyclopedia Modal Dialog -->
+  <div id="encyclopedia-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="encyclopedia-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="encyclopedia-title" class="modal-title">
+          <span>🌿</span>
+          <span>Solanaceae Disease Encyclopedia</span>
+        </h3>
+        <button type="button" id="encyclopedia-close-btn" class="modal-close-btn" aria-label="Close encyclopedia">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="encyclopedia-select-row">
+          <label for="encyclopedia-select" class="encyclopedia-select-label">Select Disease Condition (15 Registered Classes):</label>
+          <select id="encyclopedia-select" class="encyclopedia-select">
+            <optgroup label="🍅 Tomato (Solanum lycopersicum)">
+              <option value="5">Tomato: Bacterial Spot (Xanthomonas spp.)</option>
+              <option value="6">Tomato: Early Blight (Alternaria solani)</option>
+              <option value="7">Tomato: Late Blight (Phytophthora infestans)</option>
+              <option value="8">Tomato: Leaf Mold (Passalora fulva)</option>
+              <option value="9">Tomato: Septoria Leaf Spot (Septoria lycopersici)</option>
+              <option value="10">Tomato: Spider Mites (Tetranychus urticae)</option>
+              <option value="11">Tomato: Target Spot (Corynespora cassiicola)</option>
+              <option value="12">Tomato: Yellow Leaf Curl Virus (TYLCV)</option>
+              <option value="13">Tomato: Mosaic Virus (ToMV)</option>
+              <option value="14">Tomato: Healthy Specimen</option>
+            </optgroup>
+            <optgroup label="🥔 Potato (Solanum tuberosum)">
+              <option value="2">Potato: Early Blight (Alternaria solani)</option>
+              <option value="3">Potato: Late Blight (Phytophthora infestans)</option>
+              <option value="4">Potato: Healthy Specimen</option>
+            </optgroup>
+            <optgroup label="🫑 Bell Pepper (Capsicum annuum)">
+              <option value="0">Bell Pepper: Bacterial Spot (Xanthomonas euvesicatoria)</option>
+              <option value="1">Bell Pepper: Healthy Specimen</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div id="encyclopedia-loading" class="knowledge-loading-box hidden" role="status" aria-live="polite">
+          <div class="spinner-small" aria-hidden="true"></div>
+          <span>Retrieving complete agronomic monograph from knowledge base...</span>
+        </div>
+
+        <div id="encyclopedia-content" class="knowledge-details">
+          <!-- Dynamically populated via safe DOM APIs -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive Toast Notification -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite">
+    <span id="toast-icon">✓</span>
+    <span id="toast-message">Copied to clipboard</span>
+  </div>
 
   <!-- Scripts -->
   <script src="js/api.js"></script>

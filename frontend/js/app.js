@@ -28,6 +28,8 @@
   let activeCandidateMeta = null;
   let currentKnowledgeRequestId = 0;
   let isKnowledgeLoading = false;
+  let currentActiveKnowledgeData = null;
+  let toastTimeout = null;
 
   // ==========================================================================
   // DOM Elements
@@ -87,6 +89,20 @@
     cameraBtn: document.getElementById('camera-btn'),
     cameraInput: document.getElementById('camera-input'),
     printAdvisoryBtn: document.getElementById('print-advisory-btn'),
+    copyGuidanceBtn: document.getElementById('copy-guidance-btn'),
+
+    // Encyclopedia Modal Elements
+    encyclopediaOpenBtn: document.getElementById('encyclopedia-open-btn'),
+    encyclopediaModal: document.getElementById('encyclopedia-modal'),
+    encyclopediaCloseBtn: document.getElementById('encyclopedia-close-btn'),
+    encyclopediaSelect: document.getElementById('encyclopedia-select'),
+    encyclopediaContent: document.getElementById('encyclopedia-content'),
+    encyclopediaLoading: document.getElementById('encyclopedia-loading'),
+
+    // Toast Notification Elements
+    toast: document.getElementById('toast'),
+    toastMessage: document.getElementById('toast-message'),
+    toastIcon: document.getElementById('toast-icon'),
   };
 
   // ==========================================================================
@@ -264,6 +280,7 @@
     activeCandidateMeta = null;
     currentKnowledgeRequestId++;
     isKnowledgeLoading = false;
+    currentActiveKnowledgeData = null;
 
     // Reset views
     elements.dropZone.classList.remove('hidden');
@@ -274,6 +291,7 @@
     elements.resultsEmpty.classList.remove('hidden');
     elements.newScanBtn.classList.add('hidden');
     if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.add('hidden');
+    if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.add('hidden');
 
     // Reset knowledge section
     elements.knowledgeSection.classList.add('hidden');
@@ -332,6 +350,8 @@
     elements.resultsContent.classList.add('hidden');
     elements.resultsEmpty.classList.remove('hidden');
     elements.newScanBtn.classList.add('hidden');
+    if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.add('hidden');
+    if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.add('hidden');
 
     // Hide and clear previous knowledge display
     elements.knowledgeSection.classList.add('hidden');
@@ -406,6 +426,7 @@
     elements.resultsContent.classList.remove('hidden');
     elements.newScanBtn.classList.remove('hidden');
     if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.remove('hidden');
+    if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.remove('hidden');
 
     // Smooth scroll to results on mobile devices
     if (window.innerWidth < 900) {
@@ -615,8 +636,11 @@
         return;
       }
 
+      // Cache active knowledge data for IPM Advisory report generation
+      currentActiveKnowledgeData = knowledgeData;
+
       // Render knowledge content safely into DOM
-      renderKnowledgeDetails(knowledgeData, meta);
+      renderKnowledgeDetails(knowledgeData, meta, elements.knowledgeDetails);
 
       elements.knowledgeLoading.classList.add('hidden');
       elements.knowledgeDetails.classList.remove('hidden');
@@ -709,8 +733,9 @@
   /**
    * Safely constructs the entire knowledge section in the DOM without innerHTML.
    */
-  function renderKnowledgeDetails(data, meta) {
-    const container = elements.knowledgeDetails;
+  function renderKnowledgeDetails(data, meta, targetContainer = elements.knowledgeDetails) {
+    const container = targetContainer || elements.knowledgeDetails;
+    if (!container) return;
     container.textContent = ''; // Safe clear
 
     if (!data || typeof data !== 'object') return;
@@ -1079,6 +1104,56 @@
       });
     }
 
+    // Copy IPM Advisory handler
+    if (elements.copyGuidanceBtn) {
+      elements.copyGuidanceBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyAdvisoryToClipboard();
+      });
+    }
+
+    // Disease Encyclopedia modal handlers
+    if (elements.encyclopediaOpenBtn) {
+      elements.encyclopediaOpenBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEncyclopediaModal();
+      });
+    }
+
+    if (elements.encyclopediaCloseBtn) {
+      elements.encyclopediaCloseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeEncyclopediaModal();
+      });
+    }
+
+    if (elements.encyclopediaSelect) {
+      elements.encyclopediaSelect.addEventListener('change', (e) => {
+        const selectedClassId = parseInt(e.target.value, 10);
+        if (!isNaN(selectedClassId)) {
+          loadEncyclopediaEntry(selectedClassId);
+        }
+      });
+    }
+
+    if (elements.encyclopediaModal) {
+      elements.encyclopediaModal.addEventListener('click', (e) => {
+        if (e.target === elements.encyclopediaModal) {
+          closeEncyclopediaModal();
+        }
+      });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (
+        e.key === 'Escape' &&
+        elements.encyclopediaModal &&
+        !elements.encyclopediaModal.classList.contains('hidden')
+      ) {
+        closeEncyclopediaModal();
+      }
+    });
+
     // Quick sample leaf specimen buttons
     const sampleButtons = document.querySelectorAll('.btn-sample');
     sampleButtons.forEach((btn) => {
@@ -1104,6 +1179,170 @@
     // Prevent page drop defaults
     window.addEventListener('dragover', (e) => e.preventDefault());
     window.addEventListener('drop', (e) => e.preventDefault());
+  }
+
+  // ==========================================================================
+  // Interactive Toast & Advisory Clipboard Operations
+  // ==========================================================================
+
+  function showToast(message, icon = '✓') {
+    if (!elements.toast) return;
+    if (elements.toastMessage) elements.toastMessage.textContent = message;
+    if (elements.toastIcon) elements.toastIcon.textContent = icon;
+    elements.toast.classList.remove('hidden');
+
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      elements.toast.classList.add('hidden');
+    }, 3200);
+  }
+
+  function copyAdvisoryToClipboard() {
+    if (!lastPrediction) {
+      showAlert('No diagnostic results available to copy.', 'Notice', 'info');
+      return;
+    }
+
+    const lines = [
+      '=================================================================',
+      'AI-BASED CROP DISEASE DIAGNOSTIC & IPM ADVISORY REPORT',
+      '=================================================================',
+      `Generated: ${new Date().toLocaleString()}`,
+      `Host Crop: ${lastPrediction.crop || 'Unknown Crop'}`,
+      `Predicted Condition: ${lastPrediction.condition || 'Unknown Condition'}`,
+      `Health Status: ${lastPrediction.health || 'Unknown'}`,
+      `Classification Score: ${(lastPrediction.score * 100).toFixed(2)}%`,
+      '',
+      'TOP CANDIDATES DISTRIBUTION:',
+    ];
+
+    if (Array.isArray(lastPrediction.top_predictions)) {
+      lastPrediction.top_predictions.forEach((cand, idx) => {
+        const scorePercent = (cand.score * 100).toFixed(2);
+        lines.push(`  ${idx + 1}. [${cand.crop}] ${cand.condition}: ${scorePercent}% (${cand.health})`);
+      });
+    }
+
+    if (currentActiveKnowledgeData) {
+      const kd = currentActiveKnowledgeData;
+      lines.push('');
+      lines.push('-----------------------------------------------------------------');
+      lines.push('AGRONOMIC MONOGRAPH & INTEGRATED PEST MANAGEMENT (IPM)');
+      lines.push('-----------------------------------------------------------------');
+
+      if (kd.causal_agent) {
+        lines.push(`Causal Pathogen: ${kd.causal_agent}`);
+      }
+      if (kd.symptoms) {
+        if (kd.symptoms.summary) lines.push(`Symptom Overview: ${kd.symptoms.summary}`);
+        if (Array.isArray(kd.symptoms.foliar_symptoms) && kd.symptoms.foliar_symptoms.length > 0) {
+          lines.push('Foliar Signs:');
+          kd.symptoms.foliar_symptoms.forEach((s) => lines.push(`  - ${s}`));
+        }
+      }
+      if (kd.favorable_conditions && kd.favorable_conditions.environmental_factors) {
+        lines.push(`Environmental Transmission Factors: ${kd.favorable_conditions.environmental_factors}`);
+      }
+      if (kd.treatment) {
+        if (kd.treatment.urgency) lines.push(`Treatment Urgency: ${kd.treatment.urgency}`);
+        if (Array.isArray(kd.treatment.non_chemical_controls) && kd.treatment.non_chemical_controls.length > 0) {
+          lines.push('Non-Chemical & Cultural Controls:');
+          kd.treatment.non_chemical_controls.forEach((c) => lines.push(`  - ${c}`));
+        }
+        if (Array.isArray(kd.treatment.ipm_chemical_principles) && kd.treatment.ipm_chemical_principles.length > 0) {
+          lines.push('IPM Chemical Application Principles:');
+          kd.treatment.ipm_chemical_principles.forEach((p) => lines.push(`  - ${p}`));
+        }
+      }
+      if (kd.extension_consultation && kd.extension_consultation.local_specialist) {
+        lines.push(`Recommended Extension Authority: ${kd.extension_consultation.local_specialist}`);
+      }
+    }
+
+    lines.push('');
+    lines.push('ADVISORY DISCLAIMER:');
+    lines.push(
+      lastPrediction.disclaimer ||
+        'Closed-world neural classification screening. Confirm foliar diagnoses with official agricultural extension personnel before executing pesticide treatments.'
+    );
+    lines.push('=================================================================');
+
+    const fullReport = lines.join('\n');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(fullReport)
+        .then(() => {
+          showToast('IPM Advisory copied to clipboard!', '📋');
+        })
+        .catch(() => {
+          fallbackCopyText(fullReport);
+        });
+    } else {
+      fallbackCopyText(fullReport);
+    }
+  }
+
+  function fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('IPM Advisory copied to clipboard!', '📋');
+    } catch {
+      showAlert('Could not access clipboard automatically. Please use Print to export.', 'Notice', 'info');
+    }
+    document.body.removeChild(ta);
+  }
+
+  // ==========================================================================
+  // Disease Encyclopedia Operations
+  // ==========================================================================
+
+  async function openEncyclopediaModal(targetClassId = null) {
+    if (!elements.encyclopediaModal) return;
+    elements.encyclopediaModal.classList.remove('hidden');
+
+    let classIdToLoad = targetClassId;
+    if (classIdToLoad === null || classIdToLoad === undefined) {
+      if (activeCandidateClassId !== null) {
+        classIdToLoad = activeCandidateClassId;
+      } else {
+        classIdToLoad = parseInt(elements.encyclopediaSelect.value, 10) || 5;
+      }
+    }
+
+    elements.encyclopediaSelect.value = String(classIdToLoad);
+    await loadEncyclopediaEntry(classIdToLoad);
+  }
+
+  function closeEncyclopediaModal() {
+    if (!elements.encyclopediaModal) return;
+    elements.encyclopediaModal.classList.add('hidden');
+  }
+
+  async function loadEncyclopediaEntry(classId) {
+    if (!elements.encyclopediaContent) return;
+    elements.encyclopediaContent.textContent = '';
+    if (elements.encyclopediaLoading) elements.encyclopediaLoading.classList.remove('hidden');
+
+    try {
+      const data = await window.CropDiseaseApi.getDiseaseKnowledge(classId);
+      if (elements.encyclopediaLoading) elements.encyclopediaLoading.classList.add('hidden');
+      renderKnowledgeDetails(data, { rank: 1, isPrimary: true }, elements.encyclopediaContent);
+    } catch (err) {
+      if (elements.encyclopediaLoading) elements.encyclopediaLoading.classList.add('hidden');
+      elements.encyclopediaContent.textContent = '';
+      const errBox = document.createElement('div');
+      errBox.className = 'alert alert-error';
+      errBox.textContent = 'Failed to load encyclopedia entry: ' + err.message;
+      elements.encyclopediaContent.appendChild(errBox);
+    }
   }
 
   // ==========================================================================
