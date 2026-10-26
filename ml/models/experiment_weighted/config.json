@@ -1,0 +1,137 @@
+{
+  "pipeline": "MobileNetV2 Transfer Learning",
+  "timestamp": "2026-10-20T15:43:58.717256",
+  "seed": 42,
+  "class_weighting": "balanced",
+  "class_weights": {
+    "0": 1.5226361031518625,
+    "1": 1.0268599033816426,
+    "2": 1.5182857142857142,
+    "3": 1.5182857142857142,
+    "4": 10.026415094339622,
+    "5": 0.7137676292813969,
+    "6": 1.5182857142857142,
+    "7": 0.7984973703981968,
+    "8": 1.5957957957957958,
+    "9": 0.8570967741935483,
+    "10": 0.9060528559249786,
+    "11": 1.0811800610376399,
+    "12": 0.28341333333333335,
+    "13": 4.072030651340996,
+    "14": 0.9574774774774775
+  },
+  "batch_size": 32,
+  "epochs_stage1": 15,
+  "epochs_stage2": 15,
+  "lr_stage1": 0.001,
+  "lr_stage2": 1e-05,
+  "weights": "imagenet",
+  "manifest_path": "C:\\Users\\bhavy\\OneDrive\\Desktop\\College\\Sem 5\\Project\\ml\\data\\dataset_manifest.csv",
+  "output_dir": "C:\\Users\\bhavy\\OneDrive\\Desktop\\College\\Sem 5\\Project\\ml\\models\\experiment_weighted",
+  "counts": {
+    "train": 15942,
+    "val": 3418,
+    "test_isolated": 3413
+  },
+  "target_class_mapping": {
+    "Pepper,_bell___Bacterial_spot": {
+      "id": 0,
+      "crop": "Bell Pepper",
+      "health": "Diseased",
+      "condition": "Bacterial Spot"
+    },
+    "Pepper,_bell___healthy": {
+      "id": 1,
+      "crop": "Bell Pepper",
+      "health": "Healthy",
+      "condition": "Healthy"
+    },
+    "Potato___Early_blight": {
+      "id": 2,
+      "crop": "Potato",
+      "health": "Diseased",
+      "condition": "Early Blight"
+    },
+    "Potato___Late_blight": {
+      "id": 3,
+      "crop": "Potato",
+      "health": "Diseased",
+      "condition": "Late Blight"
+    },
+    "Potato___healthy": {
+      "id": 4,
+      "crop": "Potato",
+      "health": "Healthy",
+      "condition": "Healthy"
+    },
+    "Tomato___Bacterial_spot": {
+      "id": 5,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Bacterial Spot"
+    },
+    "Tomato___Early_blight": {
+      "id": 6,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Early Blight"
+    },
+    "Tomato___Late_blight": {
+      "id": 7,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Late Blight"
+    },
+    "Tomato___Leaf_Mold": {
+      "id": 8,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Leaf Mold"
+    },
+    "Tomato___Septoria_leaf_spot": {
+      "id": 9,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Septoria Leaf Spot"
+    },
+    "Tomato___Spider_mites Two-spotted_spider_mite": {
+      "id": 10,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Two-spotted Spider Mite"
+    },
+    "Tomato___Target_Spot": {
+      "id": 11,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Target Spot"
+    },
+    "Tomato___Tomato_Yellow_Leaf_Curl_Virus": {
+      "id": 12,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Yellow Leaf Curl Virus"
+    },
+    "Tomato___Tomato_mosaic_virus": {
+      "id": 13,
+      "crop": "Tomato",
+      "health": "Diseased",
+      "condition": "Mosaic Virus"
+    },
+    "Tomato___healthy": {
+      "id": 14,
+      "crop": "Tomato",
+      "health": "Healthy",
+      "condition": "Healthy"
+    }
+  },
+  "environment": {
+    "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "tensorflow": "2.21.0",
+    "keras": "3.15.1",
+    "numpy": "2.4.6",
+    "scikit_learn": "1.9.1",
+    "pillow": "13.0.0"
+  }
+}

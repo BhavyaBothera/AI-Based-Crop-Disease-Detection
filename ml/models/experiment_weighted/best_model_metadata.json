@@ -1,0 +1,9 @@
+{
+  "checkpoint_file": "best_model.keras",
+  "stage": 2,
+  "epoch": 8,
+  "val_macro_f1": 0.9685867330368948,
+  "val_loss": 0.17498137056827545,
+  "selection_reason": "Higher val_macro_f1 (0.968587 > 0.962479, diff: +0.006107)",
+  "saved_at": "2026-10-20T16:46:16.815701"
+}

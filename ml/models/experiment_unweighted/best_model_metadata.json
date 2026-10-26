@@ -1,0 +1,9 @@
+{
+  "checkpoint_file": "best_model.keras",
+  "stage": 2,
+  "epoch": 10,
+  "val_macro_f1": 0.9634112856233059,
+  "val_loss": 0.1705894023180008,
+  "selection_reason": "Macro-F1 tie within tolerance (0.963411 vs 0.963489), broken by lower val_loss (0.170589 < 0.177019)",
+  "saved_at": "2026-10-20T13:37:27.400592"
+}

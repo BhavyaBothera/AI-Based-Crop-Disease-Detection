@@ -1,0 +1,239 @@
+{
+  "verification_timestamp": "2026-10-19T11:19:58.956583",
+  "random_seed": 42,
+  "target_ratios": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "summary": {
+    "total_images_in_dataset": 55448,
+    "target_images_total": 22787,
+    "target_images_included": 22773,
+    "target_exact_duplicates_excluded": 14,
+    "non_target_images_excluded": 32661,
+    "total_excluded": 32675,
+    "reconciliation_check": true
+  },
+  "splits_summary": {
+    "train_images": 15942,
+    "train_percentage": 70.0,
+    "val_images": 3418,
+    "val_percentage": 15.01,
+    "test_images": 3413,
+    "test_percentage": 14.99
+  },
+  "leakage_verification": {
+    "sha256_train_val_overlap": 0,
+    "sha256_train_test_overlap": 0,
+    "sha256_val_test_overlap": 0,
+    "total_sha256_leaks": 0,
+    "duplicate_groups_split_cross_count": 0,
+    "zero_leakage_certified": true
+  },
+  "per_class_splits": {
+    "Pepper,_bell___Bacterial_spot": {
+      "train": 698,
+      "val": 150,
+      "test": 149
+    },
+    "Pepper,_bell___healthy": {
+      "train": 1035,
+      "val": 222,
+      "test": 221
+    },
+    "Potato___Early_blight": {
+      "train": 700,
+      "val": 150,
+      "test": 150
+    },
+    "Potato___Late_blight": {
+      "train": 700,
+      "val": 150,
+      "test": 150
+    },
+    "Potato___healthy": {
+      "train": 106,
+      "val": 23,
+      "test": 23
+    },
+    "Tomato___Bacterial_spot": {
+      "train": 1489,
+      "val": 319,
+      "test": 319
+    },
+    "Tomato___Early_blight": {
+      "train": 700,
+      "val": 150,
+      "test": 150
+    },
+    "Tomato___Late_blight": {
+      "train": 1331,
+      "val": 285,
+      "test": 285
+    },
+    "Tomato___Leaf_Mold": {
+      "train": 666,
+      "val": 143,
+      "test": 143
+    },
+    "Tomato___Septoria_leaf_spot": {
+      "train": 1240,
+      "val": 266,
+      "test": 265
+    },
+    "Tomato___Spider_mites Two-spotted_spider_mite": {
+      "train": 1173,
+      "val": 251,
+      "test": 252
+    },
+    "Tomato___Target_Spot": {
+      "train": 983,
+      "val": 211,
+      "test": 210
+    },
+    "Tomato___Tomato_Yellow_Leaf_Curl_Virus": {
+      "train": 3750,
+      "val": 804,
+      "test": 803
+    },
+    "Tomato___Tomato_mosaic_virus": {
+      "train": 261,
+      "val": 56,
+      "test": 56
+    },
+    "Tomato___healthy": {
+      "train": 1110,
+      "val": 238,
+      "test": 237
+    }
+  },
+  "exact_duplicate_groups": [
+    {
+      "group_id": "GRP_EXACT_001",
+      "hash": "7ff8410db407008bb9aecf0cc5505f2b47ffd89e508413a30ea983b4bc169714",
+      "class_name": "Tomato___Late_blight",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (109).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (54).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_002",
+      "hash": "90220c67ab2c3ed150e93f0c26691d463200e784c74152e62acedac8a4d2d525",
+      "class_name": "Tomato___Late_blight",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (1188).jpg",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (1485).jpg"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_003",
+      "hash": "375eee7b5da77c7afdd73d089574bee3148d04cbe266ee070ee4774d26aca750",
+      "class_name": "Tomato___Late_blight",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (1400).jpg",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (590).jpg"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_004",
+      "hash": "a05e573ae6c4a28b077b8c9d01249be849f4f8e1790b2625b42c6bc01098f718",
+      "class_name": "Tomato___Late_blight",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (1578).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (1627).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_005",
+      "hash": "3a60a7b6f3a287981d21dca37f27e5480cc46d1144688d435e53db7a47b7006f",
+      "class_name": "Tomato___Late_blight",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (1598).jpg",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (882).jpg"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_006",
+      "hash": "2aeb7479e975df37dfb54aa7b403f57f2ad90b018c37809e572a2a932f55d2a7",
+      "class_name": "Tomato___Late_blight",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (1704).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (275).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_007",
+      "hash": "6e1610d4e0f6f84108af112322d11779254b2b2d41958449c64b0bf938628444",
+      "class_name": "Tomato___Late_blight",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (1748).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (971).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_008",
+      "hash": "4913a3835e692530e507d542caccacc0d0a7b2fd708782cdec6236a1a0dbbcd6",
+      "class_name": "Tomato___Late_blight",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (182).jpg",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___Late_blight\\image (264).jpg"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_009",
+      "hash": "12852b3616bcf0ba39b03b5677e74f50f5f6abf4d38957fe17949e23e2a4b244",
+      "class_name": "Tomato___healthy",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (1027).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (682).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_010",
+      "hash": "61f6fa6195ef5c59c4918a292c641d4cd3d2d31ff051dcd0f36a625daf93f5ef",
+      "class_name": "Tomato___healthy",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (1305).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (55).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_011",
+      "hash": "32e9ffabaa054c19ae8df95e94fbd7a25105defdea1214eb5f8bd804ea9a7428",
+      "class_name": "Tomato___healthy",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (1311).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (984).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_012",
+      "hash": "68cda8c3ceca7626cc6727e14186d356b10d1e345eb16e425ef82f21a30258ed",
+      "class_name": "Tomato___healthy",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (1457).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (477).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_013",
+      "hash": "2a05a74db3a270ac0ec77c00ebe89a332eed589819435129cc3c29eb6e701eb2",
+      "class_name": "Tomato___healthy",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (474).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (553).JPG"
+      ]
+    },
+    {
+      "group_id": "GRP_EXACT_014",
+      "hash": "addddf5cb2a74192c9836be70fc223659062675eb325d55429c341a0c44937d0",
+      "class_name": "Tomato___healthy",
+      "canonical_file": "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (943).JPG",
+      "redundant_files": [
+        "data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation\\Tomato___healthy\\image (992).JPG"
+      ]
+    }
+  ]
+}

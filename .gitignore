@@ -1,0 +1,49 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+
+# ML Datasets & Raw Archives (Keep local, never commit)
+ml/data/
+/data/
+!backend/app/data/
+datasets/
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# Model Weights, Large Checkpoints & Training Outputs
+ml/models/*.keras
+ml/models/*.h5
+ml/models/*.savedmodel/
+ml/models/*.tflite
+ml/models/*.onnx
+ml/models/checkpoints/
+ml/checkpoints/
+ml/logs/
+ml/runs/
+
+# Testing & Scratch Directories
+scratch/
+test_synthetic_data/
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,1621 @@
+{
+  "dataset_path": "C:\\Users\\bhavy\\OneDrive\\Desktop\\College\\Sem 5\\Project\\ml\\data\\raw_dataset\\Plant_leave_diseases_dataset_without_augmentation",
+  "audit_timestamp": "2026-10-19T02:39:10.645401",
+  "audit_duration_seconds": 2524.55,
+  "pil_available": true,
+  "summary": {
+    "total_files": 55448,
+    "total_images": 55448,
+    "valid_images": 55448,
+    "unreadable_images": 0,
+    "non_image_files": 0,
+    "total_classes": 39,
+    "has_partitions": false
+  },
+  "solanaceae_coverage": {
+    "tomato_classes": 10,
+    "tomato_images": 18160,
+    "potato_classes": 3,
+    "potato_images": 2152,
+    "bell_pepper_classes": 2,
+    "bell_pepper_images": 2475,
+    "other_classes": 24,
+    "other_images": 32661
+  },
+  "class_imbalance": {
+    "max_class_count": 5507,
+    "min_class_count": 152,
+    "imbalance_ratio": 36.23,
+    "majority_class_baseline_accuracy": 9.93
+  },
+  "formats": {
+    "JPEG": 55447,
+    "PNG": 1
+  },
+  "dimensions": {
+    "min_width": 256,
+    "max_width": 256,
+    "mean_width": 256.0,
+    "min_height": 192,
+    "max_height": 256,
+    "mean_height": 254.7,
+    "square_aspect_count": 54305,
+    "total_measured": 55448
+  },
+  "small_images_count": 0,
+  "exact_duplicates": {
+    "duplicate_groups_count": 22,
+    "redundant_images_count": 23
+  },
+  "near_duplicates": {
+    "dhash_threshold": 2,
+    "candidate_pairs_found": 100
+  },
+  "cross_partition_leakage": {
+    "exact_leak_clusters_count": 0
+  },
+  "details": {
+    "class_breakdown": [
+      {
+        "class_name": "Orange___Haunglongbing_(Citrus_greening)",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Orange - Haunglongbing (Citrus greening)",
+        "count": 5507,
+        "percentage": 9.93
+      },
+      {
+        "class_name": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Tomato Yellow Leaf Curl Virus",
+        "count": 5357,
+        "percentage": 9.66
+      },
+      {
+        "class_name": "Soybean___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Soybean - healthy",
+        "count": 5090,
+        "percentage": 9.18
+      },
+      {
+        "class_name": "Peach___Bacterial_spot",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Peach - Bacterial spot",
+        "count": 2297,
+        "percentage": 4.14
+      },
+      {
+        "class_name": "Tomato___Bacterial_spot",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Bacterial spot",
+        "count": 2127,
+        "percentage": 3.84
+      },
+      {
+        "class_name": "Tomato___Late_blight",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Late blight",
+        "count": 1909,
+        "percentage": 3.44
+      },
+      {
+        "class_name": "Squash___Powdery_mildew",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Squash - Powdery mildew",
+        "count": 1835,
+        "percentage": 3.31
+      },
+      {
+        "class_name": "Tomato___Septoria_leaf_spot",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Septoria leaf spot",
+        "count": 1771,
+        "percentage": 3.19
+      },
+      {
+        "class_name": "Tomato___Spider_mites Two-spotted_spider_mite",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Spider mites Two-spotted spider mite",
+        "count": 1676,
+        "percentage": 3.02
+      },
+      {
+        "class_name": "Apple___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Apple - healthy",
+        "count": 1645,
+        "percentage": 2.97
+      },
+      {
+        "class_name": "Tomato___healthy",
+        "crop": "Tomato",
+        "health_status": "Healthy",
+        "condition": "Tomato - healthy",
+        "count": 1591,
+        "percentage": 2.87
+      },
+      {
+        "class_name": "Blueberry___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Blueberry - healthy",
+        "count": 1502,
+        "percentage": 2.71
+      },
+      {
+        "class_name": "Pepper,_bell___healthy",
+        "crop": "Bell Pepper",
+        "health_status": "Healthy",
+        "condition": "Pepper, bell - healthy",
+        "count": 1478,
+        "percentage": 2.67
+      },
+      {
+        "class_name": "Tomato___Target_Spot",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Target Spot",
+        "count": 1404,
+        "percentage": 2.53
+      },
+      {
+        "class_name": "Grape___Esca_(Black_Measles)",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Grape - Esca (Black Measles)",
+        "count": 1383,
+        "percentage": 2.49
+      },
+      {
+        "class_name": "Corn___Common_rust",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Corn - Common rust",
+        "count": 1192,
+        "percentage": 2.15
+      },
+      {
+        "class_name": "Grape___Black_rot",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Grape - Black rot",
+        "count": 1180,
+        "percentage": 2.13
+      },
+      {
+        "class_name": "Corn___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Corn - healthy",
+        "count": 1162,
+        "percentage": 2.1
+      },
+      {
+        "class_name": "Background_without_leaves",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Background without leaves",
+        "count": 1143,
+        "percentage": 2.06
+      },
+      {
+        "class_name": "Strawberry___Leaf_scorch",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Strawberry - Leaf scorch",
+        "count": 1109,
+        "percentage": 2.0
+      },
+      {
+        "class_name": "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Grape - Leaf blight (Isariopsis Leaf Spot)",
+        "count": 1076,
+        "percentage": 1.94
+      },
+      {
+        "class_name": "Cherry___Powdery_mildew",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Cherry - Powdery mildew",
+        "count": 1052,
+        "percentage": 1.9
+      },
+      {
+        "class_name": "Potato___Early_blight",
+        "crop": "Potato",
+        "health_status": "Diseased",
+        "condition": "Potato - Early blight",
+        "count": 1000,
+        "percentage": 1.8
+      },
+      {
+        "class_name": "Potato___Late_blight",
+        "crop": "Potato",
+        "health_status": "Diseased",
+        "condition": "Potato - Late blight",
+        "count": 1000,
+        "percentage": 1.8
+      },
+      {
+        "class_name": "Tomato___Early_blight",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Early blight",
+        "count": 1000,
+        "percentage": 1.8
+      },
+      {
+        "class_name": "Pepper,_bell___Bacterial_spot",
+        "crop": "Bell Pepper",
+        "health_status": "Diseased",
+        "condition": "Pepper, bell - Bacterial spot",
+        "count": 997,
+        "percentage": 1.8
+      },
+      {
+        "class_name": "Corn___Northern_Leaf_Blight",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Corn - Northern Leaf Blight",
+        "count": 985,
+        "percentage": 1.78
+      },
+      {
+        "class_name": "Tomato___Leaf_Mold",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Leaf Mold",
+        "count": 952,
+        "percentage": 1.72
+      },
+      {
+        "class_name": "Cherry___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Cherry - healthy",
+        "count": 854,
+        "percentage": 1.54
+      },
+      {
+        "class_name": "Apple___Apple_scab",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Apple - Apple scab",
+        "count": 630,
+        "percentage": 1.14
+      },
+      {
+        "class_name": "Apple___Black_rot",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Apple - Black rot",
+        "count": 621,
+        "percentage": 1.12
+      },
+      {
+        "class_name": "Corn___Cercospora_leaf_spot Gray_leaf_spot",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Corn - Cercospora leaf spot Gray leaf spot",
+        "count": 513,
+        "percentage": 0.93
+      },
+      {
+        "class_name": "Strawberry___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Strawberry - healthy",
+        "count": 456,
+        "percentage": 0.82
+      },
+      {
+        "class_name": "Grape___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Grape - healthy",
+        "count": 423,
+        "percentage": 0.76
+      },
+      {
+        "class_name": "Tomato___Tomato_mosaic_virus",
+        "crop": "Tomato",
+        "health_status": "Diseased",
+        "condition": "Tomato - Tomato mosaic virus",
+        "count": 373,
+        "percentage": 0.67
+      },
+      {
+        "class_name": "Raspberry___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Raspberry - healthy",
+        "count": 371,
+        "percentage": 0.67
+      },
+      {
+        "class_name": "Peach___healthy",
+        "crop": "Other / Unmatched",
+        "health_status": "Healthy",
+        "condition": "Peach - healthy",
+        "count": 360,
+        "percentage": 0.65
+      },
+      {
+        "class_name": "Apple___Cedar_apple_rust",
+        "crop": "Other / Unmatched",
+        "health_status": "Diseased",
+        "condition": "Apple - Cedar apple rust",
+        "count": 275,
+        "percentage": 0.5
+      },
+      {
+        "class_name": "Potato___healthy",
+        "crop": "Potato",
+        "health_status": "Healthy",
+        "condition": "Potato - healthy",
+        "count": 152,
+        "percentage": 0.27
+      }
+    ],
+    "unreadable_files": [],
+    "non_image_files": [],
+    "exact_duplicate_samples": [
+      {
+        "hash": "6b242d89b134aa87000f8397d0e85f8448e3b3d607d3b7951cf69a2f3e92b0e2",
+        "sample_files": [
+          "Apple___healthy\\image (1120).JPG",
+          "Apple___healthy\\image (163).JPG"
+        ]
+      },
+      {
+        "hash": "5d486b62abe59b8dea5aef6b63f887bacd12bbc3cb2a154eb45a7a522e5d88c9",
+        "sample_files": [
+          "Apple___healthy\\image (1272).JPG",
+          "Apple___healthy\\image (908).JPG"
+        ]
+      },
+      {
+        "hash": "d4b74359138ab2e04caffe9733f40ccdf616ee2fc9a4ecb2f058d7ba98c94fa8",
+        "sample_files": [
+          "Apple___healthy\\image (1335).JPG",
+          "Apple___healthy\\image (1447).JPG"
+        ]
+      },
+      {
+        "hash": "262198126fd6d982126b69261723e13abb36b3831387972f3aef7ebeedecf0a6",
+        "sample_files": [
+          "Apple___healthy\\image (1552).JPG",
+          "Apple___healthy\\image (1631).JPG"
+        ]
+      },
+      {
+        "hash": "767bbeee0c319d4097d7a6d949c6d21def97ceb2d16068eb5b94df42619acc8a",
+        "sample_files": [
+          "Apple___healthy\\image (375).JPG",
+          "Apple___healthy\\image (846).JPG"
+        ]
+      },
+      {
+        "hash": "ec2fe5801c82d7ffff332b9429480c6a432830ccce2f7e1aec1cc4c05f6a0abb",
+        "sample_files": [
+          "Apple___healthy\\image (408).JPG",
+          "Apple___healthy\\image (904).JPG"
+        ]
+      },
+      {
+        "hash": "372bc4a6e18895011eaa18638acf8cdd83db9c5909af02cd833263d5cfeb0cbe",
+        "sample_files": [
+          "Apple___healthy\\image (54).JPG",
+          "Apple___healthy\\image (834).JPG"
+        ]
+      },
+      {
+        "hash": "307f49833f5eb2038d44c3374f475c60346c9bcb98de4fb75d2861a35c676fad",
+        "sample_files": [
+          "Background_without_leaves\\image (40).jpg",
+          "Background_without_leaves\\image (60).jpg",
+          "Background_without_leaves\\image (851).jpg"
+        ]
+      },
+      {
+        "hash": "12852b3616bcf0ba39b03b5677e74f50f5f6abf4d38957fe17949e23e2a4b244",
+        "sample_files": [
+          "Tomato___healthy\\image (1027).JPG",
+          "Tomato___healthy\\image (682).JPG"
+        ]
+      },
+      {
+        "hash": "61f6fa6195ef5c59c4918a292c641d4cd3d2d31ff051dcd0f36a625daf93f5ef",
+        "sample_files": [
+          "Tomato___healthy\\image (1305).JPG",
+          "Tomato___healthy\\image (55).JPG"
+        ]
+      },
+      {
+        "hash": "32e9ffabaa054c19ae8df95e94fbd7a25105defdea1214eb5f8bd804ea9a7428",
+        "sample_files": [
+          "Tomato___healthy\\image (1311).JPG",
+          "Tomato___healthy\\image (984).JPG"
+        ]
+      },
+      {
+        "hash": "68cda8c3ceca7626cc6727e14186d356b10d1e345eb16e425ef82f21a30258ed",
+        "sample_files": [
+          "Tomato___healthy\\image (1457).JPG",
+          "Tomato___healthy\\image (477).JPG"
+        ]
+      },
+      {
+        "hash": "2a05a74db3a270ac0ec77c00ebe89a332eed589819435129cc3c29eb6e701eb2",
+        "sample_files": [
+          "Tomato___healthy\\image (474).JPG",
+          "Tomato___healthy\\image (553).JPG"
+        ]
+      },
+      {
+        "hash": "addddf5cb2a74192c9836be70fc223659062675eb325d55429c341a0c44937d0",
+        "sample_files": [
+          "Tomato___healthy\\image (943).JPG",
+          "Tomato___healthy\\image (992).JPG"
+        ]
+      },
+      {
+        "hash": "7ff8410db407008bb9aecf0cc5505f2b47ffd89e508413a30ea983b4bc169714",
+        "sample_files": [
+          "Tomato___Late_blight\\image (109).JPG",
+          "Tomato___Late_blight\\image (54).JPG"
+        ]
+      },
+      {
+        "hash": "90220c67ab2c3ed150e93f0c26691d463200e784c74152e62acedac8a4d2d525",
+        "sample_files": [
+          "Tomato___Late_blight\\image (1188).jpg",
+          "Tomato___Late_blight\\image (1485).jpg"
+        ]
+      },
+      {
+        "hash": "375eee7b5da77c7afdd73d089574bee3148d04cbe266ee070ee4774d26aca750",
+        "sample_files": [
+          "Tomato___Late_blight\\image (1400).jpg",
+          "Tomato___Late_blight\\image (590).jpg"
+        ]
+      },
+      {
+        "hash": "a05e573ae6c4a28b077b8c9d01249be849f4f8e1790b2625b42c6bc01098f718",
+        "sample_files": [
+          "Tomato___Late_blight\\image (1578).JPG",
+          "Tomato___Late_blight\\image (1627).JPG"
+        ]
+      },
+      {
+        "hash": "3a60a7b6f3a287981d21dca37f27e5480cc46d1144688d435e53db7a47b7006f",
+        "sample_files": [
+          "Tomato___Late_blight\\image (1598).jpg",
+          "Tomato___Late_blight\\image (882).jpg"
+        ]
+      },
+      {
+        "hash": "2aeb7479e975df37dfb54aa7b403f57f2ad90b018c37809e572a2a932f55d2a7",
+        "sample_files": [
+          "Tomato___Late_blight\\image (1704).JPG",
+          "Tomato___Late_blight\\image (275).JPG"
+        ]
+      }
+    ],
+    "near_duplicate_samples": [
+      {
+        "image_1": "Apple___Apple_scab\\image (123).JPG",
+        "image_2": "Apple___Apple_scab\\image (411).JPG",
+        "class_1": "Apple___Apple_scab",
+        "class_2": "Apple___Apple_scab",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___Apple_scab\\image (279).JPG",
+        "image_2": "Apple___Apple_scab\\image (90).JPG",
+        "class_1": "Apple___Apple_scab",
+        "class_2": "Apple___Apple_scab",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___Cedar_apple_rust\\image (272).JPG",
+        "image_2": "Blueberry___healthy\\image (205).JPG",
+        "class_1": "Apple___Cedar_apple_rust",
+        "class_2": "Blueberry___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Apple___healthy\\image (1120).JPG",
+        "image_2": "Apple___healthy\\image (163).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Apple___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___healthy\\image (1131).JPG",
+        "image_2": "Tomato___Tomato_Yellow_Leaf_Curl_Virus\\image (2880).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Apple___healthy\\image (1272).JPG",
+        "image_2": "Apple___healthy\\image (908).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Apple___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___healthy\\image (1335).JPG",
+        "image_2": "Apple___healthy\\image (1447).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Apple___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___healthy\\image (1552).JPG",
+        "image_2": "Apple___healthy\\image (1631).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Apple___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___healthy\\image (16).JPG",
+        "image_2": "Potato___Late_blight\\image (898).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Potato___Late_blight",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Apple___healthy\\image (1600).JPG",
+        "image_2": "Apple___healthy\\image (250).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Apple___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___healthy\\image (375).JPG",
+        "image_2": "Apple___healthy\\image (846).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Apple___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___healthy\\image (375).JPG",
+        "image_2": "Tomato___Bacterial_spot\\image (1837).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Tomato___Bacterial_spot",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Apple___healthy\\image (408).JPG",
+        "image_2": "Apple___healthy\\image (904).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Apple___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___healthy\\image (54).JPG",
+        "image_2": "Apple___healthy\\image (834).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Apple___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Apple___healthy\\image (846).JPG",
+        "image_2": "Tomato___Bacterial_spot\\image (1837).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Tomato___Bacterial_spot",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Apple___healthy\\image (909).JPG",
+        "image_2": "Orange___Haunglongbing_(Citrus_greening)\\image (4163).JPG",
+        "class_1": "Apple___healthy",
+        "class_2": "Orange___Haunglongbing_(Citrus_greening)",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (1027).jpg",
+        "image_2": "Background_without_leaves\\image (1028).jpg",
+        "class_1": "Background_without_leaves",
+        "class_2": "Background_without_leaves",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Background_without_leaves\\image (1033).jpg",
+        "image_2": "Background_without_leaves\\image (1034).jpg",
+        "class_1": "Background_without_leaves",
+        "class_2": "Background_without_leaves",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Background_without_leaves\\image (357).jpg",
+        "image_2": "Corn___Common_rust\\image (1001).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (359).jpg",
+        "image_2": "Corn___Common_rust\\image (1089).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (359).jpg",
+        "image_2": "Corn___Common_rust\\image (393).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (360).jpg",
+        "image_2": "Corn___Common_rust\\image (1089).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (360).jpg",
+        "image_2": "Corn___Common_rust\\image (289).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (40).jpg",
+        "image_2": "Background_without_leaves\\image (60).jpg",
+        "class_1": "Background_without_leaves",
+        "class_2": "Background_without_leaves",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Background_without_leaves\\image (40).jpg",
+        "image_2": "Background_without_leaves\\image (851).jpg",
+        "class_1": "Background_without_leaves",
+        "class_2": "Background_without_leaves",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Background_without_leaves\\image (556).jpg",
+        "image_2": "Tomato___Late_blight\\image (451).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Tomato___Late_blight",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (60).jpg",
+        "image_2": "Background_without_leaves\\image (851).jpg",
+        "class_1": "Background_without_leaves",
+        "class_2": "Background_without_leaves",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 0,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Background_without_leaves\\image (691).jpg",
+        "image_2": "Corn___Common_rust\\image (13).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (737).jpg",
+        "image_2": "Corn___Common_rust\\image (1089).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (737).jpg",
+        "image_2": "Background_without_leaves\\image (962).jpg",
+        "class_1": "Background_without_leaves",
+        "class_2": "Background_without_leaves",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Background_without_leaves\\image (737).jpg",
+        "image_2": "Corn___Common_rust\\image (1172).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (737).jpg",
+        "image_2": "Corn___Common_rust\\image (336).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (737).jpg",
+        "image_2": "Corn___Common_rust\\image (485).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (737).jpg",
+        "image_2": "Corn___Common_rust\\image (864).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (737).jpg",
+        "image_2": "Corn___Common_rust\\image (955).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (737).jpg",
+        "image_2": "Corn___Common_rust\\image (957).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (802).jpg",
+        "image_2": "Corn___Common_rust\\image (1046).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (802).jpg",
+        "image_2": "Corn___Common_rust\\image (865).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (962).jpg",
+        "image_2": "Corn___Common_rust\\image (1089).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (962).jpg",
+        "image_2": "Corn___Common_rust\\image (1172).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (962).jpg",
+        "image_2": "Corn___Common_rust\\image (336).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (962).jpg",
+        "image_2": "Corn___Common_rust\\image (485).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (962).jpg",
+        "image_2": "Corn___Common_rust\\image (864).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (962).jpg",
+        "image_2": "Corn___Common_rust\\image (955).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Background_without_leaves\\image (962).jpg",
+        "image_2": "Corn___Common_rust\\image (957).JPG",
+        "class_1": "Background_without_leaves",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Blueberry___healthy\\image (1249).JPG",
+        "image_2": "Blueberry___healthy\\image (1326).JPG",
+        "class_1": "Blueberry___healthy",
+        "class_2": "Blueberry___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Blueberry___healthy\\image (1488).JPG",
+        "image_2": "Blueberry___healthy\\image (365).JPG",
+        "class_1": "Blueberry___healthy",
+        "class_2": "Blueberry___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Blueberry___healthy\\image (1492).JPG",
+        "image_2": "Peach___Bacterial_spot\\image (284).JPG",
+        "class_1": "Blueberry___healthy",
+        "class_2": "Peach___Bacterial_spot",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Blueberry___healthy\\image (420).JPG",
+        "image_2": "Blueberry___healthy\\image (918).JPG",
+        "class_1": "Blueberry___healthy",
+        "class_2": "Blueberry___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Blueberry___healthy\\image (572).JPG",
+        "image_2": "Orange___Haunglongbing_(Citrus_greening)\\image (275).JPG",
+        "class_1": "Blueberry___healthy",
+        "class_2": "Orange___Haunglongbing_(Citrus_greening)",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___healthy\\image (17).JPG",
+        "image_2": "Cherry___healthy\\image (535).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Cherry___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___healthy\\image (209).JPG",
+        "image_2": "Cherry___healthy\\image (740).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Cherry___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___healthy\\image (411).JPG",
+        "image_2": "Cherry___healthy\\image (744).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Cherry___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___healthy\\image (496).JPG",
+        "image_2": "Tomato___Bacterial_spot\\image (333).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Tomato___Bacterial_spot",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___healthy\\image (547).JPG",
+        "image_2": "Orange___Haunglongbing_(Citrus_greening)\\image (2676).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Orange___Haunglongbing_(Citrus_greening)",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___healthy\\image (578).JPG",
+        "image_2": "Soybean___healthy\\image (3253).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Soybean___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___healthy\\image (592).JPG",
+        "image_2": "Cherry___healthy\\image (723).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Cherry___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___healthy\\image (691).JPG",
+        "image_2": "Soybean___healthy\\image (2871).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Soybean___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___healthy\\image (814).JPG",
+        "image_2": "Cherry___Powdery_mildew\\image (1034).JPG",
+        "class_1": "Cherry___healthy",
+        "class_2": "Cherry___Powdery_mildew",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (1024).JPG",
+        "image_2": "Cherry___Powdery_mildew\\image (995).JPG",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Cherry___Powdery_mildew",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (272).JPG",
+        "image_2": "Peach___Bacterial_spot\\image (381).JPG",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Peach___Bacterial_spot",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (329).JPG",
+        "image_2": "Cherry___Powdery_mildew\\image (818).JPG",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Cherry___Powdery_mildew",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (343).JPG",
+        "image_2": "Cherry___Powdery_mildew\\image (601).JPG",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Cherry___Powdery_mildew",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (417).JPG",
+        "image_2": "Cherry___Powdery_mildew\\image (501).JPG",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Cherry___Powdery_mildew",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (438).JPG",
+        "image_2": "Cherry___Powdery_mildew\\image (795).JPG",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Cherry___Powdery_mildew",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (555).JPG",
+        "image_2": "Corn___healthy\\image (502).jpg",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Corn___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (655).JPG",
+        "image_2": "Tomato___Tomato_Yellow_Leaf_Curl_Virus\\image (1671).JPG",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Cherry___Powdery_mildew\\image (891).JPG",
+        "image_2": "Corn___healthy\\image (743).jpg",
+        "class_1": "Cherry___Powdery_mildew",
+        "class_2": "Corn___healthy",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Corn___Cercospora_leaf_spot Gray_leaf_spot\\image (398).JPG",
+        "image_2": "Corn___Cercospora_leaf_spot Gray_leaf_spot\\image (452).JPG",
+        "class_1": "Corn___Cercospora_leaf_spot Gray_leaf_spot",
+        "class_2": "Corn___Cercospora_leaf_spot Gray_leaf_spot",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Cercospora_leaf_spot Gray_leaf_spot\\image (428).JPG",
+        "image_2": "Grape___Esca_(Black_Measles)\\image (340).JPG",
+        "class_1": "Corn___Cercospora_leaf_spot Gray_leaf_spot",
+        "class_2": "Grape___Esca_(Black_Measles)",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": true
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1001).JPG",
+        "image_2": "Corn___Common_rust\\image (1089).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1005).JPG",
+        "image_2": "Corn___Common_rust\\image (1179).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1005).JPG",
+        "image_2": "Corn___Common_rust\\image (250).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1005).JPG",
+        "image_2": "Corn___Common_rust\\image (336).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1005).JPG",
+        "image_2": "Corn___Common_rust\\image (955).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1028).JPG",
+        "image_2": "Corn___Common_rust\\image (692).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1028).JPG",
+        "image_2": "Corn___Common_rust\\image (833).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1035).JPG",
+        "image_2": "Corn___Common_rust\\image (1179).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1040).JPG",
+        "image_2": "Corn___Common_rust\\image (1157).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1042).JPG",
+        "image_2": "Corn___Common_rust\\image (1089).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1046).JPG",
+        "image_2": "Corn___Common_rust\\image (1137).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1046).JPG",
+        "image_2": "Corn___Common_rust\\image (1180).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1046).JPG",
+        "image_2": "Corn___Common_rust\\image (865).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1059).JPG",
+        "image_2": "Corn___Common_rust\\image (336).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1059).JPG",
+        "image_2": "Corn___Common_rust\\image (955).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1080).JPG",
+        "image_2": "Corn___Common_rust\\image (1179).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1080).JPG",
+        "image_2": "Corn___Common_rust\\image (336).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1080).JPG",
+        "image_2": "Corn___Common_rust\\image (612).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1080).JPG",
+        "image_2": "Corn___Common_rust\\image (636).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1080).JPG",
+        "image_2": "Corn___Common_rust\\image (806).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1080).JPG",
+        "image_2": "Corn___Common_rust\\image (955).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1081).JPG",
+        "image_2": "Corn___Common_rust\\image (889).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1085).JPG",
+        "image_2": "Corn___Common_rust\\image (93).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1089).JPG",
+        "image_2": "Corn___Common_rust\\image (1172).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1089).JPG",
+        "image_2": "Corn___Common_rust\\image (289).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1089).JPG",
+        "image_2": "Corn___Common_rust\\image (336).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1089).JPG",
+        "image_2": "Corn___Common_rust\\image (485).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1089).JPG",
+        "image_2": "Corn___Common_rust\\image (600).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1089).JPG",
+        "image_2": "Corn___Common_rust\\image (62).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 1,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      },
+      {
+        "image_1": "Corn___Common_rust\\image (1089).JPG",
+        "image_2": "Corn___Common_rust\\image (864).JPG",
+        "class_1": "Corn___Common_rust",
+        "class_2": "Corn___Common_rust",
+        "partition_1": "unpartitioned",
+        "partition_2": "unpartitioned",
+        "hamming_distance": 2,
+        "cross_partition_leak": false,
+        "cross_class_match": false
+      }
+    ],
+    "cross_partition_leak_samples": []
+  }
+}

@@ -1,0 +1,19 @@
+# Backend Dependencies for Crop Disease Detection API
+# Python 3.11
+
+# Web Framework & Server
+fastapi==0.152.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+pydantic==2.14.1
+
+# Image Processing & Utilities
+pillow==13.0.0
+numpy==2.4.6
+
+# HTTP Client for Testing & Integrations
+httpx==0.28.1
+
+# Machine Learning Runtime (Model Loading & Inference)
+# Compatible with TensorFlow installed in the project virtualenv:
+tensorflow==2.21.0
