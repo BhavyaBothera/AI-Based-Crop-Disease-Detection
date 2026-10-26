@@ -84,6 +84,9 @@
     knowledgeErrorMessage: document.getElementById('knowledge-error-message'),
     knowledgeRetryBtn: document.getElementById('knowledge-retry-btn'),
     knowledgeDetails: document.getElementById('knowledge-details'),
+    cameraBtn: document.getElementById('camera-btn'),
+    cameraInput: document.getElementById('camera-input'),
+    printAdvisoryBtn: document.getElementById('print-advisory-btn'),
   };
 
   // ==========================================================================
@@ -270,6 +273,7 @@
     elements.resultsContent.classList.add('hidden');
     elements.resultsEmpty.classList.remove('hidden');
     elements.newScanBtn.classList.add('hidden');
+    if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.add('hidden');
 
     // Reset knowledge section
     elements.knowledgeSection.classList.add('hidden');
@@ -401,6 +405,7 @@
     elements.resultsEmpty.classList.add('hidden');
     elements.resultsContent.classList.remove('hidden');
     elements.newScanBtn.classList.remove('hidden');
+    if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.remove('hidden');
 
     // Smooth scroll to results on mobile devices
     if (window.innerWidth < 900) {
@@ -1052,6 +1057,49 @@
 
     // Alert dismiss
     elements.alertDismissBtn.addEventListener('click', hideAlert);
+
+    // Camera capture handler
+    if (elements.cameraBtn && elements.cameraInput) {
+      elements.cameraBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.cameraInput.click();
+      });
+      elements.cameraInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          handleSelectedFile(e.target.files[0]);
+        }
+      });
+    }
+
+    // Print advisory handler
+    if (elements.printAdvisoryBtn) {
+      elements.printAdvisoryBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.print();
+      });
+    }
+
+    // Quick sample leaf specimen buttons
+    const sampleButtons = document.querySelectorAll('.btn-sample');
+    sampleButtons.forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const sampleFileName = btn.getAttribute('data-sample');
+        if (!sampleFileName) return;
+
+        try {
+          const resp = await fetch('samples/' + sampleFileName);
+          if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}: Could not load ${sampleFileName}`);
+          }
+          const blob = await resp.blob();
+          const file = new File([blob], sampleFileName, { type: 'image/jpeg' });
+          handleSelectedFile(file);
+        } catch (err) {
+          showAlert('Failed to load sample image: ' + err.message, 'Sample Load Error', 'error');
+        }
+      });
+    });
 
     // Prevent page drop defaults
     window.addEventListener('dragover', (e) => e.preventDefault());

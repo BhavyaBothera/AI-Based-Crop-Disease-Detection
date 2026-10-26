@@ -4,8 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="AI-Based Crop Disease Detection and Treatment Recommendation System for Solanaceae crops: Tomato, Potato, and Bell Pepper using MobileNetV2 deep learning.">
-  <title>AI-Based Crop Disease Detection</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M11%2020A7%207%200%200%201%209.8%206.1C15.5%205%2017%204.48%2019%202c1%202%202%204.18%202%208%200%205.5-4.78%2010-10%2010Z'%20fill='%232E7D32'/%3E%3C/svg%3E">
+  <title>Crop Disease Detection & Treatment Recommendation</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M11%2020A7%207%200%200%201%209.8%206.1C15.5%205%2017%204.48%2019%202c1%202%202%204.18%202%208%200%205.5-4.78%2010-10%2010Z'%20fill='%2310B981'/%3E%3C/svg%3E">
+  
+  <!-- Modern Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -22,16 +28,16 @@
         </div>
         <div>
           <h1 class="brand-title">Crop Disease Detection</h1>
-          <p class="brand-subtitle">Automated Solanaceae Foliar Diagnostic System</p>
+          <p class="brand-subtitle">AI-Powered Solanaceae Foliar Diagnostic & IPM Recommendation Engine</p>
         </div>
       </div>
 
       <div class="header-meta">
         <div class="crop-chips" aria-label="Supported Crops">
           <span class="chip-label">Supported:</span>
-          <span class="chip">Tomato</span>
-          <span class="chip">Potato</span>
-          <span class="chip">Bell Pepper</span>
+          <span class="chip">🍅 Tomato</span>
+          <span class="chip">🥔 Potato</span>
+          <span class="chip">🫑 Bell Pepper</span>
         </div>
 
         <!-- Backend Readiness Indicator -->
@@ -63,8 +69,30 @@
       <section class="card" aria-labelledby="upload-card-title">
         <div class="card-header">
           <div>
-            <h2 id="upload-card-title" class="card-title">Leaf Image Upload</h2>
-            <p class="card-description">Select or drop a close-up leaf photograph for automated analysis.</p>
+            <h2 id="upload-card-title" class="card-title">Leaf Specimen Upload</h2>
+            <p class="card-description">Upload a close-up photograph of a single foliar leaf for automated neural analysis.</p>
+          </div>
+        </div>
+
+        <!-- Quick Test Specimen Presets -->
+        <div class="samples-bar">
+          <div class="samples-header">
+            <span class="samples-title">⚡ Instant Test Presets</span>
+            <span class="samples-hint">Click a sample to test without uploading</span>
+          </div>
+          <div class="samples-buttons">
+            <button type="button" class="btn-sample" data-sample="sample_potato_early_blight.jpg" data-crop="Potato" data-condition="Early Blight">
+              <span>🥔</span>
+              <span>Potato: Early Blight</span>
+            </button>
+            <button type="button" class="btn-sample" data-sample="sample_tomato_bacterial_spot.jpg" data-crop="Tomato" data-condition="Bacterial Spot">
+              <span>🍅</span>
+              <span>Tomato: Bacterial Spot</span>
+            </button>
+            <button type="button" class="btn-sample" data-sample="sample_pepper_healthy.jpg" data-crop="Bell Pepper" data-condition="Healthy">
+              <span>🫑</span>
+              <span>Pepper: Healthy</span>
+            </button>
           </div>
         </div>
 
@@ -77,11 +105,26 @@
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
           </div>
-          <p class="drop-zone-primary-text">Drag & drop leaf photo here</p>
-          <p class="drop-zone-subtext">or click to browse from your device</p>
-          <button type="button" id="browse-btn" class="btn btn-secondary">Browse Image</button>
+          <p class="drop-zone-primary-text">Drag & drop your leaf photo here</p>
+          <p class="drop-zone-subtext">or choose a file from your device</p>
+          
+          <div class="drop-zone-actions">
+            <button type="button" id="browse-btn" class="btn btn-primary btn-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Browse Image</span>
+            </button>
+            <button type="button" id="camera-btn" class="btn btn-secondary btn-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>Capture Photo</span>
+            </button>
+          </div>
+
           <input type="file" id="file-input" class="visually-hidden" accept="image/jpeg,image/png,image/webp" aria-label="Choose leaf image file">
-          <p class="drop-zone-hint">Formats: JPEG, PNG, WEBP &bull; Max 10 MB &bull; Max 20 MP</p>
+          <input type="file" id="camera-input" class="visually-hidden" accept="image/*" capture="environment" aria-label="Take leaf image with camera">
+          
+          <div>
+            <span class="drop-zone-hint">JPEG, PNG, WEBP &bull; Max 10 MB &bull; Max 20 MP</span>
+          </div>
         </div>
 
         <!-- State 2: Image Preview & Details (Active when file chosen) -->
@@ -106,7 +149,7 @@
           </div>
 
           <div class="preview-actions">
-            <button type="button" id="analyze-btn" class="btn btn-primary">
+            <button type="button" id="analyze-btn" class="btn btn-primary" style="flex: 1;">
               <span aria-hidden="true">🔬</span>
               <span>Analyze Leaf Specimen</span>
             </button>
@@ -119,7 +162,7 @@
         <!-- State 3: Loading Progress Indicator -->
         <div id="loading-container" class="loading-container hidden" role="status" aria-live="polite">
           <div class="spinner" aria-hidden="true"></div>
-          <h3 class="loading-title">Analyzing Leaf Features...</h3>
+          <h3 class="loading-title">Analyzing Foliar Features...</h3>
           <p class="loading-subtitle">Preprocessing image and computing MobileNetV2 classification scores.</p>
         </div>
       </section>
@@ -131,9 +174,14 @@
             <h2 id="results-card-title" class="card-title">Diagnostic Results</h2>
             <p class="card-description">Model prediction output and class distribution breakdown.</p>
           </div>
-          <button type="button" id="new-scan-btn" class="btn btn-secondary hidden" aria-label="Start a new analysis">
-            <span>New Scan</span>
-          </button>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" id="print-advisory-btn" class="btn btn-secondary btn-sm hidden" aria-label="Print advisory report">
+              <span>🖨️ Print</span>
+            </button>
+            <button type="button" id="new-scan-btn" class="btn btn-secondary btn-sm hidden" aria-label="Start a new analysis">
+              <span>New Scan</span>
+            </button>
+          </div>
         </div>
 
         <!-- Empty State (Shown before any prediction) -->
@@ -143,7 +191,7 @@
             <circle cx="9" cy="9" r="2"/>
             <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
           </svg>
-          <p>Upload a leaf image and click <strong>Analyze</strong> to display classification results.</p>
+          <p>Select a leaf photograph or click an <strong>Instant Test Preset</strong> above to display automated classification results.</p>
         </div>
 
         <!-- Populated Results Content -->
@@ -160,7 +208,7 @@
             </div>
 
             <div class="score-panel">
-              <span class="score-title">Primary Prediction Score</span>
+              <span class="score-title">Primary Prediction Confidence</span>
               <span id="result-score" class="score-metric">0.0%</span>
             </div>
           </div>
@@ -240,10 +288,10 @@
   <footer class="app-footer">
     <div class="footer-container">
       <div>
-        <strong>AI-Based Crop Disease Detection</strong> &bull; Balanced Class-Weighted MobileNetV2
+        <strong>AI-Based Crop Disease Detection System</strong> &bull; Balanced Class-Weighted MobileNetV2
       </div>
       <div>
-        15 Solanaceae Classes &bull; For agronomic educational and screening support
+        15 Solanaceae Classes &bull; Agronomic screening support for Tomato, Potato & Bell Pepper
       </div>
     </div>
   </footer>
