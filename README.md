@@ -81,6 +81,7 @@ Project/
 │   ├── data/                   # dataset + manifest (gitignored)
 │   └── models/                 # checkpoints (gitignored)
 ├── docs/
+│   ├── PROJECT_SUMMARY.md      # Consolidated report for submission and viva
 │   ├── README.md               # Index of the evidence, and how to reproduce it
 │   ├── KNOWLEDGE_BASE.md       # Agronomic record schema and sourcing standard
 │   └── audit_reports/          # Dataset, evaluation, safety and backend audit reports

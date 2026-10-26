@@ -4,6 +4,9 @@ This folder holds the evidence for the project's claims. The top-level
 [`README.md`](../README.md) describes the system; `docs/` records how each number in it was
 measured and what was audited to get there.
 
+- [`PROJECT_SUMMARY.md`](PROJECT_SUMMARY.md) — the consolidated report: problem statement,
+  architecture, dataset engineering, model design, results, backend and knowledge-base design,
+  testing, limitations, and viva preparation. Start here for a submission or a walkthrough.
 - [`KNOWLEDGE_BASE.md`](KNOWLEDGE_BASE.md) — data specification for the 15 agronomic records:
   schema, sourcing standard, and the startup validation rules.
 - [`audit_reports/`](audit_reports/) — measurement and audit reports, indexed below.
