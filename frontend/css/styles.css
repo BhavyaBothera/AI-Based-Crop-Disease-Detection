@@ -6,8 +6,6 @@
 /* ==========================================================================
    Design Tokens & CSS Variables
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
-
 :root {
   /* Brand Botanical Emerald Palette */
   --color-primary: #15803d;
@@ -564,39 +562,49 @@ a:hover {
 
 .samples-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+}
+
+@media (max-width: 540px) {
+  .samples-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .btn-sample {
   background: #ffffff;
   color: var(--color-text-main);
   border: 1px solid rgba(21, 128, 61, 0.22);
-  padding: 0.45rem 0.65rem;
+  padding: 0.5rem 0.65rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
   transition: all var(--transition-fast);
   box-shadow: var(--shadow-xs);
   text-align: left;
+  width: 100%;
 }
 
 .btn-sample:hover {
   background: #ffffff;
   border-color: var(--color-primary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(21, 128, 61, 0.15);
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.18);
 }
 
 .btn-sample img {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-xs);
+  width: 36px !important;
+  height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  border-radius: 6px;
   object-fit: cover;
   border: 1px solid var(--color-border);
   flex-shrink: 0;
+  display: block;
 }
 
 .sample-meta {
