@@ -3,49 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="AI-Based Crop Disease Detection and Treatment Recommendation System for Solanaceae crops: Tomato, Potato, and Bell Pepper using MobileNetV2 deep learning.">
-  <title>Crop Disease Detection & Treatment Recommendation</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M11%2020A7%207%200%200%201%209.8%206.1C15.5%205%2017%204.48%2019%202c1%202%202%204.18%202%208%200%205.5-4.78%2010-10%2010Z'%20fill='%2310B981'/%3E%3C/svg%3E">
+  <meta name="description" content="PHYTOSIGNAL — Commercial-Grade Plant Intelligence Platform for Solanaceae Foliar Disease Screening & IPM Treatment Protocols.">
+  <title>PHYTOSIGNAL — The Future of Plant Intelligence</title>
   
-  <!-- Modern Google Fonts -->
+  <!-- Botanical Leaf Favicon -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M11%2020A7%207%200%200%201%209.8%206.1C15.5%205%2017%204.48%2019%202c1%202%202%204.18%202%208%200%205.5-4.78%2010-10%2010Z'%20fill='%23D7FF3F'/%3E%3C/svg%3E">
+  
+  <!-- Editorial Google Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="css/styles.css?v=2.1">
+  <!-- Tokenized Editorial Design System Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css?v=3.0">
 </head>
 <body>
 
-  <!-- Top Navigation & Header -->
+  <!-- Top Navigation & Brand Header -->
   <header class="app-header">
     <div class="header-container">
       <div class="brand-section">
-        <div class="brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <a href="#" class="brand-glyph" aria-label="PHYTOSIGNAL Home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
             <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
           </svg>
-        </div>
-        <div>
-          <h1 class="brand-title">Crop Disease Detection</h1>
-          <p class="brand-subtitle">AI-Powered Solanaceae Foliar Diagnostic & IPM Recommendation Engine</p>
+        </a>
+        <div class="brand-identity">
+          <h1 class="brand-title">PHYTOSIGNAL</h1>
+          <p class="brand-subtitle">Autonomous Foliar Pathology &bull; Solanaceae Engine</p>
         </div>
       </div>
 
       <div class="header-meta">
-        <div class="crop-chips" aria-label="Supported Crops">
-          <span class="chip-label">Supported:</span>
+        <div class="crop-chips" aria-label="Supported Host Crops">
+          <span class="chip-label">Host Taxa:</span>
           <span class="chip">🍅 Tomato</span>
           <span class="chip">🥔 Potato</span>
           <span class="chip">🫑 Bell Pepper</span>
         </div>
 
-        <button type="button" id="encyclopedia-open-btn" class="btn btn-secondary btn-sm" aria-label="Open Solanaceae Disease Encyclopedia">
+        <button type="button" id="encyclopedia-open-btn" class="nav-action-btn" aria-label="Open Solanaceae Disease Monograph">
           <span aria-hidden="true">📖</span>
-          <span>Disease Encyclopedia</span>
+          <span>Agronomic Monograph</span>
         </button>
 
-        <!-- Backend Readiness Indicator -->
+        <!-- Backend Readiness Indicator Pill -->
         <div id="connection-status" class="status-pill status-checking" role="status" aria-live="polite">
           <span class="status-dot" aria-hidden="true"></span>
           <span id="connection-status-text">Checking backend...</span>
@@ -54,39 +57,71 @@
     </div>
   </header>
 
-  <!-- Hero Intro Section & Performance Statistics -->
-  <section class="hero-section" aria-label="System Overview">
-    <div class="hero-card">
-      <div class="hero-content">
-        <span class="hero-tag">🌱 Agricultural Intelligence &bull; Sem 5 Capstone</span>
-        <h2 class="hero-title">Solanaceae Foliar Health & Pathogen Diagnostic Engine</h2>
-        <p class="hero-description">
-          Automated foliar pathology classification paired with peer-reviewed Integrated Pest Management (IPM) protocols. Powered by a class-balanced MobileNetV2 architecture trained on verified agricultural crop leaves.
+  <!-- Editorial Hero Section ("Every leaf has a story.") -->
+  <section class="hero-section" aria-label="Product Hero & Capabilities">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <div class="hero-kicker">
+          <span class="kicker-pill">Plant Intelligence Platform</span>
+          <span class="kicker-meta">MobileNetV2 Neural Architecture &bull; IPM Guidance</span>
+        </div>
+        <h2 class="hero-headline">
+          Every leaf has a story.<br>
+          <span class="hero-headline-accent">Read the signals.</span>
+        </h2>
+        <p class="hero-standfirst">
+          Precision foliar pathology classification paired with peer-reviewed Integrated Pest Management (IPM) protocols. Screen Solanaceae crops with sub-100ms inference and grounded diagnostic transparency.
         </p>
+        <div class="hero-actions">
+          <a href="#workspace" id="hero-cta-btn" class="btn btn-primary btn-lg">
+            <span aria-hidden="true">🔬</span>
+            <span>Analyze a Leaf</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </a>
+          <button type="button" id="hero-how-it-works-btn" class="btn btn-secondary btn-lg">
+            <span aria-hidden="true">ℹ️</span>
+            <span>How It Works</span>
+          </button>
+        </div>
       </div>
-      <div class="hero-stats">
-        <div class="stat-item">
-          <span class="stat-value">15</span>
-          <span class="stat-label">Crop Conditions</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">96.86%</span>
-          <span class="stat-label">Macro-F1 Score</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">2.26M</span>
-          <span class="stat-label">Neural Weights</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">&lt; 100ms</span>
-          <span class="stat-label">Inference Time</span>
+
+      <!-- Hero Specimen Framing Stage -->
+      <div class="hero-specimen-stage" aria-hidden="true">
+        <div class="specimen-frame">
+          <div class="specimen-frame-header">
+            <span class="frame-mono-tag">SPECIMEN ARCHIVE &bull; ID #SOL-POT-002</span>
+            <span class="frame-status-dot" title="Neural Sensor Calibrated"></span>
+          </div>
+          <div class="specimen-visual">
+            <img class="specimen-hero-img" src="samples/sample_potato_early_blight.jpg" alt="Potato early blight reference specimen" width="340" height="340">
+            <div class="specimen-reticle">
+              <span class="reticle-target"></span>
+              <span class="reticle-label">Target: Early Blight (A. solani)</span>
+            </div>
+          </div>
+          <div class="specimen-frame-footer">
+            <div class="specimen-stat">
+              <span class="stat-num">15</span>
+              <span class="stat-desc">Target Classes</span>
+            </div>
+            <div class="specimen-stat">
+              <span class="stat-num">96.86%</span>
+              <span class="stat-desc">Macro-F1 Score</span>
+            </div>
+            <div class="specimen-stat">
+              <span class="stat-num">&lt; 100ms</span>
+              <span class="stat-desc">Latency</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Main Application Body -->
-  <main class="app-container">
+  <!-- Main Analysis Workspace -->
+  <main id="workspace" class="app-container">
 
     <!-- Dismissible Alert Banner -->
     <div id="alert-banner" class="alert alert-error hidden" role="alert" aria-live="assertive">
@@ -98,15 +133,15 @@
       <button id="alert-dismiss-btn" type="button" class="alert-close" aria-label="Dismiss alert">&times;</button>
     </div>
 
-    <!-- Main Two-Column Grid -->
+    <!-- Main Two-Column Analysis Grid -->
     <div class="main-grid">
 
       <!-- Column 1: Image Upload & Preview Card -->
       <section class="card" aria-labelledby="upload-card-title">
         <div class="card-header">
           <div>
-            <h2 id="upload-card-title" class="card-title">Leaf Specimen Upload</h2>
-            <p class="card-description">Upload a close-up photograph of a single foliar leaf for automated neural analysis.</p>
+            <h2 id="upload-card-title" class="card-title">Foliar Specimen Upload</h2>
+            <p class="card-description">Submit a high-resolution close-up photograph of a single foliar leaf for automated neural diagnostic evaluation.</p>
           </div>
         </div>
 
@@ -114,32 +149,32 @@
         <div class="samples-bar">
           <div class="samples-header">
             <span class="samples-title">⚡ Instant Test Presets</span>
-            <span class="samples-hint">Click a real leaf specimen to test immediately</span>
+            <span class="samples-hint">Load real verified leaf specimens</span>
           </div>
           <div class="samples-grid">
             <button type="button" class="btn-sample" data-sample="sample_potato_early_blight.jpg" data-crop="Potato" data-condition="Early Blight" title="Load Potato Early Blight specimen">
-              <img src="samples/sample_potato_early_blight.jpg" alt="Potato early blight thumbnail" width="36" height="36" style="width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0;">
+              <img src="samples/sample_potato_early_blight.jpg" alt="Potato early blight thumbnail" width="36" height="36" class="sample-thumbnail">
               <div class="sample-meta">
                 <span class="sample-name">Early Blight</span>
                 <span class="sample-crop">🥔 Potato</span>
               </div>
             </button>
             <button type="button" class="btn-sample" data-sample="sample_tomato_bacterial_spot.jpg" data-crop="Tomato" data-condition="Bacterial Spot" title="Load Tomato Bacterial Spot specimen">
-              <img src="samples/sample_tomato_bacterial_spot.jpg" alt="Tomato bacterial spot thumbnail" width="36" height="36" style="width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0;">
+              <img src="samples/sample_tomato_bacterial_spot.jpg" alt="Tomato bacterial spot thumbnail" width="36" height="36" class="sample-thumbnail">
               <div class="sample-meta">
                 <span class="sample-name">Bacterial Spot</span>
                 <span class="sample-crop">🍅 Tomato</span>
               </div>
             </button>
             <button type="button" class="btn-sample" data-sample="sample_pepper_healthy.jpg" data-crop="Bell Pepper" data-condition="Healthy" title="Load Healthy Bell Pepper specimen">
-              <img src="samples/sample_pepper_healthy.jpg" alt="Healthy bell pepper thumbnail" width="36" height="36" style="width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0;">
+              <img src="samples/sample_pepper_healthy.jpg" alt="Healthy bell pepper thumbnail" width="36" height="36" class="sample-thumbnail">
               <div class="sample-meta">
                 <span class="sample-name">Healthy Leaf</span>
                 <span class="sample-crop">🫑 Pepper</span>
               </div>
             </button>
-            <button type="button" data-sample="sample_tomato_curl.jpg" data-crop="Tomato" data-condition="Yellow Leaf Curl Virus" class="btn-sample" title="Load Tomato Yellow Leaf Curl Virus specimen">
-              <img src="samples/sample_tomato_curl.jpg" alt="Tomato leaf curl virus thumbnail" width="36" height="36" style="width: 36px; height: 36px; object-fit: cover; border-radius: 6px; flex-shrink: 0;">
+            <button type="button" class="btn-sample" data-sample="sample_tomato_curl.jpg" data-crop="Tomato" data-condition="Yellow Leaf Curl Virus" title="Load Tomato Yellow Leaf Curl Virus specimen">
+              <img src="samples/sample_tomato_curl.jpg" alt="Tomato leaf curl virus thumbnail" width="36" height="36" class="sample-thumbnail">
               <div class="sample-meta">
                 <span class="sample-name">Leaf Curl Virus</span>
                 <span class="sample-crop">🍅 Tomato</span>
@@ -157,13 +192,13 @@
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
           </div>
-          <p class="drop-zone-primary-text">Drag & drop your leaf photo here</p>
-          <p class="drop-zone-subtext">or choose a file from your device</p>
+          <p class="drop-zone-primary-text">Drag & drop your foliar specimen here</p>
+          <p class="drop-zone-subtext">or select a high-resolution file from your device</p>
           
           <div class="drop-zone-actions">
             <button type="button" id="browse-btn" class="btn btn-primary btn-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span>Browse Image</span>
+              <span>Browse File</span>
             </button>
             <button type="button" id="camera-btn" class="btn btn-secondary btn-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -175,7 +210,7 @@
           <input type="file" id="camera-input" class="visually-hidden" accept="image/*" capture="environment" aria-label="Take leaf image with camera">
           
           <div>
-            <span class="drop-zone-hint">JPEG, PNG, WEBP &bull; Max 10 MB &bull; Max 20 MP</span>
+            <span class="drop-zone-hint">JPEG, PNG, WEBP &bull; Max 10 MB &bull; Up to 20 Megapixels</span>
           </div>
         </div>
 
@@ -191,7 +226,7 @@
               <span id="meta-filename" class="meta-value">&mdash;</span>
             </div>
             <div class="meta-item">
-              <span class="meta-label">Dimensions</span>
+              <span class="meta-label">Resolution</span>
               <span id="meta-dimensions" class="meta-value">&mdash;</span>
             </div>
             <div class="meta-item">
@@ -203,7 +238,7 @@
           <div class="preview-actions">
             <button type="button" id="analyze-btn" class="btn btn-primary" style="flex: 1;">
               <span aria-hidden="true">🔬</span>
-              <span>Analyze Leaf Specimen</span>
+              <span>Analyze Foliar Specimen</span>
             </button>
             <button type="button" id="remove-btn" class="btn btn-outline-danger">
               <span>Change Image</span>
@@ -214,8 +249,8 @@
         <!-- State 3: Loading Progress Indicator -->
         <div id="loading-container" class="loading-container hidden" role="status" aria-live="polite">
           <div class="spinner" aria-hidden="true"></div>
-          <h3 class="loading-title">Analyzing Foliar Features...</h3>
-          <p class="loading-subtitle">Preprocessing image and computing MobileNetV2 classification scores.</p>
+          <h3 class="loading-title">Evaluating Foliar Morphology...</h3>
+          <p class="loading-subtitle">Executing MobileNetV2 neural inference and matching agronomic IPM knowledge base.</p>
         </div>
       </section>
 
@@ -223,8 +258,8 @@
       <section class="card results-card" aria-labelledby="results-card-title">
         <div class="card-header">
           <div>
-            <h2 id="results-card-title" class="card-title">Diagnostic Results</h2>
-            <p class="card-description">Model prediction output and class distribution breakdown.</p>
+            <h2 id="results-card-title" class="card-title">Diagnostic Evaluation</h2>
+            <p class="card-description">Neural classification outputs, candidate probabilities, and agronomic management protocols.</p>
           </div>
           <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
             <button type="button" id="copy-guidance-btn" class="btn btn-secondary btn-sm hidden" aria-label="Copy IPM advisory to clipboard">
@@ -246,23 +281,23 @@
             <circle cx="9" cy="9" r="2"/>
             <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
           </svg>
-          <p>Select a foliar photograph or click an <strong>Instant Test Preset</strong> above to trigger neural classification and view disease treatment recommendations.</p>
+          <p>Upload a clear foliar photograph or select an <strong>Instant Test Preset</strong> to initiate neural pathology classification and access authoritative Integrated Pest Management guidance.</p>
 
           <div class="empty-steps-container">
             <div class="empty-step">
               <span class="empty-step-icon">📸</span>
-              <strong class="empty-step-title">1. Capture or Select</strong>
-              <span class="empty-step-desc">Clear single-leaf image with uniform natural illumination</span>
+              <strong class="empty-step-title">1. Capture Specimen</strong>
+              <span class="empty-step-desc">Clear single-leaf image under uniform natural daylight</span>
             </div>
             <div class="empty-step">
               <span class="empty-step-icon">⚡</span>
-              <strong class="empty-step-title">2. Edge Inference</strong>
-              <span class="empty-step-desc">MobileNetV2 analyzes foliar lesion patterns in &lt;100ms</span>
+              <strong class="empty-step-title">2. Neural Analysis</strong>
+              <span class="empty-step-desc">Class-weighted MobileNetV2 evaluates foliar lesion vectors in &lt;100ms</span>
             </div>
             <div class="empty-step">
               <span class="empty-step-icon">📋</span>
-              <strong class="empty-step-title">3. IPM Protocols</strong>
-              <span class="empty-step-desc">Access biological, cultural & chemical control measures</span>
+              <strong class="empty-step-title">3. Actionable IPM</strong>
+              <span class="empty-step-desc">Access non-chemical, cultural, and chemical management principles</span>
             </div>
           </div>
         </div>
@@ -357,17 +392,63 @@
     </div>
   </main>
 
-  <!-- Footer -->
-  <footer class="app-footer">
-    <div class="footer-container">
-      <div>
-        <strong>AI-Based Crop Disease Detection System</strong> &bull; Balanced Class-Weighted MobileNetV2
+  <!-- How It Works Educational Modal -->
+  <div id="how-it-works-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="how-it-works-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="how-it-works-title" class="modal-title">
+          <span>🔬</span>
+          <span>How PHYTOSIGNAL Works</span>
+        </h3>
+        <button type="button" id="how-it-works-close-btn" class="modal-close-btn" aria-label="Close modal">&times;</button>
       </div>
-      <div>
-        15 Solanaceae Classes &bull; Agronomic screening support for Tomato, Potato & Bell Pepper
+      <div class="modal-body">
+        <div class="knowledge-block">
+          <h4 class="knowledge-block-title">
+            <span>🌿</span>
+            <span>1. Foliar Input Standardization</span>
+          </h4>
+          <p class="knowledge-text">
+            The platform ingests JPEG, PNG, and WebP foliar images up to 10 MB and 20 megapixels. The input image is preprocessed deterministically: bounded memory allocation, decompression bomb safeguards, aspect-ratio preservation, and normalization to 224&times;224 RGB tensors.
+          </p>
+        </div>
+
+        <div class="knowledge-block">
+          <h4 class="knowledge-block-title">
+            <span>⚡</span>
+            <span>2. MobileNetV2 Neural Feature Extraction</span>
+          </h4>
+          <p class="knowledge-text">
+            A class-weighted MobileNetV2 architecture with depthwise separable convolutions analyzes hierarchical lesion features (chlorosis, necrotic spots, concentric rings, pustules, vascular browning). Inference executes with sub-100ms latency on CPU, generating distribution scores across 15 trained Solanaceae classes.
+          </p>
+        </div>
+
+        <div class="knowledge-block">
+          <h4 class="knowledge-block-title">
+            <span>⚖️</span>
+            <span>3. Closed-World Softmax Distribution</span>
+          </h4>
+          <p class="knowledge-text">
+            Output scores represent relative softmax distribution across the 15 registered classes under closed-world assumptions. They do not constitute calibrated statistical certainties. The top-3 candidate classes are always surfaced to ensure diagnostic transparency.
+          </p>
+        </div>
+
+        <div class="knowledge-block">
+          <h4 class="knowledge-block-title">
+            <span>📋</span>
+            <span>4. Grounded IPM Knowledge Base Integration</span>
+          </h4>
+          <p class="knowledge-text">
+            Each condition is linked to peer-reviewed Integrated Pest Management (IPM) protocols. The system provides causal pathogen taxonomy, foliar symptom summaries, environmental transmission factors, non-chemical & cultural controls, and cautious chemical principles.
+          </p>
+        </div>
+
+        <div class="knowledge-callout knowledge-callout-warning">
+          <strong>Advisory Limitation:</strong> PHYTOSIGNAL is an automated foliar screening assistant, not a definitive agronomic laboratory diagnosis. Always consult certified agricultural extension specialists before applying pesticide interventions.
+        </div>
       </div>
     </div>
-  </footer>
+  </div>
 
   <!-- Disease Encyclopedia Modal Dialog -->
   <div id="encyclopedia-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="encyclopedia-title">
@@ -375,7 +456,7 @@
       <div class="modal-header">
         <h3 id="encyclopedia-title" class="modal-title">
           <span>🌿</span>
-          <span>Solanaceae Disease Encyclopedia</span>
+          <span>Solanaceae Disease Monograph & Encyclopedia</span>
         </h3>
         <button type="button" id="encyclopedia-close-btn" class="modal-close-btn" aria-label="Close encyclopedia">&times;</button>
       </div>
@@ -425,8 +506,23 @@
     <span id="toast-message">Copied to clipboard</span>
   </div>
 
+  <!-- Professional Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <span class="footer-logo">PHYTOSIGNAL</span>
+        <span class="footer-tagline">Autonomous Foliar Pathology &bull; Plant Intelligence Platform</span>
+      </div>
+      <div class="footer-meta">
+        <span>Solanaceae Host Taxa: <em>Solanum lycopersicum</em> (Tomato), <em>Solanum tuberosum</em> (Potato), <em>Capsicum annuum</em> (Bell Pepper)</span>
+        <span>Screening model: Balanced Class-Weighted MobileNetV2 (15 classes, 2.26M params)</span>
+        <span class="footer-disclaimer">Diagnostic Advisory: AI predictions are screening indications under closed-world assumptions. Always verify with official agricultural extension services before executing chemical or field management interventions.</span>
+      </div>
+    </div>
+  </footer>
+
   <!-- Scripts -->
-  <script src="js/api.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/api.js?v=3.1"></script>
+  <script src="js/app.js?v=3.1"></script>
 </body>
 </html>

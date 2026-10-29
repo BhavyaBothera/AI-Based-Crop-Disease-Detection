@@ -103,6 +103,12 @@
     toast: document.getElementById('toast'),
     toastMessage: document.getElementById('toast-message'),
     toastIcon: document.getElementById('toast-icon'),
+
+    // Hero & Educational Modal Elements
+    heroCtaBtn: document.getElementById('hero-cta-btn'),
+    heroHowItWorksBtn: document.getElementById('hero-how-it-works-btn'),
+    howItWorksModal: document.getElementById('how-it-works-modal'),
+    howItWorksCloseBtn: document.getElementById('how-it-works-close-btn'),
   };
 
   // ==========================================================================
@@ -755,8 +761,8 @@
     metaSummaryRow.style.gap = '0.5rem';
 
     const metaTitle = document.createElement('strong');
-    metaTitle.style.fontSize = '1.05rem';
-    metaTitle.style.color = 'var(--color-text-main)';
+    metaTitle.className = 'knowledge-overview-title';
+    metaTitle.style.color = '#11120F';
     metaTitle.textContent = `${data.crop || 'Crop'} \u2014 ${data.condition || 'Condition'}`;
     metaSummaryRow.appendChild(metaTitle);
 
@@ -1144,13 +1150,54 @@
       });
     }
 
+    // Hero & Educational Modal Handlers
+    if (elements.heroCtaBtn) {
+      elements.heroCtaBtn.addEventListener('click', (e) => {
+        const workspace = document.getElementById('workspace');
+        if (workspace) {
+          e.preventDefault();
+          workspace.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    }
+
+    if (elements.heroHowItWorksBtn && elements.howItWorksModal) {
+      elements.heroHowItWorksBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.howItWorksModal.classList.remove('hidden');
+      });
+    }
+
+    if (elements.howItWorksCloseBtn && elements.howItWorksModal) {
+      elements.howItWorksCloseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.howItWorksModal.classList.add('hidden');
+      });
+    }
+
+    if (elements.howItWorksModal) {
+      elements.howItWorksModal.addEventListener('click', (e) => {
+        if (e.target === elements.howItWorksModal) {
+          elements.howItWorksModal.classList.add('hidden');
+        }
+      });
+    }
+
+    // Keyboard handlers (Escape to close modals)
     document.addEventListener('keydown', (e) => {
-      if (
-        e.key === 'Escape' &&
-        elements.encyclopediaModal &&
-        !elements.encyclopediaModal.classList.contains('hidden')
-      ) {
-        closeEncyclopediaModal();
+      if (e.key === 'Escape') {
+        if (
+          elements.encyclopediaModal &&
+          !elements.encyclopediaModal.classList.contains('hidden')
+        ) {
+          closeEncyclopediaModal();
+        }
+        if (
+          elements.howItWorksModal &&
+          !elements.howItWorksModal.classList.contains('hidden')
+        ) {
+          elements.howItWorksModal.classList.add('hidden');
+        }
       }
     });
 
