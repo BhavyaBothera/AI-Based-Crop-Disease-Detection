@@ -22,6 +22,107 @@ class ApiError extends Error {
 }
 
 /**
+ * Raised when the backend declines to classify an upload because the image could not
+ * be verified as a supported crop leaf (status 'rejected') or was too ambiguous or
+ * low-quality to assess (status 'abstained').
+ *
+ * This is deliberately distinct from a transport, upload or service error: callers must
+ * render a rejection state and must never treat it as a diagnosis.
+ */
+class InputRejectedError extends ApiError {
+  constructor(payload = {}, status = 422) {
+    const message =
+      typeof payload.message === 'string' && payload.message.trim()
+        ? payload.message.trim()
+        : "We couldn't verify that this image contains a supported crop leaf.";
+    super(message, status, payload);
+    this.name = 'InputRejectedError';
+    this.statusText = payload.status === 'abstained' ? 'abstained' : 'rejected';
+    this.code = typeof payload.code === 'string' ? payload.code : 'INPUT_NOT_VERIFIED';
+    this.category = typeof payload.category === 'string' ? payload.category : 'ambiguous_image';
+    this.detailMessage = typeof payload.detail === 'string' ? payload.detail : '';
+    this.signals = payload.signals && typeof payload.signals === 'object' ? payload.signals : {};
+  }
+}
+
+/**
+ * Reads a JSON error body once. Returns null when the body is absent or not JSON.
+ */
+async function readJsonPayload(response) {
+  try {
+    const contentType = response?.headers?.get('content-type') || '';
+    if (!contentType.includes('application/json')) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Maps an HTTP status to the fallback user-facing message used when the server did not
+ * provide a usable detail string.
+ */
+function statusFallbackMessage(status) {
+  switch (status) {
+    case 400:
+      return 'The submitted file is invalid, corrupt, or unsupported. Please check the image format and resolution.';
+    case 404:
+      return 'The requested API endpoint was not found on the server.';
+    case 408:
+      return 'Request timed out. The server took too long to respond. Please try again.';
+    case 413:
+      return 'The selected file is too large. Uploads must not exceed 10 MB.';
+    case 502:
+      return 'Bad gateway. The upstream inference engine is unavailable. Please verify the backend service.';
+    case 503:
+      return 'The model inference service is currently initializing or unavailable. Please wait a moment and try again.';
+    case 504:
+      return 'Gateway timeout. The server took too long to complete processing.';
+    case 500:
+      return 'An unexpected server error occurred during inference. Please try again or select another image.';
+    default:
+      return status
+        ? `Server returned an error (HTTP ${status}). Please try again.`
+        : 'An unexpected communication error occurred. Please try again.';
+  }
+}
+
+/**
+ * Extracts the best available user-facing message from a parsed error payload.
+ */
+function messageFromPayload(data, status) {
+  if (data && typeof data.detail === 'string' && data.detail.trim()) {
+    return data.detail.trim();
+  }
+  if (
+    data &&
+    data.detail &&
+    typeof data.detail === 'object' &&
+    typeof data.detail.message === 'string' &&
+    data.detail.message.trim()
+  ) {
+    return data.detail.message.trim();
+  }
+  if (data && typeof data.message === 'string' && data.message.trim()) {
+    return data.message.trim();
+  }
+  return statusFallbackMessage(status);
+}
+
+/**
+ * Converts a structured content-gate response into an InputRejectedError, or null when
+ * the response is an ordinary upload/service error.
+ */
+function buildInputRejectionError(data, status) {
+  if (!data || typeof data !== 'object') return null;
+  const detail = data.detail;
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return null;
+  if (detail.status !== 'rejected' && detail.status !== 'abstained') return null;
+  if (typeof detail.code !== 'string') return null;
+  return new InputRejectedError(detail, status);
+}
+
+/**
  * Performs a fetch request with timeout protection via AbortController.
  *
  * @param {string} endpoint Relative or absolute URL
@@ -66,47 +167,8 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 25000) {
  * @returns {Promise<string>} Clean error description
  */
 async function parseErrorResponse(response) {
-  let detailMessage = '';
-  try {
-    const contentType = response?.headers?.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      const data = await response.json();
-      if (data && typeof data.detail === 'string' && data.detail.trim()) {
-        detailMessage = data.detail.trim();
-      } else if (data && typeof data.message === 'string' && data.message.trim()) {
-        detailMessage = data.message.trim();
-      }
-    }
-  } catch {
-    // If parsing fails, detailMessage stays empty and falls back to safe status mapping
-  }
-
-  if (detailMessage) {
-    return detailMessage;
-  }
-
-  switch (response?.status) {
-    case 400:
-      return 'The submitted file is invalid, corrupt, or unsupported. Please check the image format and resolution.';
-    case 404:
-      return 'The requested API endpoint was not found on the server.';
-    case 408:
-      return 'Request timed out. The server took too long to respond. Please try again.';
-    case 413:
-      return 'The selected file is too large. Uploads must not exceed 10 MB.';
-    case 502:
-      return 'Bad gateway. The upstream inference engine is unavailable. Please verify the backend service.';
-    case 503:
-      return 'The model inference service is currently initializing or unavailable. Please wait a moment and try again.';
-    case 504:
-      return 'Gateway timeout. The server took too long to complete processing.';
-    case 500:
-      return 'An unexpected server error occurred during inference. Please try again or select another image.';
-    default:
-      return response?.status
-        ? `Server returned an error (HTTP ${response.status}). Please try again.`
-        : 'An unexpected communication error occurred. Please try again.';
-  }
+  const data = await readJsonPayload(response);
+  return messageFromPayload(data, response?.status);
 }
 
 /**
@@ -187,15 +249,21 @@ async function predictCropDisease(file) {
   );
 
   if (!response.ok) {
-    const message = await parseErrorResponse(response);
-    throw new ApiError(message, response.status);
+    const data = await readJsonPayload(response);
+    const rejection = buildInputRejectionError(data, response.status);
+    if (rejection) throw rejection;
+    throw new ApiError(messageFromPayload(data, response.status), response.status, data?.detail ?? null);
   }
 
   const result = await response.json();
 
-  // Validate response contract integrity
+  // Validate response contract integrity. A response is only treated as a diagnosis when
+  // it carries a complete, well-formed prediction contract.
   if (
     typeof result.predicted_class_id !== 'number' ||
+    !Number.isInteger(result.predicted_class_id) ||
+    result.predicted_class_id < 0 ||
+    result.predicted_class_id > 14 ||
     !Array.isArray(result.top_predictions) ||
     result.top_predictions.length !== 3 ||
     typeof result.disclaimer !== 'string'
@@ -241,6 +309,7 @@ if (typeof window !== 'undefined') {
   window.CropDiseaseApi = {
     API_BASE_URL,
     ApiError,
+    InputRejectedError,
     checkHealth,
     checkReady,
     predictCropDisease,
@@ -253,6 +322,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     API_BASE_URL,
     ApiError,
+    InputRejectedError,
     fetchWithTimeout,
     parseErrorResponse,
     checkHealth,

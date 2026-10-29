@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Tokenized Editorial Design System Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=3.0">
+  <link rel="stylesheet" href="css/styles.css?v=3.2">
 </head>
 <body>
 
@@ -302,6 +302,42 @@
           </div>
         </div>
 
+        <!-- Unsupported / Abstained Input State (no diagnosis is produced) -->
+        <div id="results-rejected" class="rejection-state hidden" role="status" aria-live="polite">
+          <div class="rejection-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
+              <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+              <line x1="3" y1="3" x2="21" y2="21"/>
+            </svg>
+          </div>
+
+          <span id="rejection-badge" class="badge badge-warning">Image not verified</span>
+
+          <h3 id="rejection-headline" class="rejection-headline">
+            We couldn't verify that this image contains a supported crop leaf.
+          </h3>
+          <p id="rejection-detail" class="rejection-detail"></p>
+
+          <div class="rejection-guidance">
+            <strong>For a reliable screening</strong>
+            <ul>
+              <li>Photograph a single tomato, potato or bell pepper leaf close up.</li>
+              <li>Fill most of the frame with the leaf; avoid wide garden or landscape shots.</li>
+              <li>Use even daylight and avoid deep shadow, glare and heavy motion blur.</li>
+            </ul>
+          </div>
+
+          <button type="button" id="rejection-action-btn" class="btn btn-primary">
+            <span aria-hidden="true">↺</span>
+            <span>Upload another image</span>
+          </button>
+
+          <p class="rejection-note">
+            No diagnosis, candidate list or treatment guidance is produced for this image.
+          </p>
+        </div>
+
         <!-- Populated Results Content -->
         <div id="results-content" class="hidden" aria-live="polite">
 
@@ -316,7 +352,7 @@
             </div>
 
             <div class="score-panel">
-              <span class="score-title">Primary Prediction Confidence</span>
+              <span class="score-title">Primary Model Score (Softmax)</span>
               <span id="result-score" class="score-metric">0.0%</span>
             </div>
           </div>
@@ -522,7 +558,7 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="js/api.js?v=3.1"></script>
-  <script src="js/app.js?v=3.1"></script>
+  <script src="js/api.js?v=3.2"></script>
+  <script src="js/app.js?v=3.2"></script>
 </body>
 </html>

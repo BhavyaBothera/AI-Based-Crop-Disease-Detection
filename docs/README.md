@@ -26,11 +26,14 @@ measured and what was audited to get there.
 | [`audit_reports/test_evaluation_integrity_audit.md`](audit_reports/test_evaluation_integrity_audit.md) | Integrity audit of that evaluation — that the test split was untouched and the reported metrics reproducible | Confirms one-shot evaluation, no test-time selection |
 | [`audit_reports/phase5b_ood_policy_verification.md`](audit_reports/phase5b_ood_policy_verification.md) | Whether an out-of-distribution gate could reject unsupported crops | **Rejected**: embedding-centroid gate gave 56 % false-accept on unsupported crops and 5.8–7.6 % false rejection of valid diseased leaves |
 | [`audit_reports/phase5b_level_a_final_validation_audit.md`](audit_reports/phase5b_level_a_final_validation_audit.md) | That the input-safety thresholds reject no legitimate samples, plus the upload-limit and concurrency measurements behind `config.py` | σ ≤ 2.0 vs. empirical minimum σ = 11.31 over 3,418 validation images (5.65× margin); 20 MP natural PNG = 60 MB → rejected at the 10 MB stream gate |
+| [`audit_reports/non_leaf_input_safety_report.md`](audit_reports/non_leaf_input_safety_report.md) | Why a non-leaf photograph received a diagnosis, and the layered gate that now rejects/abstains before inference | 0.12 % valid-leaf no-diagnosis (2/1,657, disjoint half); 44.6 % of 558 real non-leaf photographs rejected/abstained; measured FAR 55.4 % on foliage scenes and 99.0 % acceptance of unsupported crops are documented limits |
 | [`audit_reports/backend_phase3b_implementation.md`](audit_reports/backend_phase3b_implementation.md) | Knowledge-base service design: Pydantic schemas, validation rules, `/api/knowledge/{id}` contract and error codes | 15 records validated at startup; sanitized 404/422/503 |
 
 Both `.md` and `.json` variants exist for the generated reports. The Markdown is for reading;
 the JSON is the machine-readable output of the script that produced it, kept so results can
-be diffed rather than re-measured.
+be diffed rather than re-measured. The input-gate numbers live in
+[`audit_reports/non_leaf_input_safety_eval.json`](audit_reports/non_leaf_input_safety_eval.json)
+and are produced by `ml/scripts/evaluate_input_gate.py`.
 
 ---
 
@@ -53,10 +56,13 @@ The dataset, training, and evaluation numbers can be regenerated from `ml/script
 
 # 5. One-shot held-out test evaluation
 .venv/Scripts/python.exe ml/scripts/evaluate_test_set.py
+
+# 6. Input-gate evaluation (real non-leaf photographs + post-hoc synthetic probes)
+.venv/Scripts/python.exe ml/scripts/evaluate_input_gate.py
 ```
 
-The full suite is described in the top-level README: 49 backend tests, 22 ML pipeline tests,
-28 frontend tests.
+The full suite is described in the top-level README: 75 backend tests, 22 ML pipeline tests,
+35 frontend API tests, and a headless Chrome end-to-end suite.
 
 ### A note on removed measurement scripts
 

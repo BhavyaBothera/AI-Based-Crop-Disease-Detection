@@ -1,0 +1,331 @@
+{
+  "generated_at": "2026-10-29T18:11:47.605622+00:00",
+  "gate": "backend.app.services.input_gate",
+  "dataset_isolation": {
+    "test_split_rows_untouched": 3413,
+    "supported_leaves_source": "val split (non-test)",
+    "non_leaf_source": "excluded Background_without_leaves photographs",
+    "synthetic_probes": "generated after the gate thresholds were fixed",
+    "caveat": "The real non-leaf photographs were inspected during threshold selection, so they are an exploratory diagnostic set, not a clean untouched OOD benchmark."
+  },
+  "calibration": {
+    "supported_leaf_calibration_half": {
+      "n": 1761,
+      "accepted": 1761,
+      "rejected": 0,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 1.0,
+      "no_diagnosis_rate": 0.0,
+      "reasons": {},
+      "valid_leaf_no_diagnosis_rate": 0.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "real_non_leaf_calibration_half": {
+      "n": 585,
+      "accepted": 330,
+      "rejected": 93,
+      "abstained": 162,
+      "decode_errors": 0,
+      "acceptance_rate": 0.5641,
+      "no_diagnosis_rate": 0.4359,
+      "reasons": {
+        "NON_LEAF_IMAGE": 93,
+        "SPARSE_PLANT_EVIDENCE": 158,
+        "SCATTERED_PLANT_EVIDENCE": 4
+      },
+      "false_acceptance_rate": 0.5641
+    },
+    "plant_evidence_threshold_sweep": [
+      {
+        "threshold": 0.005,
+        "calibration_leaf_below_rate": 0.0,
+        "calibration_background_below_rate": 0.106
+      },
+      {
+        "threshold": 0.01,
+        "calibration_leaf_below_rate": 0.0,
+        "calibration_background_below_rate": 0.159
+      },
+      {
+        "threshold": 0.02,
+        "calibration_leaf_below_rate": 0.0,
+        "calibration_background_below_rate": 0.2154
+      },
+      {
+        "threshold": 0.03,
+        "calibration_leaf_below_rate": 0.0,
+        "calibration_background_below_rate": 0.2667
+      },
+      {
+        "threshold": 0.05,
+        "calibration_leaf_below_rate": 0.0,
+        "calibration_background_below_rate": 0.3299
+      },
+      {
+        "threshold": 0.08,
+        "calibration_leaf_below_rate": 0.0,
+        "calibration_background_below_rate": 0.4291
+      },
+      {
+        "threshold": 0.1,
+        "calibration_leaf_below_rate": 0.0023,
+        "calibration_background_below_rate": 0.4701
+      },
+      {
+        "threshold": 0.15,
+        "calibration_leaf_below_rate": 0.0097,
+        "calibration_background_below_rate": 0.5795
+      }
+    ]
+  },
+  "evaluation": {
+    "supported_leaf_val_evaluation_half": {
+      "n": 1657,
+      "accepted": 1655,
+      "rejected": 0,
+      "abstained": 2,
+      "decode_errors": 0,
+      "acceptance_rate": 0.9988,
+      "no_diagnosis_rate": 0.0012,
+      "reasons": {
+        "SPARSE_PLANT_EVIDENCE": 2
+      },
+      "valid_leaf_no_diagnosis_rate": 0.0012,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "real_non_leaf_scene_photographs": {
+      "n": 558,
+      "accepted": 309,
+      "rejected": 88,
+      "abstained": 161,
+      "decode_errors": 0,
+      "acceptance_rate": 0.5538,
+      "no_diagnosis_rate": 0.4462,
+      "reasons": {
+        "SPARSE_PLANT_EVIDENCE": 160,
+        "NON_LEAF_IMAGE": 88,
+        "SCATTERED_PLANT_EVIDENCE": 1
+      },
+      "false_acceptance_rate": 0.5538
+    },
+    "unsupported_crop_leaves": {
+      "n": 480,
+      "accepted": 475,
+      "rejected": 1,
+      "abstained": 4,
+      "decode_errors": 0,
+      "acceptance_rate": 0.9896,
+      "no_diagnosis_rate": 0.0104,
+      "reasons": {
+        "SPARSE_PLANT_EVIDENCE": 4,
+        "NON_LEAF_IMAGE": 1
+      },
+      "valid_leaf_no_diagnosis_rate": 0.0104,
+      "valid_leaf_hard_rejection_rate": 0.0021
+    },
+    "person": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 1,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "NON_LEAF_IMAGE": 1
+      },
+      "false_acceptance_rate": 0.0
+    },
+    "animal": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 1,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "NON_LEAF_IMAGE": 1
+      },
+      "false_acceptance_rate": 0.0
+    },
+    "building": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 1,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "NON_LEAF_IMAGE": 1
+      },
+      "false_acceptance_rate": 0.0
+    },
+    "document": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 1,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "NON_LEAF_IMAGE": 1
+      },
+      "false_acceptance_rate": 0.0
+    },
+    "random_object": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 1,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "NON_LEAF_IMAGE": 1
+      },
+      "false_acceptance_rate": 0.0
+    },
+    "screenshot_or_graphic": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 0,
+      "abstained": 1,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "SPARSE_PLANT_EVIDENCE": 1
+      },
+      "false_acceptance_rate": 0.0
+    },
+    "uniform_constant_colour": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 1,
+      "abstained": 0,
+      "decode_errors": 1,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "PHYSICAL_LAYER_REJECTION": 1
+      },
+      "false_acceptance_rate": 0.0
+    },
+    "supported_leaf": {
+      "n": 1,
+      "accepted": 1,
+      "rejected": 0,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 1.0,
+      "no_diagnosis_rate": 0.0,
+      "reasons": {},
+      "valid_leaf_no_diagnosis_rate": 0.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "multiple_leaves": {
+      "n": 1,
+      "accepted": 1,
+      "rejected": 0,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 1.0,
+      "no_diagnosis_rate": 0.0,
+      "reasons": {},
+      "valid_leaf_no_diagnosis_rate": 0.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "complex_background_leaf": {
+      "n": 1,
+      "accepted": 1,
+      "rejected": 0,
+      "abstained": 0,
+      "decode_errors": 0,
+      "acceptance_rate": 1.0,
+      "no_diagnosis_rate": 0.0,
+      "reasons": {},
+      "valid_leaf_no_diagnosis_rate": 0.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "sparse_vegetation": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 0,
+      "abstained": 1,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "SPARSE_PLANT_EVIDENCE": 1
+      },
+      "valid_leaf_no_diagnosis_rate": 1.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "scattered_vegetation": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 0,
+      "abstained": 1,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "SCATTERED_PLANT_EVIDENCE": 1
+      },
+      "valid_leaf_no_diagnosis_rate": 1.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "tiny_leaf": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 0,
+      "abstained": 1,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "SPARSE_PLANT_EVIDENCE": 1
+      },
+      "valid_leaf_no_diagnosis_rate": 1.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "dark_leaf": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 0,
+      "abstained": 1,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "UNDEREXPOSED_IMAGE": 1
+      },
+      "valid_leaf_no_diagnosis_rate": 1.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    },
+    "blurry_leaf": {
+      "n": 1,
+      "accepted": 0,
+      "rejected": 0,
+      "abstained": 1,
+      "decode_errors": 0,
+      "acceptance_rate": 0.0,
+      "no_diagnosis_rate": 1.0,
+      "reasons": {
+        "LOW_DETAIL_IMAGE": 1
+      },
+      "valid_leaf_no_diagnosis_rate": 1.0,
+      "valid_leaf_hard_rejection_rate": 0.0
+    }
+  },
+  "gate_latency": {
+    "samples": 150,
+    "mean_ms": 12.051,
+    "median_ms": 10.338,
+    "p95_ms": 18.497
+  }
+}

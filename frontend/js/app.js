@@ -68,6 +68,13 @@
     resultsContent: document.getElementById('results-content'),
     newScanBtn: document.getElementById('new-scan-btn'),
 
+    // Unsupported / abstained input state
+    resultsRejected: document.getElementById('results-rejected'),
+    rejectionBadge: document.getElementById('rejection-badge'),
+    rejectionHeadline: document.getElementById('rejection-headline'),
+    rejectionDetail: document.getElementById('rejection-detail'),
+    rejectionActionBtn: document.getElementById('rejection-action-btn'),
+
     // Primary Diagnosis
     resultCrop: document.getElementById('result-crop'),
     resultCondition: document.getElementById('result-condition'),
@@ -188,6 +195,32 @@
     }
   }
 
+  /**
+   * Clears every diagnostic artifact. Called whenever a new analysis starts, a file is
+   * replaced, or a request fails, so a stale diagnosis can never survive a rejection.
+   */
+  function clearPredictionState() {
+    lastPrediction = null;
+    activeCandidateClassId = null;
+    activeCandidateMeta = null;
+    currentKnowledgeRequestId++;
+    isKnowledgeLoading = false;
+    currentActiveKnowledgeData = null;
+
+    // Remove rendered diagnosis content from the DOM as well, so stale candidates or a
+    // previous condition cannot linger behind a rejection, in print output or in the
+    // accessibility tree.
+    if (elements.candidatesList) elements.candidatesList.textContent = '';
+    if (elements.resultCrop) elements.resultCrop.textContent = '\u2014';
+    if (elements.resultCondition) elements.resultCondition.textContent = '\u2014';
+    if (elements.resultScore) elements.resultScore.textContent = '0.0%';
+    if (elements.resultDisclaimer) elements.resultDisclaimer.textContent = '';
+    if (elements.resultHealthBadge) {
+      elements.resultHealthBadge.textContent = '\u2014';
+      elements.resultHealthBadge.className = 'badge';
+    }
+  }
+
   // ==========================================================================
   // File Validation & Handling
   // ==========================================================================
@@ -266,6 +299,17 @@
     elements.dropZone.classList.add('hidden');
     elements.previewContainer.classList.remove('hidden');
     elements.loadingContainer.classList.add('hidden');
+
+    // 7. Selecting a different image invalidates the previous outcome entirely
+    clearPredictionState();
+    elements.resultsContent.classList.add('hidden');
+    elements.resultsRejected.classList.add('hidden');
+    elements.resultsEmpty.classList.remove('hidden');
+    elements.newScanBtn.classList.add('hidden');
+    elements.knowledgeSection.classList.add('hidden');
+    elements.knowledgeDetails.textContent = '';
+    if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.add('hidden');
+    if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.add('hidden');
   }
 
   /**
@@ -281,12 +325,7 @@
     elements.metaFilesize.textContent = '\u2014';
 
     // Clear prediction & knowledge state
-    lastPrediction = null;
-    activeCandidateClassId = null;
-    activeCandidateMeta = null;
-    currentKnowledgeRequestId++;
-    isKnowledgeLoading = false;
-    currentActiveKnowledgeData = null;
+    clearPredictionState();
 
     // Reset views
     elements.dropZone.classList.remove('hidden');
@@ -294,8 +333,11 @@
     elements.loadingContainer.classList.add('hidden');
 
     elements.resultsContent.classList.add('hidden');
+    elements.resultsRejected.classList.add('hidden');
     elements.resultsEmpty.classList.remove('hidden');
     elements.newScanBtn.classList.add('hidden');
+    elements.rejectionBadge.textContent = 'Image not verified';
+    elements.rejectionDetail.textContent = '';
     if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.add('hidden');
     if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.add('hidden');
 
@@ -342,11 +384,9 @@
     hideAlert();
     isAnalyzing = true;
 
-    // Concurrency guard: Invalidate any pending knowledge requests
-    currentKnowledgeRequestId++;
-    isKnowledgeLoading = false;
-    activeCandidateClassId = null;
-    activeCandidateMeta = null;
+    // Concurrency guard: invalidate pending knowledge requests and clear all diagnostic
+    // state before the request, so nothing stale can be shown if the input is rejected.
+    clearPredictionState();
 
     // UI state transition: Loading active and clear stale results
     elements.analyzeBtn.disabled = true;
@@ -354,6 +394,7 @@
     elements.previewContainer.classList.add('hidden');
     elements.loadingContainer.classList.remove('hidden');
     elements.resultsContent.classList.add('hidden');
+    elements.resultsRejected.classList.add('hidden');
     elements.resultsEmpty.classList.remove('hidden');
     elements.newScanBtn.classList.add('hidden');
     if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.add('hidden');
@@ -383,7 +424,26 @@
       // 2. Fetch and display agronomic knowledge asynchronously
       fetchAndRenderKnowledge(response.predicted_class_id, activeCandidateMeta);
     } catch (err) {
-      showAlert(err.message, 'Analysis Failed', 'error');
+      // A failed or declined analysis must never leave a previous diagnosis on screen.
+      clearPredictionState();
+
+      const isInputRejection = Boolean(err) && err.name === 'InputRejectedError';
+
+      if (isInputRejection) {
+        // Polished PHYTOSIGNAL rejection state: no diagnosis, candidates or guidance.
+        renderInputRejection(err);
+      } else {
+        elements.resultsContent.classList.add('hidden');
+        elements.resultsRejected.classList.add('hidden');
+        elements.resultsEmpty.classList.remove('hidden');
+        if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.add('hidden');
+        if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.add('hidden');
+        showAlert(err.message, 'Analysis Failed', 'error');
+      }
+
+      elements.knowledgeSection.classList.add('hidden');
+      elements.knowledgeDetails.textContent = '';
+
       // Restore preview view on failure (preserves selected image and allows retry)
       elements.previewContainer.classList.remove('hidden');
       elements.loadingContainer.classList.add('hidden');
@@ -428,6 +488,7 @@
     // 4. View Transitions
     elements.loadingContainer.classList.add('hidden');
     elements.previewContainer.classList.remove('hidden');
+    elements.resultsRejected.classList.add('hidden');
     elements.resultsEmpty.classList.add('hidden');
     elements.resultsContent.classList.remove('hidden');
     elements.newScanBtn.classList.remove('hidden');
@@ -437,6 +498,39 @@
     // Smooth scroll to results on mobile devices
     if (window.innerWidth < 900) {
       elements.resultsContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  const REJECTION_BADGES = {
+    non_leaf_image: 'No crop leaf detected',
+    ambiguous_image: 'Image could not be verified',
+    low_quality_image: 'Image quality too low',
+  };
+
+  /**
+   * Renders the non-diagnostic rejection/abstention state for an input that the backend
+   * declined to classify. This state exposes no class, candidate, score or treatment.
+   */
+  function renderInputRejection(err) {
+    const category = err && err.category ? err.category : 'ambiguous_image';
+    elements.rejectionBadge.textContent = REJECTION_BADGES[category] || 'Image not verified';
+    elements.rejectionHeadline.textContent =
+      (err && err.message) || "We couldn't verify that this image contains a supported crop leaf.";
+    elements.rejectionDetail.textContent =
+      (err && err.detailMessage) ||
+      'Please upload a close-up photograph of a single tomato, potato or bell pepper leaf.';
+
+    elements.resultsRejected.classList.remove('hidden');
+    elements.resultsContent.classList.add('hidden');
+    elements.resultsEmpty.classList.add('hidden');
+    elements.knowledgeSection.classList.add('hidden');
+    elements.knowledgeDetails.textContent = '';
+    elements.newScanBtn.classList.remove('hidden');
+    if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.add('hidden');
+    if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.add('hidden');
+
+    if (window.innerWidth < 900) {
+      elements.resultsRejected.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
 
@@ -1078,6 +1172,9 @@
     elements.analyzeBtn.addEventListener('click', performAnalysis);
     elements.removeBtn.addEventListener('click', resetWorkflow);
     elements.newScanBtn.addEventListener('click', resetWorkflow);
+    if (elements.rejectionActionBtn) {
+      elements.rejectionActionBtn.addEventListener('click', resetWorkflow);
+    }
 
     // Knowledge Retry action
     elements.knowledgeRetryBtn.addEventListener('click', () => {

@@ -8,6 +8,12 @@ variation - a horizontal luminance ramp plus a low-frequency undulation - so
 they exercise the decoding, resizing, and inference paths these tests target
 instead of being short-circuited by the uniformity check.
 
+A fine high-frequency component is also included. Without it, a pure smooth
+gradient has almost no Laplacian energy and the content-level input gate
+treats it as unassessable low-detail imagery (real validation leaves never fall
+below a Laplacian variance of 2e-4). Adding micro-texture keeps these fixtures
+representative of a framed leaf surface rather than a flat synthetic wash.
+
 Texture is generated at no larger than 512x512 and upscaled to the requested
 size, keeping memory bounded for large-image tests such as the 25 MP fixture.
 """
@@ -47,9 +53,19 @@ def create_textured_image_bytes(
     # Low-frequency vertical undulation so the pattern is not a pure 1-D gradient
     undulation = 30.0 * np.cos(np.linspace(0.0, 3.0 * np.pi, tex_h, dtype=np.float32))[:, None]
 
+    # Fine venation-like micro-texture (gives the surface real Laplacian energy)
+    xs = np.arange(tex_w, dtype=np.float32)[None, :]
+    ys = np.arange(tex_h, dtype=np.float32)[:, None]
+    micro = 12.0 * np.sin(xs * 2.1) * np.cos(ys * 1.9)
+    micro += 6.0 * np.sign(np.sin((xs + ys) * 2.4))
+
     base_rgb = np.array(color[:3], dtype=np.float32)
     planes = [
-        np.clip(base_rgb[channel] + ramp + undulation * (1.0 if channel % 2 == 0 else -1.0), 0, 255)
+        np.clip(
+            base_rgb[channel] + ramp + undulation * (1.0 if channel % 2 == 0 else -1.0) + micro,
+            0,
+            255,
+        )
         for channel in range(3)
     ]
     arr = np.stack(planes, axis=-1).astype(np.uint8)

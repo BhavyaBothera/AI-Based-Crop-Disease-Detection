@@ -10,6 +10,10 @@ from .knowledge import (
     KnowledgeBaseService,
     knowledge_service,
 )
+from .input_gate import (
+    InputAssessment,
+    assess_image,
+)
 
 __all__ = [
     "ModelService",
@@ -19,4 +23,6 @@ __all__ = [
     "CLASS_ID_TO_METADATA",
     "KnowledgeBaseService",
     "knowledge_service",
+    "InputAssessment",
+    "assess_image",
 ]

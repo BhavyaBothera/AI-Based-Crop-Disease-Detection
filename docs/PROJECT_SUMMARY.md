@@ -394,6 +394,19 @@ Bilinear downsampling acts as a low-pass filter, which is why the check is compu
 resize: a synthetic 1-pixel checkerboard collapses from σ = 127.49 to 0.50 (correctly rejected),
 while leaf veins and lesions survive (σ = 2.75 for a 1-pixel line, 11.02 for a 4-pixel pattern).
 
+**Content-level suitability gate (Layer B).** Physical checks cannot establish that an image
+shows a plant, so a deterministic gate now runs on the 224×224 RGB frame before inference. It
+rejects images with essentially no plant pigmentation (`< 1%` of pixels in an HSV 40–170°
+vegetation band) and abstains on sparse (`< 8%`), scattered, underexposed or featureless inputs.
+Model softmax confidence is deliberately not used. Rejected/abstained images receive a
+structured HTTP 422 with `status`, `code` and `category` - never a diagnosis - and the UI shows
+a dedicated rejection state with no candidates, guidance or advisory export. On a disjoint
+evaluation half the gate produced **0.12% no-diagnosis on 1,657 valid leaves** (2 abstentions,
+0 hard rejections) and rejected or abstained **44.6% of 558 real non-leaf photographs**; it
+adds ~12 ms mean CPU time. It is a necessary-condition screen, not a leaf detector: foliage
+scenes (55.4% false acceptance) and unsupported crop species (99.0% accepted) remain documented
+limitations. Full report: `docs/audit_reports/non_leaf_input_safety_report.md`.
+
 ### 9.3 Concurrency
 
 | Primitive | Value | Purpose |
@@ -416,9 +429,12 @@ outer control.
 
 ### 9.4 Error contract
 
-Every failure returns JSON with a human-readable `detail` string, so the front end can display
-the server's own explanation without hard-coding status-code guesses. Internal paths and
-tracebacks are logged server-side and never returned.
+Every failure returns JSON so the front end can display the server's own explanation without
+hard-coding status-code guesses. Invalid uploads carry a human-readable `detail` string;
+content-gate outcomes carry a structured `detail` object (`status`, `code`, `category`,
+`message`, `retryable`, measured `signals`) with no prediction fields. Successful `200`
+responses keep the original prediction contract. Internal paths and tracebacks are logged
+server-side and never returned.
 
 ---
 
@@ -478,13 +494,14 @@ that scores are not calibrated probabilities.
 
 ## 12. Testing and Verification
 
-**99 automated tests**, all passing:
+**132 automated tests**, all passing, plus a browser end-to-end suite:
 
 | Layer | Tests | What is covered |
 |:--|--:|:--|
-| Backend unit | 49 | health/readiness (7), prediction + every input-safety path (19), knowledge base validation and API contract (21), real-model integration (2) |
+| Backend unit | 75 | health/readiness (7), prediction + physical input safety (19), content gate and rejection contract (26), knowledge base validation and API contract (21), real-model integration (2) |
 | ML pipeline | 22 | class mapping, split isolation, class weights, tie-breaking, architecture specification |
-| Front-end API client | 28 | success paths, error mapping, timeout behaviour, 3 live integration tests (skipped when no server is listening) |
+| Front-end API client | 35 | success paths, rejection/abstention parsing, invalid-upload and service-error distinction, contract validation, timeout behaviour, 3 live integration tests (skipped when no server is listening) |
+| Browser E2E | 2 viewports | desktop and mobile: rejection with no diagnosis/advisory/export, reset, valid prediction, stale-result clearing |
 
 ```bash
 # Backend
@@ -495,6 +512,9 @@ that scores are not calibrated probabilities.
 
 # Front end
 node --test frontend/test_api.js
+
+# Browser (starts backend + static server + headless Chrome)
+.venv/Scripts/python.exe frontend/test_browser.py --static-port 5510
 ```
 
 Beyond unit tests, the system was verified end to end: a cold start on a fresh port was
@@ -515,6 +535,7 @@ during request) were driven in a browser and behaved correctly.
 | Metrics are arithmetically consistent | `docs/audit_reports/test_evaluation_integrity_audit.md` (+ `.json`) |
 | Safety thresholds reject no real leaf | `docs/audit_reports/phase5b_level_a_final_validation_audit.md` |
 | OOD gate was considered and rejected | `docs/audit_reports/phase5b_ood_policy_verification.md` |
+| Non-leaf inputs are rejected/abstained before inference | `docs/audit_reports/non_leaf_input_safety_report.md` (+ eval `.json`) |
 | KB schema and sourcing | `docs/KNOWLEDGE_BASE.md` |
 
 ---
@@ -528,13 +549,20 @@ during request) were driven in a browser and behaved correctly.
    embedding-centroid OOD gate was implemented and audited as an experiment, then rejected:
    it produced a **56 % false-accept rate** on unsupported crops while also falsely rejecting
    **5.8–7.6 %** of valid diseased leaves. Shipping it would have made the system confidently
-   wrong in a new way, so the limitation is documented instead of papered over.
-3. **Scores are not calibrated probabilities.** Softmax output is a relative distribution over
-   15 closed-world classes. The API and UI both say so.
-4. **Not a prescription.** Guidance is educational; pesticide decisions require label
+   wrong in a new way, so the limitation is documented instead of papered over. The shipped
+   content gate accepts **99.0 %** of sampled unsupported crop leaves.
+3. **The content gate is not a leaf detector.** It reliably excludes images with no plant
+   tissue, but 55.4 % of real `Background_without_leaves` photographs pass because they contain
+   foliage scenes. Foliage-heavy landscapes, a person in a green field, or green-tinted
+   graphics can still reach the classifier. The repo's data assets do not support training a
+   trustworthy learned acceptance model.
+4. **Scores are not calibrated probabilities.** Softmax output is a relative distribution over
+   15 closed-world classes. The API and UI both say so; the UI labels it "Primary Model Score
+   (Softmax)".
+5. **Not a prescription.** Guidance is educational; pesticide decisions require label
    compliance and confirmation by a qualified agronomist or extension service.
-5. **Five reviewed near-duplicate pairs remain.** Declared, not hidden.
-6. **Retrospective safety measurements.** The Phase 5B harnesses (σ sweep, aliasing fixtures,
+6. **Five reviewed near-duplicate pairs remain.** Declared, not hidden.
+7. **Retrospective safety measurements.** The Phase 5B harnesses (σ sweep, aliasing fixtures,
    upload benchmark, OOD experiment) were throwaway scripts and are no longer in the tree; their
    methodology and full result tables survive in the reports, so the conclusions are auditable
    by inspection but not re-runnable as-is.
@@ -720,12 +748,13 @@ Project/
 │   │   ├── schemas/            Pydantic contracts
 │   │   ├── services/           inference · knowledge
 │   │   └── data/               disease_knowledge_base.json (15 records)
-│   ├── tests/                  49 tests
+│   ├── tests/                  75 tests
 │   └── README.md               full API contract
 ├── frontend/
 │   ├── index.html · css/styles.css
 │   ├── js/api.js · js/app.js
-│   └── test_api.js             28 tests
+│   ├── test_api.js             35 tests
+│   └── test_browser.py         headless Chrome E2E (desktop + mobile)
 ├── ml/
 │   ├── scripts/                audit_dataset · prepare_dataset · train_model · evaluate_*
 │   ├── tests/                  22 tests
@@ -735,7 +764,7 @@ Project/
 │   ├── PROJECT_SUMMARY.md      this document
 │   ├── README.md               evidence index
 │   ├── KNOWLEDGE_BASE.md       data specification
-│   └── audit_reports/          9 reports + machine-readable JSON
+│   └── audit_reports/          reports, evaluation JSON, UI screenshots
 └── README.md                   system overview and quick start
 ```
 

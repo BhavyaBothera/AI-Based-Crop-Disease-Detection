@@ -22,6 +22,7 @@ from ..services.inference import (
     preprocess_image,
     sniff_image_format,
 )
+from ..services.input_gate import assess_image
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +74,23 @@ def get_inference_semaphore() -> asyncio.Semaphore:
         400: {"description": "Invalid input, empty upload, or corrupt/unreadable image."},
         413: {"description": "Payload too large (exceeds 10 MB limit)."},
         415: {"description": "Unsupported media type or declared MIME format mismatch."},
-        422: {"description": "Image dimensions sub-minimum (<64px), pixel limit exceeded (>20MP), or uniform blank canvas."},
+        422: {
+            "description": (
+                "Image dimensions sub-minimum (<64px), pixel limit exceeded (>20MP), uniform "
+                "blank canvas, or a rejected/abstained content assessment. Content assessments "
+                "return a machine-readable detail object with status, code, category and message."
+            )
+        },
         429: {"description": "Server is handling peak request volume (overload rejection)."},
         503: {"description": "Model is not loaded or inference engine unavailable."},
     },
     summary="Predict Crop Disease from Leaf Image",
     description=(
-        "Accepts a single Solanaceae leaf image upload, validates its structure, "
-        "preprocesses it to 224x224 RGB, and returns top-3 candidate predictions "
-        "along with softmax scores across all 15 trained classes."
+        "Accepts a single Solanaceae leaf image upload, validates its structure, screens it "
+        "for plant-tissue evidence, preprocesses it to 224x224 RGB, and returns top-3 "
+        "candidate predictions along with softmax scores across all 15 trained classes. "
+        "Images that cannot be verified as plant material are rejected or abstained from via "
+        "a structured 422 response and never receive a disease diagnosis."
     ),
 )
 async def predict(
@@ -169,9 +178,16 @@ async def predict(
             )
         _decode_waiters += 1
 
+    def _decode_and_assess(payload: bytes):
+        """Decodes, validates, and screens the image in the CPU worker thread."""
+        tensor = preprocess_image(payload)
+        # The gate consumes the same 224x224 RGB frame the model will see, so the
+        # decision is deterministic and adds no second decode.
+        return tensor, assess_image(tensor[0])
+
     try:
         async with get_decode_semaphore():
-            input_tensor = await asyncio.to_thread(preprocess_image, image_bytes)
+            input_tensor, assessment = await asyncio.to_thread(_decode_and_assess, image_bytes)
     except ImageValidationError as exc:
         raise HTTPException(
             status_code=exc.status_code,
@@ -186,7 +202,22 @@ async def predict(
         with _decode_waiters_lock:
             _decode_waiters -= 1
 
-    # 8. Execute inference and construct structured response via worker thread offloading
+    # 8. Content-level suitability gate: never infer on unverified input.
+    #    A structured 422 is machine-readable and carries no diagnosis fields. The model
+    #    (and its closed-world softmax) is deliberately not consulted.
+    if not assessment.is_accepted:
+        logger.info(
+            "Input suitability gate %s: code=%s signals=%s",
+            assessment.decision,
+            assessment.code,
+            assessment.signals,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=assessment.to_error_detail(),
+        )
+
+    # 9. Execute inference and construct structured response via worker thread offloading
     try:
         async with get_inference_semaphore():
             result = await asyncio.to_thread(model_service.predict, input_tensor)

@@ -68,13 +68,14 @@ Project/
 │   │   ├── schemas/            # Pydantic request/response contracts
 │   │   ├── services/           # Model lifecycle + preprocessing; knowledge validation
 │   │   └── data/               # 15-record disease knowledge base (JSON)
-│   └── tests/                  # 49 backend tests
+│   └── tests/                  # 75 backend tests
 ├── frontend/                   # No-build vanilla HTML/CSS/JS single page
 │   ├── index.html
 │   ├── css/styles.css
 │   ├── js/api.js               # API client (timeouts, error mapping)
 │   ├── js/app.js               # UI controller and safe DOM rendering
-│   └── test_api.js             # Node test-runner suite
+│   ├── test_api.js             # Node test-runner suite
+│   └── test_browser.py         # Headless Chrome E2E (desktop + mobile)
 ├── ml/
 │   ├── scripts/                # audit_dataset, prepare_dataset, train_model, evaluate_*
 │   ├── tests/                  # 22 pipeline tests
@@ -128,38 +129,65 @@ result shows the primary diagnosis, the top-3 candidates with scores, and the ag
 reference profile. Any top-3 candidate can be selected to read *its* reference entry - the
 UI labels that clearly as reference material, not a diagnosis.
 
+If the image cannot be verified as plant material, the app shows a dedicated rejection state
+instead: no diagnosis, no candidates, no treatment guidance and no advisory export. It
+explains "We couldn't verify that this image contains a supported crop leaf" and offers
+**Upload another image**.
+
 ---
 
 ## Testing
 
 ```bash
-# Backend: 49 tests (health, prediction + input safety, knowledge base, real-model integration)
+# Backend: 75 tests (health, prediction + input safety gate, knowledge base, real model)
 .venv/Scripts/python.exe -m unittest discover -s backend/tests -p "test_*.py"
 
 # ML pipeline: 22 tests (class mapping, split isolation, class weights, architecture)
 .venv/Scripts/python.exe -m unittest ml.tests.test_train_pipeline
 
-# Frontend API client: 28 tests
+# Frontend API client: 35 tests
 node --test frontend/test_api.js
+
+# Browser end-to-end: starts uvicorn + a static server + headless Chrome, desktop and mobile
+.venv/Scripts/python.exe frontend/test_browser.py --static-port 5510
 ```
 
-The frontend suite includes three live integration tests against a running backend; they
-report as **skipped** when nothing is listening on the configured base URL.
+The frontend API suite includes three live integration tests against a running backend; they
+report as **skipped** when nothing is listening on the configured base URL. The browser suite
+requires Chrome and the trained model, and writes screenshots to
+`docs/audit_reports/non_leaf_safety_screenshots/`.
 
 ---
 
 ## Input Safety
 
-Before an image reaches the model, the backend enforces: streamed 10 MB upload cap,
-JPEG/PNG/WEBP signature verification, declared-MIME vs. detected-signature agreement,
-20 MP decompression ceiling, 64 px minimum dimension, and a blank-canvas rejection based
-on luminance sigma (`σ ≤ 2.0`). Decoding runs in a worker thread under a concurrency cap of
-2 with a bounded queue, and inference is serialized. Rejections return specific
-`400/413/415/422/429` codes with user-facing detail strings.
+Input safety is layered.
 
-The σ threshold was validated over all 3,418 validation images: the minimum observed σ for
-a real leaf was 11.31, so the threshold rejects no legitimate samples. See
-[`docs/audit_reports/phase5b_level_a_final_validation_audit.md`](docs/audit_reports/phase5b_level_a_final_validation_audit.md).
+**Layer A - physical integrity (unchanged).** Streamed 10 MB upload cap, JPEG/PNG/WEBP
+signature verification, declared-MIME vs. detected-signature agreement, 20 MP decompression
+ceiling, 64 px minimum dimension, and blank-canvas rejection based on luminance sigma
+(`σ ≤ 2.0`). The σ threshold was validated over all 3,418 validation images: the minimum
+observed σ for a real leaf was 11.31. Decoding runs in a worker thread under a concurrency
+cap of 2 with a bounded queue, and inference is serialized.
+
+**Layer B - content suitability (new).** A deterministic gate runs on the same 224×224 RGB
+frame the model would see, before inference. It rejects images with essentially no plant
+pigmentation and abstains on sparse, scattered, underexposed or featureless inputs. Rejected
+and abstained inputs never reach the model; they return a structured `422` whose `detail`
+carries `status` (`rejected`/`abstained`), `code`, `category`, a user message and the measured
+signals - and no diagnosis fields. Successful `200` responses keep the existing contract.
+
+Thresholds were calibrated on the non-test validation split and are documented in
+`backend/app/config.py`; the gate adds ~12 ms mean CPU time (p95 ~18.5 ms) and no model,
+package or network dependency. On a disjoint evaluation half it produced **0.12%**
+no-diagnosis on 1,657 valid leaves (2 abstentions, no hard rejections) and rejected or
+abstained on **44.6%** of 558 real non-leaf photographs.
+
+**This is not a leaf detector.** It does not reject foliage-heavy outdoor scenes or
+unsupported crop species, and softmax confidence is deliberately not used as an acceptance
+criterion. The root cause, architecture, evaluation methodology, false-acceptance
+measurements and remaining risks are in
+[`docs/audit_reports/non_leaf_input_safety_report.md`](docs/audit_reports/non_leaf_input_safety_report.md).
 
 ---
 
@@ -169,7 +197,12 @@ a real leaf was 11.31, so the threshold rejects no legitimate samples. See
   Field photography with soil, shadows, and clutter is out of distribution.
 - **No unsupported-crop rejection.** The model will force any leaf into one of its 15
   classes. An embedding-centroid OOD gate was audited and rejected (56 % false-accept rate
-  on unsupported crops, 5.8-7.6 % false rejection of valid diseased leaves).
+  on unsupported crops, 5.8-7.6 % false rejection of valid diseased leaves). The content gate
+  accepts 99.0 % of sampled unsupported crop leaves.
+- **The content gate is not a leaf detector.** 55.4 % of real `Background_without_leaves`
+  photographs pass it because they contain foliage (grass, trees, landscapes). A person in a
+  green field, a green wall or a foliage-heavy screenshot can still reach the classifier. Only
+  images with essentially no plant tissue are reliably excluded.
 - **Scores are not calibrated probabilities.** Softmax outputs are a relative distribution
   over 15 closed-world classes, not diagnostic certainty.
 - **Not a treatment prescription.** Guidance is educational; pesticide decisions require

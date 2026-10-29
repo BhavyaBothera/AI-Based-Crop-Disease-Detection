@@ -76,6 +76,49 @@ MIN_IMAGE_DIMENSION: int = _parse_int_env("MIN_IMAGE_DIMENSION", 64, min_val=1)
 # Population standard deviation threshold on 224x224 luminance (sigma <= threshold rejects uniform/blank canvas)
 UNIFORM_CANVAS_STD_THRESHOLD: float = _parse_float_env("UNIFORM_CANVAS_STD_THRESHOLD", 2.0, min_val=0.0)
 
+# Content-Level Input Suitability Gate (Level B)
+# Deterministic plant-tissue evidence and image-quality gate. This runs AFTER physical
+# integrity checks and BEFORE model inference. It is a *necessary-condition* screen:
+# it can establish that an image contains no plant pigmentation, but it does NOT verify
+# that the subject is a supported Solanum/Capsicum leaf. Those limits are documented in
+# docs/audit_reports/non_leaf_input_safety_report.md.
+# Thresholds were calibrated on non-test data (see ml/scripts/evaluate_input_gate.py).
+ENABLE_INPUT_GATE: bool = _parse_bool_env("ENABLE_INPUT_GATE", True)
+
+# Broad plant-pigmentation mask: HSV hue 40-170 deg, saturation >= 0.12, value >= 0.08.
+# Fraction of image pixels in this mask. Calibration (validation split, 3,418 leaves):
+#   minimum 0.0606, 1st percentile 0.1488, 0 images below 0.02.
+# Real non-leaf photographs (Background_without_leaves, 1,143 images): median 0.137,
+#   with 15.8% below 0.01, 22.0% below 0.02 and 43.7% below 0.08.
+INPUT_GATE_REJECT_BELOW_PLANT_EVIDENCE: float = _parse_float_env(
+    "INPUT_GATE_REJECT_BELOW_PLANT_EVIDENCE", 0.01, min_val=0.0
+)
+INPUT_GATE_ACCEPT_AT_PLANT_EVIDENCE: float = _parse_float_env(
+    "INPUT_GATE_ACCEPT_AT_PLANT_EVIDENCE", 0.08, min_val=0.0
+)
+
+# Dominant contiguous plant region and spread. A scene whose plant-coloured pixels are
+# scattered across several small patches is treated as ambiguous context photography
+# rather than a framed specimen.
+INPUT_GATE_MIN_DOMINANT_REGION: float = _parse_float_env(
+    "INPUT_GATE_MIN_DOMINANT_REGION", 0.02, min_val=0.0
+)
+INPUT_GATE_SCATTERED_REGION_COUNT: int = _parse_int_env(
+    "INPUT_GATE_SCATTERED_REGION_COUNT", 3, min_val=1
+)
+INPUT_GATE_REGION_AREA_FLOOR: float = _parse_float_env(
+    "INPUT_GATE_REGION_AREA_FLOOR", 0.01, min_val=0.0
+)
+
+# Exposure and detail floors for the "cannot assess" (abstain) path.
+# Validation split minima: mean luminance 0.0561, Laplacian variance 0.0002.
+INPUT_GATE_MIN_MEAN_LUMINANCE: float = _parse_float_env(
+    "INPUT_GATE_MIN_MEAN_LUMINANCE", 0.05, min_val=0.0
+)
+INPUT_GATE_MIN_DETAIL_VARIANCE: float = _parse_float_env(
+    "INPUT_GATE_MIN_DETAIL_VARIANCE", 0.0001, min_val=0.0
+)
+
 # Concurrency & Admission Control Configuration
 # Bounded number of concurrent CPU-intensive image decodes to limit transient RAM usage
 MAX_DECODE_CONCURRENCY: int = _parse_int_env("MAX_DECODE_CONCURRENCY", 2, min_val=1)
