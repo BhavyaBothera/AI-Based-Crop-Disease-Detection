@@ -1,8 +1,9 @@
 # PHYTOSIGNAL — Non-Leaf Input Safety Audit
 
 **Report date:** 29 October 2026  
+**Updated:** 30 October 2026 — Layer B is now a trained leaf-acceptance model (§1.4, §11); the deterministic pigment screen remains as a fallback.  
 **Scope:** Why an arbitrary photograph of a person received a tomato Late Blight diagnosis, and what was implemented to prevent unsupported images from being presented as crop disease results.  
-**Status:** Implemented safeguard + held-out evaluation completed. No model retraining, no dataset split change, no deployment.
+**Status:** Implemented safeguard + held-out evaluation completed. The disease model, its dataset split and its metrics are untouched; the new gate model is trained and evaluated on disjoint data.
 
 ---
 
@@ -39,7 +40,7 @@ physical file validation and **before inference**:
 The UI renders a dedicated PHYTOSIGNAL rejection state with no class, candidate, score,
 knowledge base or advisory controls, and a direct "Upload another image" action.
 
-### 1.3 Headline measurements
+### 1.3 Headline measurements — deterministic screen (superseded by §1.4)
 
 | Measurement | Result | Sample |
 |:--|:--|:--|
@@ -56,6 +57,45 @@ demonstrated class of false diagnosis (images with no plant tissue) at no measur
 the validation leaves, and it abstains instead of guessing elsewhere. Foliage-heavy outdoor
 scenes and unsupported crop species still reach the classifier; those limits are quantified in
 §7 and are **not** claimed as solved.
+
+### 1.4 Update — learned leaf-acceptance gate (30 October 2026)
+
+§9.2 proposed a dedicated gate trained on a real non-leaf corpus. That gate now exists and is
+the decision authority; the deterministic pigment screen (§3.1) remains in the same module as a
+fallback when the model file is missing or `ENABLE_LEAF_GATE=false`.
+
+**Model.** 3-class classifier (`supported_leaf` / `other_plant` / `non_leaf`), linear head on
+frozen ImageNet MobileNetV2 features, fed the same raw 224×224 RGB frame the disease model
+receives. Trained on 25,480 images (15,942 supported leaves from the disease `train` split,
+8,703 other-species leaves, 835 non-leaf), fit on 4,293 held-out embeddings (val accuracy
+**0.987**, C = 0.1), exported as a single Keras artefact whose graph reproduces the trained
+decision to 3e-7. Training data comes from PlantVillage plus a licence-cleared Wikimedia
+Commons corpus of real photographs (`ml/scripts/build_ood_corpus.py`).
+
+**Held-out results** (path-hashed disjoint split; disease `test` split never opened; Strawberry
+and Soybean held out of training entirely):
+
+| Input | n | Accepted | Blocked | Note |
+|:--|--:|--:|--:|:--|
+| Valid tomato/potato/pepper leaves (eval half) | 1,698 | 1,669 | 1.7% | 1.1% hard rejection, 0.6% abstention |
+| Valid leaves (tuning half, not used for the numbers above) | 1,720 | 1,689 | 1.8% | consistent |
+| Leaf-free field photographs | 193 | 0 | **100%** | was 44.6% under the pigment screen |
+| Real portraits / animals / buildings / documents / objects / graphics | 70 | 0 | **100%** | 6 categories, 100% each |
+| Unsupported crop leaves, species seen in training | 1,200 | 26 | **97.8%** | was 1.0% |
+| Strawberry leaves (species never trained on) | 300 | 73 | **75.7%** | generalisation probe |
+| Soybean leaves (species never trained on) | 300 | 140 | **53.3%** | weakest category |
+| Synthetic non-plant probes (drawings) | 7 | 0 | 100% | branch behaviour only |
+
+**Cost.** 58.1 ms mean CPU per assessment (median 53.1 ms, p95 84.1 ms, n = 120), serialized
+with inference. The disease model itself is unchanged, so a rejected upload still never reaches
+it.
+
+**Honest reading.** This is a large improvement on the reported failure mode (a photograph of
+a person is now blocked with p(non_leaf) = 0.999, not 55.4 % of the time but always, across every
+negative category), and the valid-leaf cost is 1.7 % no-diagnosis instead of 0.12 %. Two
+limitations are *new* rather than solved: the negative corpus is small (70 photographs, 35 in
+evaluation), so the 100 % rates carry wide uncertainty; and illustrators, stylised drawings and
+some unusual real leaves are declined as non-plant.
 
 ---
 
@@ -130,8 +170,12 @@ Layer C — existing 15-class MobileNetV2 inference
    └── 200 PredictionResponse (contract unchanged) ──► existing diagnosis UI
 ```
 
-Layer B uses **no model confidence**, no second neural network, no external API and no
-additional download. It is deterministic, CPU-only and runs in the existing decode worker
+Layer B is the trained leaf-acceptance model (§1.4). The table below is its deterministic
+fallback, still shipped in `backend/app/services/input_gate.py` and used when the model file is
+absent, so the product never silently loses its input screening. Neither variant uses model
+confidence from the disease classifier, an external API or an additional download.
+
+Layer B's fallback rules are deterministic, CPU-only, and run in the existing decode worker
 thread under the existing admission-control semaphore.
 
 ### 3.1 Decision rules
@@ -326,7 +370,7 @@ the numbers below can fix.
 
 ## 6. Results
 
-### 6.1 Held-out / disjoint evaluation
+### 6.1 Held-out / disjoint evaluation — deterministic screen (superseded by §1.4)
 
 | Category | n | Accepted | Rejected | Abstained | No diagnosis | FAR |
 |:--|--:|--:|--:|--:|--:|--:|
@@ -384,33 +428,49 @@ curl -i -F "file=@/path/to/the_photo.jpg" http://127.0.0.1:8000/api/predict
 
 Expected: HTTP 422 with `detail.status = "rejected"` and `detail.code = "NON_LEAF_IMAGE"`.
 
+**Replay with a real photograph (30 October 2026).** The byte-for-byte bug-report file is still
+unavailable, so a licence-cleared real portrait from the corpus was replayed through the running
+API instead, alongside an animal, a building and a supported leaf:
+
+| Upload | Result |
+|:--|:--|
+| `ood_corpus/person/kutia-kondh-woman-3.jpg` | 422 `NON_LEAF_IMAGE`, p(non_leaf) **0.9994** |
+| `ood_corpus/person/elderly-gambian-woman-face-portrait.jpg` | 422 `NON_LEAF_IMAGE`, p(non_leaf) **0.9985** |
+| `ood_corpus/animal/a-pet-indian-pariah-dog.jpg` | 422 `NON_LEAF_IMAGE`, p(non_leaf) **0.9973** |
+| `ood_corpus/building/building-…-li.jpg` | 422 `NON_LEAF_IMAGE`, p(non_leaf) **1.0000** |
+| `raw_dataset/Tomato___Early_blight/image (1).JPG` | 200, `Tomato — Mosaic Virus`, 0.926, 3 candidates |
+| `raw_dataset/Strawberry___Leaf_scorch/image (1).JPG` | 422 `UNSUPPORTED_SPECIES`, p(other_plant) **0.9949** |
+
+No diagnosis, score, candidate list or advisory field appears in any of the 422 bodies.
+
 ---
 
 ## 7. Remaining limitations
 
 ### 7.1 Residual risk (quantified)
 
-1. **Foliage-heavy scenes are still accepted.** 55.4% of the real background photographs pass
-   because they contain grass, trees or foliage. A wide garden or landscape photo can pass this
-   gate and reach the classifier. Distinguishing a leaf close-up from a vegetation scene needs
-   semantics this gate does not have.
-2. **Unsupported crop species are not detected.** 99.0% of Apple/Corn/Grape/Peach/Soybean/
-   Strawberry leaves are accepted and diagnosed as one of the 15 Solanaceae classes. This is the
-   previously documented closed-world limitation; the gate makes it neither better nor worse.
-3. **Colour shortcuts.** A person in a large green field, a green-painted wall, a graphic with
-   substantial foliage-coloured regions, or a heavily green-tinted screenshot can pass. A
-   photographed dead/brown leaf with almost no green could be rejected (the gate treats it as
-   non-plant); measured cost on the dataset is 0 hard rejections, but field imagery is not the
-   dataset.
-4. **PlantVillage is not field data.** The validation leaves are close-up, uniform-background
-   photographs. The 0.12% no-diagnosis rate is measured there, not on farmer field photography.
-   Complex backgrounds, soil, shadows and hands are under-represented.
-5. **No trained leaf detector.** The repository has no labelled non-leaf corpus of people,
-   animals, documents, screens, buildings and objects. Training a gate on PlantVillage
-   backgrounds and other crop leaves would learn "background vs foliage", not "leaf vs
-   anything", and would not be trustworthy for the reported failure mode.
-6. **Synthetic probes are weak evidence.** They check branches and UI behaviour, not
-   generalisation.
+1. **The negative corpus is small.** The learned gate blocks 100 % of the 70 real non-leaf
+   photographs and 100 % of the 193 leaf-free field photographs it was evaluated on, but those
+   are tens of photographs per category (35 of the 70 are in the evaluation half). The rates are
+   point estimates with wide confidence intervals, not a guarantee for arbitrary photography of
+   people, animals, buildings or screens.
+2. **Unsupported species are mostly, not always, refused.** 97.8 % of unsupported crop leaves
+   from species seen in training are declined, but only 75.7 % of Strawberry and 53.3 % of
+   Soybean leaves (species held out entirely). What passes is still forced into one of the 15
+   Solanaceae classes.
+3. **Valid leaves still cost something.** 1.7 % of held-out valid leaves receive no diagnosis
+   (1.1 % hard rejection). 19 were misread as `other_plant`, i.e. the model confused a
+   tomato/potato/pepper leaf with another species; 10 more were abstentions from the
+   deterministic ambiguity screen.
+4. **Illustrations are rejected.** Procedurally drawn leaves score as `non_leaf`; the model
+   learned from photographs. This is why the synthetic probe table in §6.2 no longer doubles as
+   acceptance evidence for drawn leaves.
+5. **PlantVillage is not field data.** The validation leaves are close-up, uniform-background
+   photographs. The 1.7 % no-diagnosis rate is measured there, not on farmer field photography.
+   Complex backgrounds, soil, shadows, hands, rain and night shots are under-represented, and a
+   foliage-heavy field scene that resembles a foliage close-up can still pass.
+6. **Probes and small categories are weak evidence.** Single deterministic drawings check
+   branches and UI behaviour, not generalisation.
 7. **Softmax scores remain uncalibrated.** They are still displayed, now labelled "Primary Model
    Score (Softmax)". Temperature scaling would change the numbers but not the closed-world
    problem, and is not an acceptance criterion.
@@ -430,8 +490,8 @@ Expected: HTTP 422 with `detail.status = "rejected"` and `detail.code = "NON_LEA
 
 | Suite | Command | Result |
 |:--|:--|:--|
-| Backend (75 tests) | `.venv/Scripts/python.exe -m unittest discover -s backend/tests -p "test_*.py"` | **OK**, 75 passed |
-| Frontend API client (35 tests) | `node --test frontend/test_api.js` | **35 passed** (3 live tests need a running backend; they skip when offline) |
+| Backend (98 tests) | `.venv/Scripts/python.exe -m unittest discover -s backend/tests -p "test_*.py"` | **OK**, 98 passed |
+| Frontend API client (36 tests) | `node --test frontend/test_api.js` | **36 passed** (3 live tests need a running backend; they skip when offline) |
 | Browser E2E (desktop 1440×900 + mobile 390×844) | `.venv/Scripts/python.exe frontend/test_browser.py --static-port 5510` | **OK** both viewports |
 | Held-out gate evaluation | `.venv/Scripts/python.exe ml/scripts/evaluate_input_gate.py` | **OK**, artifact written |
 
@@ -508,9 +568,64 @@ keeps the brand identity, and is readable and fully visible below the sticky hea
 | Machine-readable rejected/abstained API contract | **Implemented** |
 | Dedicated UI rejection state, no diagnosis/advisory/export | **Implemented** |
 | Stale diagnosis cleared on rejection/new file/failure | **Implemented** |
-| Deterministic Layer B gate with calibrated, documented thresholds | **Implemented** |
+| Deterministic Layer B fallback with calibrated, documented thresholds | **Implemented** |
+| Trained 3-class leaf-acceptance gate as the decision authority | **Implemented** (§1.4, §11) |
+| Licence-cleared real-photo negative corpus + split discipline | **Implemented** (`ml/scripts/build_ood_corpus.py`) |
+| Unsupported-species rejection | **Implemented** for seen species (97.8 %); **partial** for held-out species (53–76 %) |
 | Docstring/README/audit documentation of limits | **Implemented** |
-| Trustworthy learned leaf/specimen detector | **Proposed** (needs data; §9.2) |
-| Unsupported-species rejection | **Proposed** (existing centroid approach audited and rejected) |
-| Field-photograph validation | **Proposed** (needs field data) |
+| Field-photograph validation at scale | **Proposed** (needs thousands of field images; §9.2) |
+| Hardened face detection as an independent veto layer | **Proposed** (defence in depth, not needed for this failure mode) |
 | Production OOD certification | **Not claimed** |
+
+---
+
+## 11. Learned gate implementation record
+
+### 11.1 Artefacts and ownership
+
+| Item | Location | Notes |
+|:--|:--|:--|
+| Training script | `ml/scripts/train_input_gate.py` | `--extract` caches features, `--train` refits from cache |
+| Corpus builder | `ml/scripts/build_ood_corpus.py` | Wikimedia Commons, per-file licence/author recorded in `manifest.json` |
+| Evaluation script | `ml/scripts/evaluate_input_gate.py` | Writes `non_leaf_input_safety_eval.json` next to this report |
+| Trained artefact | `ml/models/input_gate/leaf_gate.keras` | Backbone + head, loaded with `compile=False` |
+| Class order / provenance | `ml/models/input_gate/gate_model_config.json` | Written at export time |
+| Training report | `ml/models/input_gate/training_metrics.json` | Class counts, selected C, parity, split integrity |
+| Serving wrapper | `backend/app/services/leaf_gate.py` | Thread-safe, `ENABLE_LEAF_GATE` switch |
+| Decision policy | `backend/app/services/input_gate.py` | Model verdict → reject/abstain/accept; fallback screen |
+
+### 11.2 Data and splits
+
+| Gate split | Images | Contents |
+|:--|--:|:--|
+| train | 25,480 | 15,942 supported leaves (disease `train` split), 8,703 unsupported-species leaves (≤ 500/class), 835 non-leaf |
+| val | 4,293 | 1,720 supported leaves (path-hash half of disease `val`), 2,411 unsupported leaves, 162 non-leaf |
+| eval | 6,468 | 1,698 supported leaves (other hash half), 1,200 unsupported seen species, 600 unseen-species, 263 non-leaf, 193 leaf-free field photos |
+
+Integrity as reported by the training run: `overlaps` train^val / train^eval / val^eval all **0**,
+`duplicate_paths_within_split` **0/0/0**, `disease_test_split_images_used` **0**. Split choice is
+a SHA-256 path hash, so it does not depend on file order or enumeration.
+
+### 11.3 Why a linear probe rather than fine-tuning
+
+The negative corpus is 70 real photographs. Fine-tuning a backbone on that would memorise it;
+a linear head on strong frozen ImageNet features cannot, and it leaves the disease model's
+weights entirely untouched. The cost is visible in the results: the gate is excellent at
+separating photos of people, animals, buildings, documents and objects from leaf close-ups, and
+merely good at species-level rejection.
+
+### 11.4 Reproduction
+
+```bash
+.venv/Scripts/python.exe ml/scripts/build_ood_corpus.py      # once, needs network
+.venv/Scripts/python.exe ml/scripts/train_input_gate.py      # extract + fit + export + parity check
+.venv/Scripts/python.exe ml/scripts/evaluate_input_gate.py   # held-out numbers above
+.venv/Scripts/python.exe -m unittest discover -s backend/tests -p "test_*.py"   # 98 tests
+node --test frontend/test_api.js                                                # 36 tests
+.venv/Scripts/python.exe frontend/test_browser.py --static-port 5510            # desktop + mobile
+```
+
+The exported model is verified against the trained sklearn head on every training run: 32
+validation images are pushed through the Keras graph and compared with the cached embeddings used
+to fit the head. The current artefact matches to **2.98e-07**, so the served model is the model
+that was validated.

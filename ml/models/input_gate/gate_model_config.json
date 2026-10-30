@@ -1,0 +1,13 @@
+{
+  "classes": [
+    "non_leaf",
+    "other_plant",
+    "supported_leaf"
+  ],
+  "C": 0.1,
+  "val_accuracy": 0.9869555089680876,
+  "feature_backbone": "MobileNetV2 (ImageNet, frozen)",
+  "input": "224x224 RGB in [0, 255]",
+  "export_parity_max_abs_delta": 2.980232238769531e-07,
+  "trained_at": "2026-10-30T08:21:12.130580+00:00"
+}

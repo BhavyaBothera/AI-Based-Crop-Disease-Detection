@@ -23,6 +23,7 @@ from ..services.inference import (
     sniff_image_format,
 )
 from ..services.input_gate import assess_image
+from ..services.leaf_gate import leaf_gate_service
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,10 @@ def get_inference_semaphore() -> asyncio.Semaphore:
         422: {
             "description": (
                 "Image dimensions sub-minimum (<64px), pixel limit exceeded (>20MP), uniform "
-                "blank canvas, or a rejected/abstained content assessment. Content assessments "
-                "return a machine-readable detail object with status, code, category and message."
+                "blank canvas, or a rejected/abstained content assessment (non-leaf image, "
+                "unsupported plant species, ambiguous input, low quality). Content assessments "
+                "return a machine-readable detail object with status, code, category, message "
+                "and the gate's numeric signals - and never a diagnosis."
             )
         },
         429: {"description": "Server is handling peak request volume (overload rejection)."},
@@ -86,11 +89,11 @@ def get_inference_semaphore() -> asyncio.Semaphore:
     },
     summary="Predict Crop Disease from Leaf Image",
     description=(
-        "Accepts a single Solanaceae leaf image upload, validates its structure, screens it "
-        "for plant-tissue evidence, preprocesses it to 224x224 RGB, and returns top-3 "
-        "candidate predictions along with softmax scores across all 15 trained classes. "
-        "Images that cannot be verified as plant material are rejected or abstained from via "
-        "a structured 422 response and never receive a disease diagnosis."
+        "Accepts a single Solanaceae leaf image upload, validates its structure, verifies the "
+        "subject with a trained leaf-acceptance gate, preprocesses it to 224x224 RGB, and "
+        "returns top-3 candidate predictions along with softmax scores across all 15 trained "
+        "classes. Images that cannot be verified as a supported crop leaf are rejected or "
+        "abstained from via a structured 422 response and never receive a disease diagnosis."
     ),
 )
 async def predict(
@@ -181,9 +184,11 @@ async def predict(
     def _decode_and_assess(payload: bytes):
         """Decodes, validates, and screens the image in the CPU worker thread."""
         tensor = preprocess_image(payload)
-        # The gate consumes the same 224x224 RGB frame the model will see, so the
-        # decision is deterministic and adds no second decode.
-        return tensor, assess_image(tensor[0])
+        # Both screens consume the same 224x224 RGB frame the disease model will see, so
+        # the decision adds no second decode. predict_proba returns None when the gate
+        # artefact is unavailable, which keeps the deterministic screen in charge.
+        frame = tensor[0]
+        return tensor, assess_image(frame, leaf_gate_service.predict_proba(frame))
 
     try:
         async with get_decode_semaphore():

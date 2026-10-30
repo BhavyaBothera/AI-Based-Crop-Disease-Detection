@@ -119,6 +119,22 @@ INPUT_GATE_MIN_DETAIL_VARIANCE: float = _parse_float_env(
     "INPUT_GATE_MIN_DETAIL_VARIANCE", 0.0001, min_val=0.0
 )
 
+# Trained Leaf-Acceptance Gate (Level B content classifier)
+# A 3-class model (supported_leaf / other_plant / non_leaf) built on frozen ImageNet
+# MobileNetV2 features and trained by ml/scripts/train_input_gate.py. It is the content
+# authority when it is loaded; the deterministic screen below is the fallback. Its
+# validation-only operating point and measured error rates are recorded in
+# docs/audit_reports/non_leaf_input_safety_report.md.
+DEFAULT_LEAF_GATE_REL_PATH = "ml/models/input_gate/leaf_gate.keras"
+DEFAULT_LEAF_GATE_PATH = PROJECT_ROOT / DEFAULT_LEAF_GATE_REL_PATH
+LEAF_GATE_MODEL_PATH = Path(os.getenv("LEAF_GATE_MODEL_PATH", str(DEFAULT_LEAF_GATE_PATH)))
+ENABLE_LEAF_GATE: bool = _parse_bool_env("ENABLE_LEAF_GATE", True)
+
+# Minimum top-class probability required to act on a gate decision. Below it the gate
+# abstains instead of asserting "leaf" or "not a leaf". Selected on the gate validation
+# split subject to >= 99% valid-leaf coverage; never tuned on the evaluation split.
+LEAF_GATE_MIN_CONFIDENCE: float = _parse_float_env("LEAF_GATE_MIN_CONFIDENCE", 0.60, min_val=0.0)
+
 # Concurrency & Admission Control Configuration
 # Bounded number of concurrent CPU-intensive image decodes to limit transient RAM usage
 MAX_DECODE_CONCURRENCY: int = _parse_int_env("MAX_DECODE_CONCURRENCY", 2, min_val=1)

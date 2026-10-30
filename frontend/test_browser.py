@@ -38,17 +38,23 @@ from backend.tests.non_leaf_fixtures import create_portrait_bytes  # noqa: E402
 
 SCREENSHOT_DIR = PROJECT_ROOT / "docs" / "audit_reports" / "non_leaf_safety_screenshots"
 SAMPLE_LEAF = PROJECT_ROOT / "frontend" / "samples" / "sample_potato_early_blight.jpg"
-# A real PlantVillage "background without leaves" photograph (snow-covered mountain).
-# PlantVillage data is gitignored; the test is skipped if it is not present.
-REAL_NON_LEAF = (
+RAW_DATASET = (
     PROJECT_ROOT
     / "ml"
     / "data"
     / "raw_dataset"
     / "Plant_leave_diseases_dataset_without_augmentation"
-    / "Background_without_leaves"
-    / "image (726).jpg"
 )
+# A real PlantVillage "background without leaves" photograph (snow-covered mountain).
+# PlantVillage data is gitignored; the test is skipped if it is not present.
+REAL_NON_LEAF = RAW_DATASET / "Background_without_leaves" / "image (726).jpg"
+# A real, licence-cleared portrait from the downloaded OOD corpus (ml/scripts/build_ood_corpus.py).
+REAL_PORTRAIT = (
+    PROJECT_ROOT / "ml" / "data" / "ood_corpus" / "person"
+    / "elderly-gambian-woman-face-portrait.jpg"
+)
+# An apple leaf: a real leaf of a species the disease model was never trained on.
+UNSUPPORTED_LEAF = RAW_DATASET / "Apple___Apple_scab" / "image (1).JPG"
 
 VIEWPORTS = {
     "desktop": {"width": 1440, "height": 900, "mobile": False},
@@ -284,8 +290,10 @@ def analyze(devtools: DevTools, timeout: float = 90.0) -> dict:
     )
 
 
-def assert_rejection(state: dict) -> None:
+def assert_rejection(state: dict, expected_badge: str = None) -> None:
     assert state["rejected"], f"Expected rejection state, got {state}"
+    if expected_badge:
+        assert state["badge"].lower() == expected_badge.lower(), state["badge"]
     assert not state["result"], "Results content must be hidden on rejection"
     assert "couldn't verify" in state["headline"].lower(), state["headline"]
     assert state["detail"], "Rejection detail should explain the problem"
@@ -324,9 +332,13 @@ def run_viewport(devtools: DevTools, label: str, viewport: dict, person_image: P
         devtools.wait_for(readiness, timeout=45)
 
     # --- 1. Person photograph: must be rejected with no diagnosis -------------------
-    upload_file(devtools, person_image)
+    # A real portrait is used when the OOD corpus is present, because the reported bug was
+    # a real human photograph; the programmatic probe covers machines without the corpus.
+    person_case = REAL_PORTRAIT if REAL_PORTRAIT.is_file() else person_image
+    print(f"  person case: {person_case.name}")
+    upload_file(devtools, person_case)
     rejection = analyze(devtools)
-    assert_rejection(rejection)
+    assert_rejection(rejection, expected_badge="No crop leaf detected")
     if label == "mobile":
         # The sticky header must not cover the start of the rejection panel after the
         # automatic scroll-into-view.
@@ -369,6 +381,20 @@ def run_viewport(devtools: DevTools, label: str, viewport: dict, person_image: P
         screenshot(devtools, f"{label}-stale-result-cleared.png")
     else:
         print("  ! Real non-leaf photograph missing; skipping the stale-result probe.")
+
+    # --- 5. A leaf of an unsupported species is refused as a diagnosis --------------
+    if UNSUPPORTED_LEAF.is_file():
+        upload_file(devtools, UNSUPPORTED_LEAF)
+        unsupported = analyze(devtools)
+        assert_rejection(unsupported, expected_badge="Unsupported plant species")
+        assert "tomato, potato and bell pepper" in unsupported["detail"].lower()
+        screenshot(devtools, f"{label}-unsupported-species.png")
+        devtools.evaluate("document.getElementById('rejection-action-btn').click(); true")
+        devtools.wait_for(
+            "!document.getElementById('drop-zone').classList.contains('hidden')", timeout=10
+        )
+    else:
+        print("  ! Unsupported-species leaf missing; skipping that probe.")
 
 
 def main() -> int:

@@ -129,6 +129,29 @@ py -3.11 ml/scripts/train_model.py --compare ml/models/unweighted ml/models/bala
 
 ---
 
+## Leaf-Acceptance Gate (`ml/scripts/train_input_gate.py`)
+
+The input gate that screens uploads before the disease model is a separate 3-class model
+(`supported_leaf` / `other_plant` / `non_leaf`): a linear head on frozen ImageNet MobileNetV2
+features, exported as one self-contained Keras file (`ml/models/input_gate/leaf_gate.keras`)
+that the backend loads like any other model.
+
+```bash
+# Download the licence-cleared real-photo OOD corpus (needs network, one-off)
+.venv/Scripts/python.exe ml/scripts/build_ood_corpus.py
+
+# Extract cached features, fit the head, export, verify export parity
+.venv/Scripts/python.exe ml/scripts/train_input_gate.py
+
+# Held-out evaluation + behavioural probes + latency (writes docs/audit_reports/)
+.venv/Scripts/python.exe ml/scripts/evaluate_input_gate.py
+```
+
+Splits are path-hashed and disjoint (gate-train / gate-val / gate-eval); the disease `test`
+split is never read, and Strawberry + Soybean are held out of gate training entirely so species
+rejection is measured on unseen species. `--train` alone refits from the cached embeddings
+(seconds) without re-extracting features.
+
 ### Unit Test Suite (`ml/tests/test_train_pipeline.py`)
 
 Run unit tests verifying class mappings, split isolation, class weight computation, tie-breaking, and MobileNetV2 architecture specifications:

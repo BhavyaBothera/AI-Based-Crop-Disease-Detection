@@ -1,41 +1,40 @@
 """
-Evaluation harness for the content-level input suitability gate
-(``backend.app.services.input_gate``).
+Held-out evaluation of the PHYTOSIGNAL leaf-acceptance gate.
 
 WHAT IT MEASURES
 ----------------
-False acceptance rate (FAR) on non-leaf imagery, and valid-leaf rejection rate (no
-diagnosis) on real crop leaves, reported per category with sample counts.
+The *deployed* artefact (``ml/models/input_gate/leaf_gate.keras``) end to end, through the
+same ``assess_image`` decision function the API uses, on sets that were never used to fit
+the classifier:
 
-DATA AND HONESTY OF THE EVALUATION
-----------------------------------
-* Supported leaves come from the ``val`` split of the frozen manifest. The held-out
-  ``test`` split is never opened by this script (asserted at runtime).
-* Non-leaf evidence is the 1,143 real ``Background_without_leaves`` photographs that the
-  training pipeline excluded. IMPORTANT: those images were inspected during threshold
-  selection, so their numbers are an *exploratory diagnostic*, not a clean untouched
-  benchmark.
-* The synthetic probe categories are generated after the gate thresholds were fixed, so
-  they are a held-out (though synthetic, non-photographic) set that measures branch
-  behaviour only.
-* Every source category is partitioned deterministically into a calibration half and an
-  evaluation half by SHA-256 hash parity. The calibration sweep is printed for the
-  calibration half only; evaluation metrics use the disjoint evaluation half.
+    supported leaves      disease `val` split, path-hash eval half (never seen in training)
+    real non-leaf scenes  1,143 leaf-free field photographs, eval slice
+    people / animals / buildings / documents / objects / graphics
+                          downloaded real photographs, eval slice (never in training)
+    unsupported species   apple, corn, grape, ... eval slice (seen species, unseen images)
+    unseen species        Strawberry + Soybean, held out ENTIRELY from training
+    synthetic probes      programmatic person/document/screenshot/leaf shapes, written after
+                          the model was trained
+    quality edge cases    dark, blurry, tiny, multiple-leaf probes
 
-This script does not tune the gate. Thresholds live in ``backend/app/config.py`` and the
-constants in ``backend/app/services/input_gate.py``; the sweep exists to document the
-decision boundary that was chosen on non-test data.
+The disease `test` split is never opened by this script.
+
+Reported per category with sample counts: acceptance rate, hard-rejection rate, abstention
+rate and "no diagnosis" rate. For non-leaf categories the acceptance rate IS the false
+acceptance rate; for leaf categories the no-diagnosis rate IS the valid-leaf rejection rate.
 
 Run:
     .venv/Scripts/python.exe ml/scripts/evaluate_input_gate.py
 """
+from __future__ import annotations
+
 import argparse
 import csv
 import hashlib
 import json
 import statistics
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
@@ -45,6 +44,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np  # noqa: E402
 
+from backend.app.config import LEAF_GATE_MIN_CONFIDENCE, LEAF_GATE_MODEL_PATH  # noqa: E402
 from backend.app.services.input_gate import (  # noqa: E402
     ABSTAINED,
     ACCEPTED,
@@ -52,6 +52,7 @@ from backend.app.services.input_gate import (  # noqa: E402
     assess_image,
 )
 from backend.app.services.inference import preprocess_image  # noqa: E402
+from backend.app.services.leaf_gate import LeafGateService  # noqa: E402
 from backend.tests.non_leaf_fixtures import (  # noqa: E402
     create_animal_bytes,
     create_blurry_leaf_bytes,
@@ -72,7 +73,9 @@ from backend.tests.non_leaf_fixtures import (  # noqa: E402
 
 MANIFEST = PROJECT_ROOT / "ml" / "data" / "dataset_manifest.csv"
 DATA_ROOT = PROJECT_ROOT / "ml"
+OOD_MANIFEST = PROJECT_ROOT / "ml" / "data" / "ood_corpus" / "manifest.json"
 DEFAULT_OUTPUT = PROJECT_ROOT / "docs" / "audit_reports" / "non_leaf_input_safety_eval.json"
+FEATURE_DIR = PROJECT_ROOT / "ml" / "data" / "gate_features"
 
 SUPPORTED_CLASSES = {
     "Pepper,_bell___Bacterial_spot", "Pepper,_bell___healthy",
@@ -83,66 +86,128 @@ SUPPORTED_CLASSES = {
     "Tomato___Tomato_Yellow_Leaf_Curl_Virus", "Tomato___Tomato_mosaic_virus",
     "Tomato___healthy",
 }
-UNSUPPORTED_SAMPLE_CLASSES = [
-    "Apple___Apple_scab", "Corn___Common_rust", "Grape___Black_rot",
-    "Peach___Bacterial_spot", "Soybean___healthy", "Strawberry___Leaf_scorch",
-]
+HELD_OUT_SPECIES_PREFIXES = ("Strawberry___", "Soybean___")
+BACKGROUND_CLASS = "Background_without_leaves"
 
 SYNTHETIC_PROBES = {
-    "person": (create_portrait_bytes, "non_leaf"),
-    "animal": (create_animal_bytes, "non_leaf"),
-    "building": (create_building_bytes, "non_leaf"),
-    "document": (create_document_bytes, "non_leaf"),
-    "random_object": (create_object_bytes, "non_leaf"),
-    "screenshot_or_graphic": (create_screenshot_bytes, "non_leaf"),
-    "uniform_constant_colour": (create_uniform_bytes, "non_leaf"),
-    "supported_leaf": (create_leaf_closeup_bytes, "leaf"),
-    "multiple_leaves": (create_multiple_leaves_bytes, "leaf"),
-    "complex_background_leaf": (create_complex_background_bytes, "leaf"),
-    "sparse_vegetation": (create_sparse_vegetation_bytes, "leaf"),
-    "scattered_vegetation": (create_scattered_vegetation_bytes, "leaf"),
-    "tiny_leaf": (create_tiny_leaf_bytes, "leaf"),
-    "dark_leaf": (create_dark_leaf_bytes, "leaf"),
-    "blurry_leaf": (create_blurry_leaf_bytes, "leaf"),
+    "synthetic_person": (create_portrait_bytes, "non_leaf"),
+    "synthetic_animal": (create_animal_bytes, "non_leaf"),
+    "synthetic_building": (create_building_bytes, "non_leaf"),
+    "synthetic_document": (create_document_bytes, "non_leaf"),
+    "synthetic_random_object": (create_object_bytes, "non_leaf"),
+    "synthetic_screenshot_or_graphic": (create_screenshot_bytes, "non_leaf"),
+    "synthetic_uniform_canvas": (create_uniform_bytes, "non_leaf"),
+    "synthetic_supported_leaf": (create_leaf_closeup_bytes, "leaf"),
+    "synthetic_multiple_leaves": (create_multiple_leaves_bytes, "leaf"),
+    "synthetic_complex_background_leaf": (create_complex_background_bytes, "leaf"),
+    "synthetic_sparse_vegetation": (create_sparse_vegetation_bytes, "leaf"),
+    "synthetic_scattered_vegetation": (create_scattered_vegetation_bytes, "leaf"),
+    "synthetic_tiny_leaf": (create_tiny_leaf_bytes, "leaf"),
+    "synthetic_dark_leaf": (create_dark_leaf_bytes, "leaf"),
+    "synthetic_blurry_leaf": (create_blurry_leaf_bytes, "leaf"),
 }
 
-SWEEP_THRESHOLDS = (0.005, 0.01, 0.02, 0.03, 0.05, 0.08, 0.10, 0.15)
+
+def bucket(key: str) -> int:
+    return int.from_bytes(hashlib.sha256(key.encode("utf-8")).digest()[:2], "big") % 100
 
 
-def load_manifest() -> list:
+def load_manifest() -> list[dict]:
     with open(MANIFEST, encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
 
 
-def bucket_of(row: dict) -> int:
-    """Stable calibration/evaluation assignment, independent of the manifest's hash column."""
-    key = (row.get("relative_path") or row["image_id"]).replace("\\", "/")
-    return hashlib.sha256(key.encode("utf-8")).digest()[0] % 2
+def build_categories(rows: list[dict], gate: LeafGateService) -> dict[str, dict]:
+    """Assembles the evaluation sets, all of which were excluded from training."""
+    categories: dict[str, dict] = {}
 
+    def add(name: str, kind: str, paths: list[str]) -> None:
+        categories.setdefault(name, {"kind": kind, "paths": []})["paths"].extend(paths)
 
-def partition(rows: list) -> tuple:
-    """Deterministic calibration/evaluation split by path hash parity."""
-    calibration, evaluation = [], []
+    leaf_eval, leaf_val, backgrounds = [], [], []
+    unsupported_eval, unseen = [], defaultdict(list)
+
     for row in rows:
-        (calibration if bucket_of(row) == 0 else evaluation).append(row)
-    return calibration, evaluation
+        relative = row["relative_path"].replace("\\", "/")
+        split, class_name = row["split"], row["class_name"]
+
+        if split == "test":
+            continue  # frozen: never opened
+
+        if class_name in SUPPORTED_CLASSES and split == "val":
+            (leaf_eval if bucket(relative) >= 50 else leaf_val).append(relative)
+            continue
+
+        if split != "excluded":
+            continue
+
+        if class_name == BACKGROUND_CLASS:
+            if bucket(relative) >= 85:
+                backgrounds.append(relative)
+            continue
+
+        if class_name.startswith(HELD_OUT_SPECIES_PREFIXES):
+            unseen[class_name.split("___")[0]].append(relative)
+            continue
+
+        if bucket(relative) >= 85:
+            unsupported_eval.append(relative)
+
+    add("supported_leaf_val_eval_half", "leaf", leaf_eval)
+    add("supported_leaf_val_tuning_half", "leaf", leaf_val)
+    add("real_field_scene_without_leaves", "non_leaf", backgrounds)
+    add("unsupported_species_seen", "unsupported", unsupported_eval[:1200])
+    for species, paths in unseen.items():
+        add(f"unseen_species_{species}", "unsupported", paths[:300])
+
+    if OOD_MANIFEST.exists():
+        corpus = json.loads(OOD_MANIFEST.read_text(encoding="utf-8"))
+        per_category: dict[str, list[str]] = defaultdict(list)
+        for entry in corpus["files"]:
+            if bucket(entry["path"]) >= 50:
+                per_category[entry["category"]].append(entry["path"])
+        for name, paths in sorted(per_category.items()):
+            add(f"real_non_leaf_{name}", "non_leaf", paths)
+    else:
+        raise SystemExit(f"OOD corpus manifest missing at {OOD_MANIFEST}")
+
+    return categories
 
 
-def assess_path(relative_path: str):
-    payload = (DATA_ROOT / relative_path).read_bytes()
-    tensor = preprocess_image(payload)
-    return assess_image(tensor[0])
+def assess_paths(gate: LeafGateService, paths: list[str]) -> list[dict]:
+    """Runs the deployed gate + decision function over a list of images."""
+    records = []
+    for relative in paths:
+        try:
+            tensor = preprocess_image((DATA_ROOT / relative).read_bytes())
+        except Exception as exc:  # physical-integrity rejection is still a safe outcome
+            records.append({"decision": REJECTED, "code": "PHYSICAL_LAYER_REJECTION",
+                            "error": type(exc).__name__})
+            continue
+        frame = tensor[0]
+        probabilities = gate.predict_proba(frame)
+        assessment = assess_image(frame, probabilities)
+        records.append({"decision": assessment.decision, "code": assessment.code,
+                        "signals": assessment.signals})
+    return records
 
 
-def summarize(records: list, expected: str) -> dict:
-    """Summarizes assessments for one category."""
+def assess_probe(gate: LeafGateService, payload: bytes) -> dict:
+    try:
+        tensor = preprocess_image(payload)
+    except Exception as exc:
+        return {"decision": REJECTED, "code": "PHYSICAL_LAYER_REJECTION", "error": type(exc).__name__}
+    frame = tensor[0]
+    assessment = assess_image(frame, gate.predict_proba(frame))
+    return {"decision": assessment.decision, "code": assessment.code, "signals": assessment.signals}
+
+
+def summarize(records: list[dict], kind: str) -> dict:
     counts = Counter(record["decision"] for record in records)
     reasons = Counter(record["code"] for record in records if record["decision"] != ACCEPTED)
-    errors = Counter(record["error"] for record in records if record.get("error"))
+    errors = Counter(record.get("error") for record in records if record.get("error"))
     total = len(records)
-    accepted = counts[ACCEPTED]
-    rejected = counts[REJECTED]
-    abstained = counts[ABSTAINED]
+    accepted, rejected, abstained = counts[ACCEPTED], counts[REJECTED], counts[ABSTAINED]
     summary = {
         "n": total,
         "accepted": accepted,
@@ -150,12 +215,10 @@ def summarize(records: list, expected: str) -> dict:
         "abstained": abstained,
         "decode_errors": sum(errors.values()),
         "acceptance_rate": round(accepted / total, 4) if total else None,
-        # "No diagnosis" = anything that is not a normal prediction (physical-layer
-        # decode failures are recorded as rejections, not double-counted here).
         "no_diagnosis_rate": round((rejected + abstained) / total, 4) if total else None,
         "reasons": dict(reasons),
     }
-    if expected == "non_leaf":
+    if kind == "non_leaf":
         summary["false_acceptance_rate"] = summary["acceptance_rate"]
     else:
         summary["valid_leaf_no_diagnosis_rate"] = summary["no_diagnosis_rate"]
@@ -163,175 +226,101 @@ def summarize(records: list, expected: str) -> dict:
     return summary
 
 
-def bridge_sweep(calibration_leaves: list, calibration_backgrounds: list) -> list:
-    """Documents the plant-evidence decision boundary on the calibration half only."""
-    leaf_evidence = np.array(
-        [row.get("signals", {}).get("plant_evidence", 0.0) for row in calibration_leaves]
-    )
-    background_evidence = np.array(
-        [row.get("signals", {}).get("plant_evidence", 0.0) for row in calibration_backgrounds]
-    )
-    sweep = []
-    for threshold in SWEEP_THRESHOLDS:
-        sweep.append(
-            {
-                "threshold": threshold,
-                "calibration_leaf_below_rate": round(float((leaf_evidence < threshold).mean()), 4),
-                "calibration_background_below_rate": round(
-                    float((background_evidence < threshold).mean()), 4
-                ),
-            }
-        )
-    return sweep
+def verdict_breakdown(records: list[dict]) -> dict:
+    """Counts the raw gate verdicts, ignoring the confidence floor."""
+    labels = Counter(record.get("signals", {}).get("gate_label")
+                     for record in records if record.get("signals", {}).get("gate_label"))
+    return dict(labels)
 
 
-def gate_latency_ms(rows: list, sample_size: int = 150) -> dict:
-    step = max(1, len(rows) // sample_size)
+def latency_ms(gate: LeafGateService, paths: list[str], sample: int = 120) -> dict:
+    step = max(1, len(paths) // sample)
     measured = []
-    for row in rows[::step][:sample_size]:
-        tensor = preprocess_image((DATA_ROOT / row["relative_path"]).read_bytes())
-        frame = tensor[0]
+    for relative in paths[::step][:sample]:
+        frame = preprocess_image((DATA_ROOT / relative).read_bytes())[0]
         start = time.perf_counter()
-        assess_image(frame)
+        gate.predict_proba(frame)
         measured.append((time.perf_counter() - start) * 1000.0)
     return {
         "samples": len(measured),
-        "mean_ms": round(statistics.mean(measured), 3),
-        "median_ms": round(statistics.median(measured), 3),
-        "p95_ms": round(sorted(measured)[int(len(measured) * 0.95) - 1], 3),
+        "mean_ms": round(statistics.mean(measured), 2),
+        "median_ms": round(statistics.median(measured), 2),
+        "p95_ms": round(sorted(measured)[int(len(measured) * 0.95) - 1], 2),
     }
 
 
-def collect_real(rows: list) -> list:
-    records = []
-    for row in rows:
-        try:
-            assessment = assess_path(row["relative_path"])
-            records.append(
-                {
-                    "decision": assessment.decision,
-                    "code": assessment.code,
-                    "signals": assessment.signals,
-                }
-            )
-        except Exception as exc:  # physical-integrity rejection (Layer A) is also safe
-            records.append({"decision": REJECTED, "code": "PHYSICAL_LAYER_REJECTION", "error": type(exc).__name__})
-    return records
-
-
-def collect_synthetic() -> dict:
-    results = {}
-    for name, (factory, expected) in SYNTHETIC_PROBES.items():
-        payload = factory()
-        try:
-            tensor = preprocess_image(payload)
-            assessment = assess_image(tensor[0])
-            record = {"decision": assessment.decision, "code": assessment.code, "signals": assessment.signals}
-        except Exception as exc:
-            record = {"decision": REJECTED, "code": "PHYSICAL_LAYER_REJECTION", "error": type(exc).__name__}
-        results[name] = {"expected": expected, "record": record}
-    return results
+def load_val_scores() -> dict | None:
+    """Confidence distribution on the tuning half, used to document the chosen floor."""
+    path = FEATURE_DIR / "val.npz"
+    if not path.exists():
+        return None
+    data = np.load(path, allow_pickle=True)
+    return {"source": "gate_features/val.npz", "n": int(len(data["labels"]))}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--unsupported-per-class", type=int, default=80)
     args = parser.parse_args()
 
+    if not LEAF_GATE_MODEL_PATH.is_file():
+        raise SystemExit(f"Trained gate not found at {LEAF_GATE_MODEL_PATH}. Run train_input_gate.py first.")
+
+    gate = LeafGateService()
+    gate.load_model(LEAF_GATE_MODEL_PATH)
+    print(f"Gate loaded: classes={gate.classes} threshold={LEAF_GATE_MIN_CONFIDENCE}")
+
     rows = load_manifest()
-    leaves = [row for row in rows if row["split"] == "val" and row["class_name"] in SUPPORTED_CLASSES]
-    backgrounds = [
-        row for row in rows
-        if row["split"] == "excluded" and row["class_name"] == "Background_without_leaves"
-    ]
-    unsupported = [
-        row for row in rows
-        if row["split"] == "excluded" and row["class_name"] in UNSUPPORTED_SAMPLE_CLASSES
-    ]
-    test_rows = [row for row in rows if row["split"] == "test"]
+    categories = build_categories(rows, gate)
 
-    _, unsupported_evaluation = partition(unsupported)
+    results: dict[str, dict] = {}
+    for name, spec in categories.items():
+        print(f"Assessing {name} ({len(spec['paths'])} images)...")
+        records = assess_paths(gate, spec["paths"])
+        summary = summarize(records, spec["kind"])
+        summary["gate_verdicts_ignoring_floor"] = verdict_breakdown(records)
+        results[name] = summary
 
-    per_class: dict = {}
-    for row in unsupported_evaluation:
-        bucket = per_class.setdefault(row["class_name"], [])
-        if len(bucket) < args.unsupported_per_class:
-            bucket.append(row)
-    unsupported_evaluation = [row for group in per_class.values() for row in group]
+    print("Assessing synthetic probes...")
+    for name, (factory, kind) in SYNTHETIC_PROBES.items():
+        record = assess_probe(gate, factory())
+        summary = summarize([record], "non_leaf" if kind == "non_leaf" else "leaf")
+        summary["gate_verdicts_ignoring_floor"] = verdict_breakdown([record])
+        results[name] = summary
 
-    print(f"Manifest: {len(rows)} rows | leaves(val)={len(leaves)} backgrounds={len(backgrounds)} "
-          f"unsupported sample={len(unsupported_evaluation)}")
-    print(f"Test split rows left untouched: {len(test_rows)}")
-
-    print("Assessing validation leaves...")
-    leaf_records = collect_real(leaves)
-    leaf_buckets = [bucket_of(row) for row in leaves]
-    leaf_calibration_records = [r for r, h in zip(leaf_records, leaf_buckets) if h == 0]
-    leaf_evaluation_records = [r for r, h in zip(leaf_records, leaf_buckets) if h == 1]
-
-    print("Assessing real non-leaf photographs...")
-    background_records = collect_real(backgrounds)
-    background_buckets = [bucket_of(row) for row in backgrounds]
-    background_calibration_records = [r for r, h in zip(background_records, background_buckets) if h == 0]
-    background_evaluation_records = [r for r, h in zip(background_records, background_buckets) if h == 1]
-
-    print("Assessing unsupported crop leaves (documented limitation)...")
-    unsupported_records = collect_real(unsupported_evaluation)
-
-    print("Running synthetic probes...")
-    synthetic = collect_synthetic()
-
-    sweep = bridge_sweep(leaf_calibration_records, background_calibration_records)
-    latency = gate_latency_ms(leaves)
-
-    categories = {
-        "supported_leaf_val_evaluation_half": ("leaf", leaf_evaluation_records),
-        "real_non_leaf_scene_photographs": ("non_leaf", background_evaluation_records),
-        "unsupported_crop_leaves": ("unsupported_crop", unsupported_records),
-    }
-
-    synthetic_categories = {}
-    for name, payload in synthetic.items():
-        synthetic_categories[name] = summarize([payload["record"]], payload["expected"])
-
-    evaluation = {name: summarize(records, expected) for name, (expected, records) in categories.items()}
-    evaluation.update(synthetic_categories)
-
-    result = {
+    leaf_paths = categories["supported_leaf_val_eval_half"]["paths"]
+    payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "gate": "backend.app.services.input_gate",
+        "gate": {
+            "module": "backend.app.services.input_gate + backend.app.services.leaf_gate",
+            "model": LEAF_GATE_MODEL_PATH.relative_to(PROJECT_ROOT).as_posix(),
+            "classes": gate.classes,
+            "confidence_floor": LEAF_GATE_MIN_CONFIDENCE,
+        },
         "dataset_isolation": {
-            "test_split_rows_untouched": len(test_rows),
-            "supported_leaves_source": "val split (non-test)",
-            "non_leaf_source": "excluded Background_without_leaves photographs",
-            "synthetic_probes": "generated after the gate thresholds were fixed",
-            "caveat": (
-                "The real non-leaf photographs were inspected during threshold selection, so "
-                "they are an exploratory diagnostic set, not a clean untouched OOD benchmark."
-            ),
+            "supported_leaves": "disease val split, path-hash eval half (never trained on)",
+            "real_non_leaf_scenes": "1,143 leaf-free field photographs, hash eval slice",
+            "real_non_leaf_photos": "Wikimedia Commons corpus, per-category hash eval half",
+            "unsupported_species_seen": "excluded species, hash eval slice",
+            "unseen_species": "Strawberry and Soybean held out of training entirely",
+            "synthetic_probes": "generated by backend/tests/non_leaf_fixtures.py",
+            "disease_test_split": "never opened by this script or by training",
         },
-        "calibration": {
-            "supported_leaf_calibration_half": summarize(leaf_calibration_records, "leaf"),
-            "real_non_leaf_calibration_half": summarize(background_calibration_records, "non_leaf"),
-            "plant_evidence_threshold_sweep": sweep,
-        },
-        "evaluation": evaluation,
-        "gate_latency": latency,
+        "evaluation": results,
+        "gate_latency": latency_ms(gate, leaf_paths),
     }
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    args.output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    print("\n=== Evaluation (disjoint half / post-hoc probes) ===")
-    header = f"{'category':34s} {'n':>5s} {'accept':>7s} {'reject':>7s} {'abstain':>8s} {'noDiagnosis':>11s}"
-    print(header)
-    for name, summary in evaluation.items():
-        print(
-            f"{name:34s} {summary['n']:5d} {summary['acceptance_rate']:7.3f} "
-            f"{summary['rejected']:7d} {summary['abstained']:8d} {summary['no_diagnosis_rate']:11.3f}"
-        )
-    print(f"\nGate latency (assess only): {latency}")
+    print("\n=== Held-out evaluation ===")
+    print(f"{'category':38s} {'n':>5s} {'accept':>7s} {'reject':>7s} {'abstain':>8s} {'noDx':>7s}")
+    for name, summary in results.items():
+        rate = summary["acceptance_rate"] if summary["acceptance_rate"] is not None else 0.0
+        no_dx = summary["no_diagnosis_rate"] if summary["no_diagnosis_rate"] is not None else 0.0
+        print(f"{name:38s} {summary['n']:5d} {rate:7.3f} {summary['rejected']:7d} "
+              f"{summary['abstained']:8d} {no_dx:7.3f}")
+    print(f"\nLatency: {payload['gate_latency']}")
     print(f"Artifact written to {args.output}")
     return 0
 

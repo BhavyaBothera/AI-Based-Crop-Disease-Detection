@@ -9,6 +9,7 @@ from ..config import API_TITLE, API_VERSION
 from ..schemas.prediction import HealthResponse, ReadyResponse
 from ..services.inference import model_service
 from ..services.knowledge import knowledge_service
+from ..services.leaf_gate import leaf_gate_service
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ async def get_ready():
             status="ready",
             model_loaded=True,
             knowledge_loaded=True,
+            gate_loaded=leaf_gate_service.is_loaded,
             model_path=model_service.safe_model_identifier,
         )
 
@@ -67,6 +69,7 @@ async def get_ready():
             "status": "not_ready",
             "model_loaded": model_service.is_loaded,
             "knowledge_loaded": knowledge_service.is_loaded,
+            "gate_loaded": leaf_gate_service.is_loaded,
             "model_path": model_service.safe_model_identifier,
             "detail": detail,
         },

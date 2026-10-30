@@ -503,6 +503,7 @@
 
   const REJECTION_BADGES = {
     non_leaf_image: 'No crop leaf detected',
+    unsupported_species: 'Unsupported plant species',
     ambiguous_image: 'Image could not be verified',
     low_quality_image: 'Image quality too low',
   };

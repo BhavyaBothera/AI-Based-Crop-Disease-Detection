@@ -364,6 +364,36 @@ describe('CropDiseaseApi.predictCropDisease - Content gate contract', () => {
     );
   });
 
+  test('Unsupported-species rejection keeps its own category and code', async () => {
+    global.fetch = async () =>
+      jsonResponse(422, {
+        detail: {
+          status: 'rejected',
+          code: 'UNSUPPORTED_SPECIES',
+          category: 'unsupported_species',
+          message: "We couldn't verify that this image contains a supported crop leaf.",
+          detail: 'This looks like a plant leaf, but not one of the crops PHYTOSIGNAL supports.',
+          retryable: true,
+          signals: { gate_label: 'other_plant', gate_confidence: 0.94 },
+        },
+      });
+
+    await assert.rejects(
+      async () => {
+        await api.predictCropDisease(new Blob(['x'], { type: 'image/png' }));
+      },
+      (err) => {
+        assert.ok(err instanceof api.InputRejectedError);
+        assert.strictEqual(err.statusText, 'rejected');
+        assert.strictEqual(err.category, 'unsupported_species');
+        assert.strictEqual(err.code, 'UNSUPPORTED_SPECIES');
+        assert.strictEqual(err.signals.gate_label, 'other_plant');
+        assert.strictEqual(err.detail.predicted_class_id, undefined);
+        return true;
+      }
+    );
+  });
+
   test('Ordinary invalid-upload 422 remains a generic ApiError, not a rejection', async () => {
     global.fetch = async () =>
       jsonResponse(422, { detail: 'Image resolution (40x40) is too small.' });

@@ -1,5 +1,5 @@
 """
-Deterministic content-level input suitability assessment (Level B gate).
+Content-level input suitability assessment (Level B gate).
 
 PURPOSE
 -------
@@ -8,32 +8,32 @@ what it is shown, so its argmax alone must never be treated as evidence that the
 is a crop leaf. This module screens the decoded image before inference and produces one
 of three outcomes:
 
-    accepted  - plant-tissue evidence is present in a framed, usable photograph
-    abstained - plant material may be present, but the image cannot be assessed reliably
-    rejected  - no plant-tissue evidence was found at all
+    accepted  - a supported crop leaf was verified in a usable photograph
+    abstained - the subject cannot be verified reliably (ambiguous or poor quality)
+    rejected  - the image is not a supported crop leaf
 
-SCOPE AND HONEST LIMITS
------------------------
-This is a *necessary-condition* screen, not a trained leaf detector. It measures plant
-pigmentation, exposure and spatial concentration using fixed, documented thresholds
-calibrated on the non-test validation split (see ml/scripts/evaluate_input_gate.py).
-It reliably rejects images with no plant tissue (people, documents, screens, buildings,
-indoor objects, animals, flat graphics) and abstains on sparse, scattered or unusable
-imagery. It does NOT:
-  - verify that the subject is a *supported* Solanum/Capsicum leaf,
-  - reject foliage of unsupported crop species, or
-  - distinguish a foliage-heavy landscape from a close-up leaf.
-The repo's data assets do not contain labelled non-leaf negatives of the required
-variety, so training a trustworthy acceptance classifier is not justified yet. The
-limitations and the data requirements are recorded in the audit report.
+TWO SCREENS, ONE DECISION
+-------------------------
+1. The *trained* leaf-acceptance gate (``backend.app.services.leaf_gate``) supplies class
+   probabilities for `supported_leaf` / `other_plant` / `non_leaf`. When it is loaded it is
+   the content authority, and the decision comes from its top class plus a confidence floor.
+2. The deterministic plant-pigmentation screen below is kept as the FALLBACK used when the
+   gate artefact is missing or disabled. It measures plant pigmentation, exposure and
+   spatial concentration with fixed thresholds calibrated on the non-test validation split.
 
-NO MODEL CONFIDENCE IS USED
----------------------------
-Softmax outputs are deliberately not part of this decision. A confident softmax on an
-out-of-distribution image is exactly the failure this gate exists to prevent.
+In both cases the disease model's own softmax is never consulted: a confidently wrong
+softmax on an out-of-distribution image is exactly the failure this gate exists to prevent.
+
+HONEST LIMITS
+-------------
+The gate separates *plant tissue in a frame* from *no plant tissue*, and separates the 15
+trained species from leaves of other species it saw during training. It is not a
+species-level botanical classifier: an unfamiliar leaf may be abstained on or classified as
+`other_plant`, and the measured residual error rates are published in
+``docs/audit_reports/non_leaf_input_safety_report.md`` rather than claimed to be zero.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -46,7 +46,14 @@ from ..config import (
     INPUT_GATE_REGION_AREA_FLOOR,
     INPUT_GATE_REJECT_BELOW_PLANT_EVIDENCE,
     INPUT_GATE_SCATTERED_REGION_COUNT,
+    LEAF_GATE_MIN_CONFIDENCE,
 )
+
+# Class names emitted by the trained gate (see services/leaf_gate.py).
+GATE_SUPPORTED_LEAF = "supported_leaf"
+GATE_OTHER_PLANT = "other_plant"
+GATE_NON_LEAF = "non_leaf"
+GATE_CLASSES = (GATE_SUPPORTED_LEAF, GATE_OTHER_PLANT, GATE_NON_LEAF)
 
 # Decision constants (also used as the machine-readable `status` field).
 ACCEPTED = "accepted"
@@ -63,6 +70,8 @@ PLANT_VALUE_MIN = 0.08
 # Rule codes returned to clients.
 CODE_ACCEPTED = "SUPPORTED_LEAF_INPUT"
 CODE_NON_LEAF = "NON_LEAF_IMAGE"
+CODE_UNSUPPORTED_SPECIES = "UNSUPPORTED_SPECIES"
+CODE_AMBIGUOUS = "AMBIGUOUS_IMAGE"
 CODE_SPARSE = "SPARSE_PLANT_EVIDENCE"
 CODE_SCATTERED = "SCATTERED_PLANT_EVIDENCE"
 CODE_UNDEREXPOSED = "UNDEREXPOSED_IMAGE"
@@ -91,6 +100,15 @@ _DETAIL_MESSAGES = {
     CODE_LOW_DETAIL: (
         "The photograph contains too little visible detail (severe blur or a flat, "
         "featureless surface) to assess plant tissue."
+    ),
+    CODE_UNSUPPORTED_SPECIES: (
+        "This looks like a plant leaf, but not one of the crops PHYTOSIGNAL supports. "
+        "Diagnoses are available for tomato, potato and bell pepper only, so no result is "
+        "given rather than a guess."
+    ),
+    CODE_AMBIGUOUS: (
+        "The subject of this photograph could not be verified confidently. Frame a single "
+        "leaf filling most of the image, in even light, and try again."
     ),
 }
 
@@ -259,12 +277,39 @@ def _assessment(decision: str, code: str, category: str, signals: Dict[str, Any]
     )
 
 
-def assess_image(image: np.ndarray) -> InputAssessment:
+def _trained_gate_verdict(gate_probabilities: Optional[Dict[str, Any]]) -> Optional[tuple]:
+    """
+    Extracts (label, confidence) from gate probabilities, or None when unavailable.
+
+    Malformed payloads are treated as "gate unavailable" so the deterministic fallback
+    still runs; silently skipping content screening is never an option.
+    """
+    if not gate_probabilities:
+        return None
+    try:
+        scores = {str(key): float(value) for key, value in gate_probabilities.items()}
+    except (TypeError, ValueError):
+        return None
+    if set(scores) != set(GATE_CLASSES):
+        return None
+    if any(value != value for value in scores.values()):  # NaN
+        return None
+    label = max(scores, key=scores.get)
+    return label, scores[label], scores
+
+
+def assess_image(
+    image: np.ndarray,
+    gate_probabilities: Optional[Dict[str, Any]] = None,
+) -> InputAssessment:
     """
     Assesses a decoded RGB image for input suitability.
 
     Args:
         image: (H, W, 3) array in [0, 255] (as produced by ``preprocess_image``) or [0, 1].
+        gate_probabilities: Optional class probabilities from the trained leaf-acceptance
+            gate. When present they are authoritative for the content decision; when absent
+            (model missing or disabled) the deterministic pigment screen decides instead.
 
     Returns:
         InputAssessment. Never raises for ordinary image content; malformed arrays raise
@@ -288,6 +333,14 @@ def assess_image(image: np.ndarray) -> InputAssessment:
         "detail_variance": round(detail_variance, 6),
     }
 
+    verdict = _trained_gate_verdict(gate_probabilities)
+    if verdict is not None:
+        label, confidence, scores = verdict
+        signals["gate_probabilities"] = {name: round(value, 4) for name, value in scores.items()}
+        signals["gate_label"] = label
+        signals["gate_confidence"] = round(confidence, 4)
+        signals["gate_threshold"] = LEAF_GATE_MIN_CONFIDENCE
+
     if not ENABLE_INPUT_GATE:
         return InputAssessment(
             decision=ACCEPTED,
@@ -301,6 +354,24 @@ def assess_image(image: np.ndarray) -> InputAssessment:
     if mean_luminance < INPUT_GATE_MIN_MEAN_LUMINANCE:
         return _assessment(ABSTAINED, CODE_UNDEREXPOSED, "low_quality_image", signals)
 
+    if verdict is not None:
+        label, confidence, _ = verdict
+        if confidence < LEAF_GATE_MIN_CONFIDENCE:
+            return _assessment(ABSTAINED, CODE_AMBIGUOUS, "ambiguous_image", signals)
+        if label == GATE_SUPPORTED_LEAF:
+            return InputAssessment(
+                decision=ACCEPTED,
+                code=CODE_ACCEPTED,
+                category="supported_leaf",
+                headline="Input accepted for classification.",
+                detail="A supported crop leaf was verified in a usable photograph.",
+                signals=signals,
+            )
+        if label == GATE_OTHER_PLANT:
+            return _assessment(REJECTED, CODE_UNSUPPORTED_SPECIES, "unsupported_species", signals)
+        return _assessment(REJECTED, CODE_NON_LEAF, "non_leaf_image", signals)
+
+    # Deterministic fallback: no trained gate artefact is available.
     if plant_evidence < INPUT_GATE_REJECT_BELOW_PLANT_EVIDENCE:
         return _assessment(REJECTED, CODE_NON_LEAF, "non_leaf_image", signals)
 

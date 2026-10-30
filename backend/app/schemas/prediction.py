@@ -62,4 +62,8 @@ class ReadyResponse(BaseModel):
     status: str = Field(..., description="Readiness status ('ready' or 'not_ready')")
     model_loaded: bool = Field(..., description="Whether the inference model is loaded in memory")
     knowledge_loaded: bool = Field(..., description="Whether the agronomic knowledge base is loaded")
+    gate_loaded: bool = Field(
+        False,
+        description="Whether the trained leaf-acceptance gate is loaded (false means the deterministic input screen is in charge)",
+    )
     model_path: str = Field(..., description="Safe relative identifier of the loaded model")

@@ -16,10 +16,12 @@ from .config import (
     API_VERSION,
     CORS_ORIGINS,
     KNOWLEDGE_BASE_PATH,
+    LEAF_GATE_MODEL_PATH,
     MODEL_PATH,
 )
 from .services.inference import model_service
 from .services.knowledge import knowledge_service
+from .services.leaf_gate import leaf_gate_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +50,18 @@ async def lifespan(app: FastAPI):
             "Process will continue running; /health is operational and /ready will report 503."
         )
 
+    # Initialize the leaf-acceptance gate. A missing gate artefact is not fatal: the
+    # deterministic input screen stays in charge, so the service degrades to the previous
+    # behaviour instead of skipping content verification entirely.
+    try:
+        leaf_gate_service.load_model(LEAF_GATE_MODEL_PATH)
+        logger.info("Leaf-acceptance gate initialized.")
+    except Exception as exc:
+        logger.warning(
+            f"Leaf gate could not be loaded during startup: {exc}. "
+            "The deterministic input screen remains active as a fallback."
+        )
+
     # Initialize Agronomic Knowledge Base
     try:
         knowledge_service.load_knowledge_base(KNOWLEDGE_BASE_PATH)
@@ -62,6 +76,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Shutting down backend, releasing resources...")
     model_service.unload_model()
+    leaf_gate_service.unload_model()
     knowledge_service.unload()
     logger.info("Shutdown complete.")
 

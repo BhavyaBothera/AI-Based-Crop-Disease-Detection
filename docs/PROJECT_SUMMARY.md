@@ -394,18 +394,33 @@ Bilinear downsampling acts as a low-pass filter, which is why the check is compu
 resize: a synthetic 1-pixel checkerboard collapses from σ = 127.49 to 0.50 (correctly rejected),
 while leaf veins and lesions survive (σ = 2.75 for a 1-pixel line, 11.02 for a 4-pixel pattern).
 
-**Content-level suitability gate (Layer B).** Physical checks cannot establish that an image
-shows a plant, so a deterministic gate now runs on the 224×224 RGB frame before inference. It
-rejects images with essentially no plant pigmentation (`< 1%` of pixels in an HSV 40–170°
-vegetation band) and abstains on sparse (`< 8%`), scattered, underexposed or featureless inputs.
-Model softmax confidence is deliberately not used. Rejected/abstained images receive a
-structured HTTP 422 with `status`, `code` and `category` - never a diagnosis - and the UI shows
-a dedicated rejection state with no candidates, guidance or advisory export. On a disjoint
-evaluation half the gate produced **0.12% no-diagnosis on 1,657 valid leaves** (2 abstentions,
-0 hard rejections) and rejected or abstained **44.6% of 558 real non-leaf photographs**; it
-adds ~12 ms mean CPU time. It is a necessary-condition screen, not a leaf detector: foliage
-scenes (55.4% false acceptance) and unsupported crop species (99.0% accepted) remain documented
-limitations. Full report: `docs/audit_reports/non_leaf_input_safety_report.md`.
+**Content-level leaf-acceptance gate (Layer B).** Physical checks cannot establish that an
+image shows a plant, so a trained gate now runs on the 224×224 RGB frame before inference.
+It is a 3-class model (`supported_leaf` / `other_plant` / `non_leaf`): a linear head on frozen
+ImageNet MobileNetV2 features, trained by `ml/scripts/train_input_gate.py` on 25,480 images
+(PlantVillage leaves plus a licence-cleared real-photo corpus of people, animals, buildings,
+documents, objects and graphics) and shipped as a single Keras artefact the backend loads like
+any other model. A deterministic plant-pigmentation screen stays in the same module as a
+fallback when the model file is missing. Rejected/abstained images receive a structured HTTP
+422 with `status`, `code` and `category` - never a diagnosis - and the UI shows a dedicated
+rejection state with no candidates, guidance or advisory export.
+
+Held-out results (disjoint path-hashed split; disease `test` split never opened):
+
+| Input | n | Blocked |
+|:--|--:|--:|
+| Valid tomato/potato/pepper leaves | 1,698 | 1.7% (1.1% hard rejection) |
+| Leaf-free field photographs | 193 | 100% |
+| Real portraits, animals, buildings, documents, objects, graphics | 70 | 100% |
+| Unsupported crop leaves, species seen in training | 1,200 | 97.8% |
+| Strawberry / Soybean leaves (species held out) | 600 | 75.7% / 53.3% |
+
+The head reaches 0.987 accuracy on 4,293 held-out embeddings and the exported graph reproduces
+the trained decision to 3e-7. Gate cost is ~58 ms mean CPU (p95 84 ms), serialized like disease
+inference. It is not a general leaf detector: foliage-heavy scenes and visually unusual
+supported leaves remain imperfect, the negative corpus is small (70 real photographs), and
+illustrations are declined as non-plant. Full report:
+`docs/audit_reports/non_leaf_input_safety_report.md`.
 
 ### 9.3 Concurrency
 
@@ -545,17 +560,18 @@ during request) were driven in a browser and behaved correctly.
 1. **Controlled-condition data.** PlantVillage images have uniform backgrounds. Field
    photography with soil, shadow, occlusion and clutter is out of distribution and will degrade
    accuracy in ways this project did not measure.
-2. **No unsupported-crop rejection.** The model maps *any* leaf into one of its 15 classes. An
-   embedding-centroid OOD gate was implemented and audited as an experiment, then rejected:
-   it produced a **56 % false-accept rate** on unsupported crops while also falsely rejecting
-   **5.8–7.6 %** of valid diseased leaves. Shipping it would have made the system confidently
-   wrong in a new way, so the limitation is documented instead of papered over. The shipped
-   content gate accepts **99.0 %** of sampled unsupported crop leaves.
-3. **The content gate is not a leaf detector.** It reliably excludes images with no plant
-   tissue, but 55.4 % of real `Background_without_leaves` photographs pass because they contain
-   foliage scenes. Foliage-heavy landscapes, a person in a green field, or green-tinted
-   graphics can still reach the classifier. The repo's data assets do not support training a
-   trustworthy learned acceptance model.
+2. **Unsupported-crop rejection is partial.** The model maps *any* leaf that reaches it into
+   one of its 15 classes. An embedding-centroid OOD gate was implemented and audited as an
+   experiment, then rejected (**56 % false-accept rate** on unsupported crops, **5.8–7.6 %**
+   false rejection of valid diseased leaves). The shipped leaf-acceptance gate declines
+   **97.8 %** of unsupported crop leaves from species it saw in training, but only **75.7 %** of
+   Strawberry and **53.3 %** of Soybean leaves, which were held out entirely; what passes is
+   still forced into a Solanaceae class.
+3. **The acceptance gate has a small negative corpus.** The learned gate blocks 100 % of 70 held-
+   out real portraits, animals, buildings, documents, objects and graphics and 100 % of 193
+   leaf-free field photographs, but those photographs number in the tens per category, so the
+   rates carry wide uncertainty. It also declines **1.7 %** of valid leaves and treats
+   illustrations and stylised drawings as non-plant.
 4. **Scores are not calibrated probabilities.** Softmax output is a relative distribution over
    15 closed-world classes. The API and UI both say so; the UI labels it "Primary Model Score
    (Softmax)".
@@ -748,12 +764,12 @@ Project/
 │   │   ├── schemas/            Pydantic contracts
 │   │   ├── services/           inference · knowledge
 │   │   └── data/               disease_knowledge_base.json (15 records)
-│   ├── tests/                  75 tests
+│   ├── tests/                  98 tests
 │   └── README.md               full API contract
 ├── frontend/
 │   ├── index.html · css/styles.css
 │   ├── js/api.js · js/app.js
-│   ├── test_api.js             35 tests
+│   ├── test_api.js             36 tests
 │   └── test_browser.py         headless Chrome E2E (desktop + mobile)
 ├── ml/
 │   ├── scripts/                audit_dataset · prepare_dataset · train_model · evaluate_*
