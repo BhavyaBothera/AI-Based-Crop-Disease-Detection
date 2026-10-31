@@ -16,6 +16,10 @@ the classifier:
     synthetic probes      programmatic person/document/screenshot/leaf shapes, written after
                           the model was trained
     quality edge cases    dark, blurry, tiny, multiple-leaf probes
+    framing robustness    the same held-out leaves and real non-leaf photographs reframed the
+                          way a phone user frames them (rotated, cropped tight to the leaf,
+                          letterboxed, dimmed). A leaf photo is still a leaf photo under
+                          these changes, so valid-leaf acceptance must not collapse.
 
 The disease `test` split is never opened by this script.
 
@@ -88,6 +92,38 @@ SUPPORTED_CLASSES = {
 }
 HELD_OUT_SPECIES_PREFIXES = ("Strawberry___", "Soybean___")
 BACKGROUND_CLASS = "Background_without_leaves"
+
+# Fixed, code-defined reframings used for the framing-robustness measurement. They are applied
+# to already-held-out images, so no new data is trained on.
+FRAMING_SAMPLE = 100
+
+
+def _reframings() -> dict:
+    from PIL import Image
+
+    def pad(image, fraction: float = 0.18, colour=(255, 255, 255)):
+        width, height = image.size
+        canvas = Image.new("RGB", (width, height), colour)
+        inner = image.resize((int(width * (1 - 2 * fraction)), int(height * (1 - 2 * fraction))))
+        canvas.paste(inner, (int(width * fraction), int(height * fraction)))
+        return canvas
+
+    return {
+        "rotated_15deg": lambda image: image.rotate(
+            15, expand=True, resample=Image.Resampling.BICUBIC, fillcolor=(255, 255, 255)
+        ),
+        "white_border": pad,
+        "tight_crop": lambda image: image.crop(
+            (
+                int(image.width * 0.2),
+                int(image.height * 0.2),
+                int(image.width * 0.8),
+                int(image.height * 0.8),
+            )
+        ),
+        "dimmed": lambda image: Image.eval(image, lambda value: int(value * 0.45)),
+    }
+
 
 SYNTHETIC_PROBES = {
     "synthetic_person": (create_portrait_bytes, "non_leaf"),
@@ -192,6 +228,27 @@ def assess_paths(gate: LeafGateService, paths: list[str]) -> list[dict]:
     return records
 
 
+def assess_reframed(gate: LeafGateService, paths: list[str], reframing) -> list[dict]:
+    """Runs the deployed gate over reframed copies of already-held-out images."""
+    from PIL import Image, ImageOps
+
+    records = []
+    for relative in paths:
+        try:
+            with Image.open(DATA_ROOT / relative) as handle:
+                image = ImageOps.exif_transpose(handle).convert("RGB")
+                image.load()
+            view = reframing(image).resize((224, 224), Image.Resampling.BILINEAR)
+        except Exception as exc:
+            records.append({"decision": REJECTED, "code": "DECODE_ERROR", "error": type(exc).__name__})
+            continue
+        frame = np.asarray(view, dtype=np.float32)
+        assessment = assess_image(frame, gate.predict_proba(frame))
+        records.append({"decision": assessment.decision, "code": assessment.code,
+                        "signals": assessment.signals})
+    return records
+
+
 def assess_probe(gate: LeafGateService, payload: bytes) -> dict:
     try:
         tensor = preprocess_image(payload)
@@ -289,6 +346,24 @@ def main() -> int:
         results[name] = summary
 
     leaf_paths = categories["supported_leaf_val_eval_half"]["paths"]
+
+    # Framing robustness: the same decision path, on benign user-style reframings.
+    leaf_sample = leaf_paths[:FRAMING_SAMPLE]
+    non_leaf_pool: list[str] = []
+    for name, summary in results.items():
+        if name.startswith("real_non_leaf_"):
+            non_leaf_pool.extend(categories[name]["paths"])
+    non_leaf_sample = non_leaf_pool[:FRAMING_SAMPLE]
+    framing = {}
+    for name, reframing in _reframings().items():
+        print(f"Assessing framing '{name}' ({len(leaf_sample)} leaves, {len(non_leaf_sample)} non-leaves)...")
+        leaf_records = assess_reframed(gate, leaf_sample, reframing)
+        non_leaf_records = assess_reframed(gate, non_leaf_sample, reframing)
+        framing[name] = {
+            "supported_leaf": summarize(leaf_records, "leaf"),
+            "real_non_leaf": summarize(non_leaf_records, "non_leaf"),
+        }
+
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "gate": {
@@ -307,6 +382,14 @@ def main() -> int:
             "disease_test_split": "never opened by this script or by training",
         },
         "evaluation": results,
+        "framing_robustness": {
+            "note": (
+                "Held-out images reframed the way phone users frame them; valid-leaf acceptance "
+                "should stay high and real non-leaf false acceptance must not rise"
+            ),
+            "samples_per_view": {"supported_leaf": len(leaf_sample), "real_non_leaf": len(non_leaf_sample)},
+            "views": framing,
+        },
         "gate_latency": latency_ms(gate, leaf_paths),
     }
 
@@ -320,6 +403,15 @@ def main() -> int:
         no_dx = summary["no_diagnosis_rate"] if summary["no_diagnosis_rate"] is not None else 0.0
         print(f"{name:38s} {summary['n']:5d} {rate:7.3f} {summary['rejected']:7d} "
               f"{summary['abstained']:8d} {no_dx:7.3f}")
+    print("\n=== Framing robustness ===")
+    print(f"{'reframing':16s} {'leaf noDx':>10s} {'leaf hard-rej':>14s} {'non-leaf false-accept':>23s}")
+    for name, summary in framing.items():
+        leaf = summary["supported_leaf"]
+        non_leaf = summary["real_non_leaf"]
+        print(f"{name:16s} {leaf['no_diagnosis_rate']:10.3f} "
+              f"{leaf['valid_leaf_hard_rejection_rate']:14.3f} "
+              f"{non_leaf['false_acceptance_rate']:23.3f}")
+
     print(f"\nLatency: {payload['gate_latency']}")
     print(f"Artifact written to {args.output}")
     return 0

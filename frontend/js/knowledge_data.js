@@ -1,0 +1,1294 @@
+/**
+ * PHYTOSIGNAL - Agronomic Knowledge Base Data
+ * Embedded verified records for offline/instant client rendering
+ */
+window.KNOWLEDGE_BASE_DATA = [
+  {
+    "class_id": 0,
+    "raw_class": "Pepper,_bell___Bacterial_spot",
+    "crop": "Bell Pepper",
+    "condition": "Bacterial Spot",
+    "health_status": "Diseased",
+    "causal_agent": "Xanthomonas euvesicatoria (syn. Xanthomonas campestris pv. vesicatoria)",
+    "symptoms": {
+      "summary": "Small, water-soaked, circular dark spots that enlarge into irregular brown necrotic lesions, often with yellow halos, causing extensive lower leaf drop and scabby fruit spots.",
+      "foliar_symptoms": [
+        "Small (1-3 mm) water-soaked spots on undersides of leaves turning brown to black",
+        "Lesions enlarge and develop chlorotic yellow halos",
+        "Spots coalesce causing extensive blighting, scorching, and premature defoliation"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Elongated dark cankers on stems",
+        "Small raised blister-like spots on green fruit turning brown, rough, and scabby"
+      ],
+      "look_alike_conditions": [
+        "Cercospora leaf spot (frogeye spots with distinct pale centers)",
+        "Phytophthora blight (large dark water-soaked lesions without small circular scabs)",
+        "Bacterial canker"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Warm temperatures (24\u00b0C\u201330\u00b0C) with persistent leaf wetness, high relative humidity, and rainfall",
+      "transmission_routes": [
+        "Seed-borne infection and contaminated nursery seedlings",
+        "Survival in infected crop residues and solanaceous weeds",
+        "Secondary spread via wind-driven rain, sprinkler droplets, and field equipment"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Use certified disease-free seed and clean transplants",
+        "Incorporate or destroy diseased crop debris immediately after harvest",
+        "Maintain weed-free borders around fields"
+      ],
+      "crop_rotation": "Rotate out of solanaceous crops (pepper, tomato, potato, eggplant) for at least 1 to 2 years",
+      "irrigation_and_airflow": [
+        "Use drip or furrow irrigation to keep foliage completely dry",
+        "Avoid overhead irrigation and avoid working in fields when foliage is wet",
+        "Space plants adequately to encourage rapid canopy drying"
+      ],
+      "resistant_cultivars": [
+        "Plant commercial cultivars with documented resistance to prevalent local Xanthomonas races where available"
+      ]
+    },
+    "treatment": {
+      "urgency": "Monitor and Manage: Preventive action needed early to prevent defoliation before fruit set.",
+      "non_chemical_controls": [
+        "Hot water seed treatment (50\u00b0C for 25 minutes for seed with confirmed germination viability)",
+        "Prompt rogueing of diseased seedlings in nursery beds"
+      ],
+      "ipm_chemical_principles": [
+        "Preventative copper-based protectant applications (e.g. fixed copper compounds) or copper-mancozeb tank mixes where locally labeled",
+        "Apply before rain events and at the earliest sign of disease",
+        "Rotate with non-copper bactericides or plant defense activators where labeled to mitigate copper resistance"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Specific chemical active ingredients and brands depend strictly on national and local agricultural registration",
+        "Mandatory adherence to product label instructions regarding target crop, PPE, REI, and PHI",
+        "Do not apply chemicals based solely on single-image classification without physical field confirmation"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Rapid, widespread spot development during nursery or early vegetative stages",
+        "Lack of disease response to standard copper protectants indicating suspected copper-resistant bacterial strains"
+      ],
+      "local_specialist": "District Horticulture Officer, Krishi Vigyan Kendra (KVK) Agronomist, or State Agricultural University Extension Plant Pathologist"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Chilli / Capsicum Diseases: Bacterial Leaf Spot (Xanthomonas campestris pv. vesicatoria)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/chilli_diseases_4.html",
+        "claims_supported": "Causal agent, diagnostic symptoms, seed-borne transmission, and integrated disease management practices",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/chilli_diseases_4.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Peppers: Bacterial Spot (Xanthomonas spp.)",
+        "url": "https://ipm.ucanr.edu/agriculture/peppers/bacterial-spot/",
+        "claims_supported": "Favorable environmental conditions, look-alikes, copper resistance management, and cultural sanitation",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/peppers/bacterial-spot/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "Visual foliar spots overlap with fungal leaf spots. Model prediction is a preliminary screening and should be confirmed by bacterial streaming or laboratory assay before major spray decisions."
+  },
+  {
+    "class_id": 1,
+    "raw_class": "Pepper,_bell___healthy",
+    "crop": "Bell Pepper",
+    "condition": "Healthy",
+    "health_status": "Healthy",
+    "causal_agent": null,
+    "symptoms": {
+      "summary": "Foliage exhibits uniform green coloration, smooth margins, firm turgidity, and normal bilateral symmetry with no necrotic lesions, water-soaked spots, or mosaic mottling.",
+      "foliar_symptoms": [
+        "Uniform green pigmentation consistent with cultivar characteristics",
+        "Absence of necrotic spotting, chlorotic halos, or marginal leaf scorch",
+        "Intact leaf lamina free from insect chew holes or leafminer galleries"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Stems are sturdy, erect, and green without dark streaks or cankers",
+        "Fruit development is uniform with smooth waxy skin and absence of sunscald or blossom end rot"
+      ],
+      "look_alike_conditions": [
+        "Early asymptomatic viral infections before systemic foliar distortion appears",
+        "Subtle minor nutrient deficiencies that have not yet manifested distinct chlorosis"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Optimal daytime temperatures between 21\u00b0C and 28\u00b0C; moderate relative humidity (50%\u201370%); fertile well-draining soil with pH 6.0\u20136.8",
+      "transmission_routes": [
+        "Not applicable (healthy physiological state)"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Maintain weed-free field borders to eliminate insect pest reservoirs (thrips, aphids, mites)",
+        "Disinfect pruning shears and harvesting knives with 70% alcohol or 10% bleach solution between rows"
+      ],
+      "crop_rotation": "Maintain standard 2- to 3-year crop rotation away from other solanaceous crops",
+      "irrigation_and_airflow": [
+        "Employ drip irrigation to avoid foliar wetting",
+        "Maintain adequate plant spacing (45\u201360 cm) for canopy ventilation"
+      ],
+      "resistant_cultivars": [
+        "Continue selecting certified varieties with genetic resistance packages for prevalent local disease races"
+      ]
+    },
+    "treatment": {
+      "urgency": "Routine Maintenance: No treatment required.",
+      "non_chemical_controls": [
+        "Routine weekly scouting of leaf undersides for early spider mite or aphid colonies",
+        "Maintain balanced soil nutrition based on soil tests (avoid excess nitrogen that causes tender foliage susceptible to sucking pests)"
+      ],
+      "ipm_chemical_principles": [
+        "No pesticide or fungicide application is warranted or recommended",
+        "Avoid prophylactic chemical spraying to preserve beneficial predatory insects and pollinators"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Unwarranted pesticide applications violate IPM stewardship, incur financial loss, and risk chemical resistance"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Unexpected flower drop, root stunting, or sudden wilting despite healthy-appearing foliage"
+      ],
+      "local_specialist": "Local Krishi Vigyan Kendra (KVK) Horticulturist or State Department of Agriculture Extension Agent"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Horticulture: Capsicum / Bell Pepper Cultivation and Production Practices",
+        "url": "https://agritech.tnau.ac.in/horticulture/horti_vegetables_capsicum.html",
+        "claims_supported": "Optimal growing conditions, agronomic maintenance, spacing, irrigation, and crop protection guidance",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/horticulture/horti_vegetables_capsicum.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Peppers: Agricultural Pest Management Guidelines",
+        "url": "https://ipm.ucanr.edu/agriculture/peppers/",
+        "claims_supported": "IPM monitoring guidelines, scouting protocols, and conservation of beneficial insects",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/peppers/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "A 'Healthy' model classification indicates the analyzed foliage does not show visible symptoms of the 12 target diseases. It does not rule out root pathogens, early viral incubation, or non-foliar physiological disorders."
+  },
+  {
+    "class_id": 2,
+    "raw_class": "Potato___Early_blight",
+    "crop": "Potato",
+    "condition": "Early Blight",
+    "health_status": "Diseased",
+    "causal_agent": "Alternaria solani (Ascomycete fungus)",
+    "symptoms": {
+      "summary": "Characteristic dark brown to black spots with concentric rings creating a 'target board' pattern, primarily starting on older lower foliage.",
+      "foliar_symptoms": [
+        "Small (1-2 mm) dark brown lesions emerging first on lower, senescent leaves",
+        "Lesions expand to 10 mm developing distinct concentric circular ridges bounded by veins",
+        "Yellow chlorotic halos surrounding lesions",
+        "Extensive blighting causing leaves to wither, dry up, and droop"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Dark, slightly sunken lesions on stems",
+        "Tuber lesions are sunken, irregular, dark brown/black with a corky, dry rot underneath"
+      ],
+      "look_alike_conditions": [
+        "Potato Late Blight (water-soaked pale green margins, white sporangia under humid conditions)",
+        "Brown spot (Alternaria alternata - smaller spots without prominent rings)",
+        "Ozone injury (uniform stippling on upper leaf surfaces without concentric rings)"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Warm temperatures (24\u00b0C\u201329\u00b0C) with alternating wet and dry periods; prolonged dew or overhead irrigation",
+      "transmission_routes": [
+        "Conidia disseminated by wind, rain splash, and contaminated tools",
+        "Overwinters in solanaceous crop debris and infected volunteer tubers"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Promptly bury or destroy solanaceous crop residue after harvest",
+        "Eliminate cull piles and volunteer potato plants which act as primary inoculum reservoirs"
+      ],
+      "crop_rotation": "Rotate out of Solanaceae (potato, tomato, pepper, eggplant) for at least 2 to 3 years",
+      "irrigation_and_airflow": [
+        "Use drip or furrow irrigation to keep foliage dry",
+        "Schedule overhead irrigation early in the morning so canopies dry quickly before nightfall"
+      ],
+      "resistant_cultivars": [
+        "Select certified seed tubers of moderately resistant or late-maturing cultivars where available"
+      ]
+    },
+    "treatment": {
+      "urgency": "Monitor and Manage: Action recommended if lesions appear prior to vine senescence.",
+      "non_chemical_controls": [
+        "Maintain balanced soil nutrition (nitrogen and phosphorus deficiencies aggravate early blight susceptibility)",
+        "Prune diseased lower leaves in small-scale plots to reduce localized spore loads"
+      ],
+      "ipm_chemical_principles": [
+        "Apply protectant contact fungicides at first sign of disease or when disease forecasting models indicate threshold",
+        "Alternate mode-of-action groups (rotate FRAC codes) to mitigate fungicide resistance development",
+        "Ensure thorough canopy coverage, especially targeting lower and middle leaf layers"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Specific chemical active ingredients and brands depend strictly on national and local agricultural registration",
+        "Mandatory adherence to product label instructions regarding target crop, PPE, REI, and PHI",
+        "Do not apply chemicals based solely on single-image classification without physical field confirmation"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Rapid spread upward into upper third of plant canopy before tuber bulking",
+        "Uncertainty distinguishing between Early Blight and aggressive Late Blight outbreaks",
+        "Commercial acreage showing treatment failure or suspected fungicide resistance"
+      ],
+      "local_specialist": "District Agriculture Officer, Krishi Vigyan Kendra (KVK) Agronomist, or University Extension Plant Pathologist"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Potato Diseases: Early Blight (Alternaria solani)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/crop_prot_crop%20diseases_veg_potato_2.html",
+        "claims_supported": "Causal agent, symptoms, concentric ring patterns, survival in debris, and cultural/chemical management",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/crop_prot_crop%20diseases_veg_potato_2.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Potato: Early Blight (Alternaria solani)",
+        "url": "https://ipm.ucanr.edu/agriculture/potato/early-blight/",
+        "claims_supported": "Environmental triggers, tuber symptoms, look-alikes, and resistance management principles",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/potato/early-blight/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "Automated image classifiers evaluate visible foliar patterns under closed-world assumptions. Confirmatory field diagnosis or laboratory incubation is advised before applying chemical controls."
+  },
+  {
+    "class_id": 3,
+    "raw_class": "Potato___Late_blight",
+    "crop": "Potato",
+    "condition": "Late Blight",
+    "health_status": "Diseased",
+    "causal_agent": "Phytophthora infestans (Oomycete / Water Mold)",
+    "symptoms": {
+      "summary": "Rapidly expanding water-soaked dark lesions with pale chlorotic margins on leaves; in humid weather, delicate white fungal-like sporulation forms on the underside of lesions.",
+      "foliar_symptoms": [
+        "Irregular water-soaked pale-green lesions that rapidly turn purplish-brown to black",
+        "Under cool moist conditions, lesions expand rapidly across leaves, producing a distinct foul odor and blighted appearance",
+        "White downy sporulation visible on the underside of leaves at the margins of lesions during humid weather"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Dark brown to black water-soaked lesions on stems, causing vine collapse",
+        "Infected tubers develop irregular sunken purplish-brown surface areas with dry reddish-brown granular rot beneath the skin"
+      ],
+      "look_alike_conditions": [
+        "Early blight (dry concentric target-like rings without white sporulation)",
+        "Bacterial soft rot",
+        "Grey mold (Botrytis cinerea)"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Cool nights (10\u00b0C\u201315\u00b0C) and moderate day temperatures (18\u00b0C\u201322\u00b0C) with relative humidity exceeding 90% (fog, persistent rain, or heavy dew)",
+      "transmission_routes": [
+        "Wind-borne sporangia travelling miles",
+        "Carried in infected seed tubers, cull piles, and volunteer potato plants"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Plant exclusively certified disease-free seed tubers",
+        "Destroy cull piles by burying under soil; eliminate volunteer plants"
+      ],
+      "crop_rotation": "Practice crop rotation away from solanaceous hosts",
+      "irrigation_and_airflow": [
+        "Ensure good field drainage",
+        "Avoid overhead irrigation during overcast or high-risk periods",
+        "Hill soil adequately over tubers to prevent spore wash-down"
+      ],
+      "resistant_cultivars": [
+        "Plant cultivars with documented field resistance (e.g. Kufri varieties developed by ICAR-CPRI) where suited"
+      ]
+    },
+    "treatment": {
+      "urgency": "High Urgency / Immediate Escalation: Highly destructive and explosive pathogen capable of destroying entire fields within days.",
+      "non_chemical_controls": [
+        "Prompt removal and burial of initial infected foci in field",
+        "Vine killing / haulm cutting 10\u201314 days before harvest to prevent tuber infection during digging"
+      ],
+      "ipm_chemical_principles": [
+        "Preventative protectant fungicides applied according to decision support / late blight forecasting systems",
+        "Systemic oomycete-specific fungicides when disease pressure is high; rotate FRAC codes to mitigate resistance"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Only use pesticides officially registered for potato late blight in your jurisdiction",
+        "Strictly observe label safety rules, PPE, REI, and PHI",
+        "Do not treat model prediction as a confirmed diagnosis without physical verification"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Any suspected late blight occurrence should be immediately reported to local extension officers or agricultural authorities for community-wide outbreak alert and forecasting verification"
+      ],
+      "local_specialist": "Local Krishi Vigyan Kendra (KVK) Plant Pathologist, ICAR-CPRI regional station, or District Agricultural Officer"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Potato Diseases: Late Blight (Phytophthora infestans)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/crop_prot_crop%20diseases_veg_potato_1.html",
+        "claims_supported": "Pathogen biology, leaf and tuber symptoms, white sporulation, epidemiology, and management",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/crop_prot_crop%20diseases_veg_potato_1.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Potato: Late Blight (Phytophthora infestans)",
+        "url": "https://ipm.ucanr.edu/agriculture/potato/late-blight/",
+        "claims_supported": "Weather conditions, spore dispersal, tuber infection pathways, and fungicide resistance management",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/potato/late-blight/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "Late blight requires prompt attention, but visual symptoms can be confused with other blights or frost injury. Prompt expert assessment is vital; do not rely solely on automated image classification."
+  },
+  {
+    "class_id": 4,
+    "raw_class": "Potato___healthy",
+    "crop": "Potato",
+    "condition": "Healthy",
+    "health_status": "Healthy",
+    "causal_agent": null,
+    "symptoms": {
+      "summary": "Foliage is vibrant green, turgid, with smooth leaf surfaces, well-developed leaflets, and absence of blights, wilting, or necrotic spotting.",
+      "foliar_symptoms": [
+        "Evenly pigmented green canopy",
+        "Leaflets fully expanded without marginal scorch, yellowing halos, or water-soaked patches"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Stems firm and green without dark lesions or vascular discoloration",
+        "Healthy stolon and tuber initiation underground"
+      ],
+      "look_alike_conditions": [
+        "Early latent infections or mild nutritional imbalances before foliar symptoms become visible"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Day temperatures 20\u00b0C\u201325\u00b0C, night temperatures 15\u00b0C\u201320\u00b0C (ideal for tuberization); well-aerated sandy loam soil with good drainage",
+      "transmission_routes": [
+        "Not applicable (healthy physiological state)"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Always source certified disease-free seed tubers",
+        "Sanitize cutting knives during seed preparation",
+        "Keep fields free of weeds"
+      ],
+      "crop_rotation": "Rotate with maize, cereals, legumes, or green manure crops; avoid continuous potato planting",
+      "irrigation_and_airflow": [
+        "Regular furrow or drip irrigation to maintain uniform soil moisture",
+        "Avoid water stress during tuber initiation and bulking; adequate hilling"
+      ],
+      "resistant_cultivars": [
+        "Select high-yielding certified varieties suited to local growing season (e.g. Kufri series in India)"
+      ]
+    },
+    "treatment": {
+      "urgency": "Routine Maintenance: No treatment required.",
+      "non_chemical_controls": [
+        "Conduct regular field scouting for early signs of blight or aphids",
+        "Maintain balanced NPK and micronutrient fertility based on soil tests"
+      ],
+      "ipm_chemical_principles": [
+        "No fungicides or pesticides are warranted or recommended for healthy crops"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Avoid unnecessary chemical sprays to prevent input waste, beneficial insect harm, and resistance pressure"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Poor tuber emergence, unthrifty stunted growth, or sudden wilting in patches despite healthy-appearing foliage"
+      ],
+      "local_specialist": "Local KVK Agronomist, Horticulture Officer, or State Department of Agriculture"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Horticulture: Potato Cultivation and Production Guide",
+        "url": "https://agritech.tnau.ac.in/horticulture/horti_vegetables_potato.html",
+        "claims_supported": "Soil requirements, spacing, irrigation, fertilizer management, and crop maintenance",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/horticulture/horti_vegetables_potato.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Potato: Agricultural Pest Management Guidelines",
+        "url": "https://ipm.ucanr.edu/agriculture/potato/",
+        "claims_supported": "IPM monitoring schedules, aphid scouting, and cultural maintenance guidelines",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/potato/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "A 'Healthy' classification indicates the foliage lacks visible symptoms of the supported target diseases. It does not certify the health of underground tubers or root systems."
+  },
+  {
+    "class_id": 5,
+    "raw_class": "Tomato___Bacterial_spot",
+    "crop": "Tomato",
+    "condition": "Bacterial Spot",
+    "health_status": "Diseased",
+    "causal_agent": "Xanthomonas species complex (X. perforans, X. euvesicatoria, X. vesicatoria, X. gardneri)",
+    "symptoms": {
+      "summary": "Small, dark, water-soaked circular to angular lesions on leaves and stems; lesions become brown-black and develop yellow halos, often leading to severe defoliation.",
+      "foliar_symptoms": [
+        "Circular dark brown to black spots (2\u20133 mm), sometimes with translucent margins and yellow chlorotic halos",
+        "Spots coalesce causing leaf blight and premature leaf drop",
+        "Blades become ragged and torn as necrotic centers drop out"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Dark elongated lesions on stems and petioles",
+        "Small, black, raised blister-like spots on green fruit that become brown, sunken, and scabby"
+      ],
+      "look_alike_conditions": [
+        "Bacterial speck (Pseudomonas syringae - smaller spots with prominent bright yellow halos)",
+        "Septoria leaf spot (grey centers with black pycnidia specks)",
+        "Early blight"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Warm weather (24\u00b0C\u201330\u00b0C) combined with high humidity, heavy rainfall, or overhead irrigation",
+      "transmission_routes": [
+        "Seed-borne pathogen and contaminated transplants",
+        "Survives in infected crop debris, volunteer plants, and solanaceous weeds",
+        "Secondary spread by rain splash and handling wet plants"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Use certified pathogen-free seed or hot water treated seed (50\u00b0C for 25 min)",
+        "Rogue out infected seedlings in nursery",
+        "Remove crop residue promptly after harvest"
+      ],
+      "crop_rotation": "Rotate out of solanaceous crops for at least 1 to 2 years",
+      "irrigation_and_airflow": [
+        "Avoid overhead irrigation; employ drip systems",
+        "Stake and prune plants to improve airflow; avoid working in fields when foliage is wet"
+      ],
+      "resistant_cultivars": [
+        "Grow cultivars with documented tolerance or resistance to prevailing Xanthomonas races where available"
+      ]
+    },
+    "treatment": {
+      "urgency": "Monitor and Manage: Preventive action needed early before disease spreads to green fruit.",
+      "non_chemical_controls": [
+        "Biological seed treatments (e.g. Trichoderma or Bacillus species where registered)",
+        "Sanitize wooden stakes and farm implements"
+      ],
+      "ipm_chemical_principles": [
+        "Preventative applications of copper bactericides, often tank-mixed with mancozeb to enhance copper efficacy",
+        "Rotate with biologicals or plant defense activators where labeled to manage copper resistance"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Adhere strictly to local pesticide regulations, approved product labels, PPE, REI, and PHI",
+        "No specific dosages or commercial brands are prescribed"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Rapid nursery outbreak threatening seedling survival",
+        "Lack of disease response to standard copper protectants indicating copper-resistant strains"
+      ],
+      "local_specialist": "Local KVK Plant Pathologist or District Horticulture Officer"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Tomato Diseases: Bacterial Leaf Spot (Xanthomonas axonopodis pv. vesicatoria)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_11.html",
+        "claims_supported": "Symptoms on leaves and fruits, seed survival, rain splash spread, and copper spray recommendations",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_11.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Tomato: Bacterial Spot (Xanthomonas spp.)",
+        "url": "https://ipm.ucanr.edu/agriculture/tomato/bacterial-spot/",
+        "claims_supported": "Species complex taxonomy, warm/wet conditions, look-alike discrimination, and copper resistance management",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/tomato/bacterial-spot/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "Bacterial spot closely mimics bacterial speck and fungal leaf spots. Laboratory confirmation (e.g. bacterial ooze or PCR) is recommended for commercial control decisions."
+  },
+  {
+    "class_id": 6,
+    "raw_class": "Tomato___Early_blight",
+    "crop": "Tomato",
+    "condition": "Early Blight",
+    "health_status": "Diseased",
+    "causal_agent": "Alternaria solani (Ascomycete fungus)",
+    "symptoms": {
+      "summary": "Dark brown circular to oval spots displaying concentric rings in a distinctive 'bullseye' pattern, surrounded by yellow chlorotic margins on older lower leaves.",
+      "foliar_symptoms": [
+        "Brown spots (up to 12 mm) with prominent concentric rings starting on lower leaves",
+        "Extensive yellowing between spots leads to premature defoliation, exposing fruit to sunscald",
+        "Severely infected leaves turn completely brown and drop"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Collar rot on seedlings at soil line",
+        "Dark sunken cankers on mature stems",
+        "Dark, leathery, sunken lesions at the stem-end of green or ripe fruit with concentric rings"
+      ],
+      "look_alike_conditions": [
+        "Septoria leaf spot (smaller spots with grey centers and black specks)",
+        "Target spot (Corynespora - uniform dark center without distinct tight rings)",
+        "Late blight"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Warm, humid weather (24\u00b0C\u201329\u00b0C) with alternating wet and dry cycles; heavy dew, frequent rain, or overhead watering",
+      "transmission_routes": [
+        "Wind-borne conidia and rain splash",
+        "Survives on solanaceous weeds and plant residues",
+        "Seed-borne spread"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Collect and destroy diseased plant debris",
+        "Remove volunteer tomato and potato plants",
+        "Prune lower leaves touching soil"
+      ],
+      "crop_rotation": "Practice a minimum 2-year rotation with non-solanaceous crops",
+      "irrigation_and_airflow": [
+        "Use drip irrigation or furrow watering",
+        "Stake and trellis plants to improve ventilation",
+        "Mulch soil to prevent soil splashing onto lower foliage"
+      ],
+      "resistant_cultivars": [
+        "Use certified disease-free seed; select cultivars with partial resistance or tolerance to early blight"
+      ]
+    },
+    "treatment": {
+      "urgency": "Monitor and Manage: Intervene before defoliation progresses into mid-canopy.",
+      "non_chemical_controls": [
+        "Biological seed treatments (Trichoderma asperellum / viride)",
+        "Organic mulching; pruning lower diseased foliage in home and smallholder plots"
+      ],
+      "ipm_chemical_principles": [
+        "Apply registered protectant fungicides at first sign of disease",
+        "Alternate between different FRAC groups to prevent fungal resistance",
+        "Maintain complete canopy coverage"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Always consult product labels for registered crops, application timing, PPE, REI, and PHI",
+        "No proprietary chemical prescriptions"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Defoliation advancing rapidly up the canopy before fruit harvest",
+        "Control failure with standard protectants"
+      ],
+      "local_specialist": "Local KVK Horticulturist, State Department of Agriculture, or University Extension Specialist"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Tomato Diseases: Early Blight (Alternaria solani)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_2.html",
+        "claims_supported": "Diagnostic symptoms, bullseye concentric rings, seed treatment with Trichoderma, and cultural management",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_2.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Tomato: Early Blight (Alternaria solani)",
+        "url": "https://ipm.ucanr.edu/agriculture/tomato/early-blight/",
+        "claims_supported": "Environmental triggers, collar rot and fruit symptoms, look-alikes, and fungicide resistance management",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/tomato/early-blight/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "Concentric rings can be confused with target spot or nutrient deficiencies. The model provides an automated prediction that should be verified in the field before chemical interventions."
+  },
+  {
+    "class_id": 7,
+    "raw_class": "Tomato___Late_blight",
+    "crop": "Tomato",
+    "condition": "Late Blight",
+    "health_status": "Diseased",
+    "causal_agent": "Phytophthora infestans (Oomycete / Water Mold)",
+    "symptoms": {
+      "summary": "Rapidly spreading water-soaked greenish-black lesions that turn brown and papery; white cottony sporulation appears on the undersides of leaves during high humidity.",
+      "foliar_symptoms": [
+        "Large, irregular, water-soaked pale green lesions on leaves",
+        "Rapidly turning dark brown to black; in moist conditions, white downy sporulation develops on lesion borders on leaf undersides",
+        "Whole leaves collapse and die rapidly"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Dark brown greasy-appearing lesions on stems and petioles",
+        "Large, firm, greasy olive-brown lesions on green fruit that turn dark brown and leathery"
+      ],
+      "look_alike_conditions": [
+        "Early blight (dry target rings)",
+        "Bacterial speck",
+        "Severe frost damage"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Cool nights (10\u00b0C\u201315\u00b0C) and moderate day temperatures (18\u00b0C\u201322\u00b0C) with prolonged relative humidity (>90%), fog, rain, or heavy dew",
+      "transmission_routes": [
+        "Highly mobile wind-blown sporangia travelling miles",
+        "Infected volunteer potatoes or tomatoes, cull piles, and infected transplants"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Plant only certified disease-free seedlings",
+        "Immediately destroy infected plants upon confirmed detection",
+        "Eliminate volunteer tomatoes and nearby potato cull piles"
+      ],
+      "crop_rotation": "Avoid planting adjacent to or following potatoes or other solanaceous crops",
+      "irrigation_and_airflow": [
+        "Stake plants and space adequately",
+        "Avoid overhead irrigation; ensure excellent field drainage"
+      ],
+      "resistant_cultivars": [
+        "Grow cultivars with genetic resistance genes (e.g. Ph-2, Ph-3 genes) where available"
+      ]
+    },
+    "treatment": {
+      "urgency": "High Urgency / Immediate Escalation: Extremely destructive disease that can devastate an entire field within 7\u201310 days under favorable weather.",
+      "non_chemical_controls": [
+        "Immediately remove and bag or bury infected plants found in small patches",
+        "Terminate crops rapidly post-harvest"
+      ],
+      "ipm_chemical_principles": [
+        "Preventative fungicide applications based on weather forecasting models",
+        "Rotate protectant and systemic oomycete-specific fungicides across FRAC groups to avoid resistance"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Pesticides must be officially registered for tomato late blight in your jurisdiction",
+        "Strictly follow label instructions regarding PPE, REI, and PHI",
+        "Do not treat model output as a confirmed diagnosis"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Any suspected late blight symptoms should be immediately reported to local extension services for regional alert and confirmatory verification"
+      ],
+      "local_specialist": "District Horticulture Officer, Krishi Vigyan Kendra (KVK) Plant Pathologist, or Agricultural Extension Diagnostic Clinic"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Tomato Diseases: Late Blight (Phytophthora infestans)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_8.html",
+        "claims_supported": "Symptoms on leaves and fruit, white sporulation on undersides, cool/wet conditions, and management",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_8.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Tomato: Late Blight (Phytophthora infestans)",
+        "url": "https://ipm.ucanr.edu/agriculture/tomato/late-blight/",
+        "claims_supported": "Epidemiology, airborne sporangia dispersal, resistant cultivars, and fungicide rotation strategies",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/tomato/late-blight/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "Late blight is an explosive community-level plant disease. Confirmation by a local expert or diagnostic clinic is critical before taking major management or eradication actions."
+  },
+  {
+    "class_id": 8,
+    "raw_class": "Tomato___Leaf_Mold",
+    "crop": "Tomato",
+    "condition": "Leaf Mold",
+    "health_status": "Diseased",
+    "causal_agent": "Passalora fulva (syn. Fulvia fulva, Cladosporium fulvum; Ascomycete fungus)",
+    "symptoms": {
+      "summary": "Pale yellow or greenish-yellow chlorotic spots on the upper leaf surface, with dense olive-green to grayish-brown velvety mold on the corresponding lower surface.",
+      "foliar_symptoms": [
+        "Begins on oldest leaves as diffuse pale yellow chlorotic spots with indefinite margins on upper surface",
+        "Dense velvety olive-green to brown fungal growth directly beneath spots on lower surface",
+        "Leaves eventually turn yellow, curl, wither, and drop prematurely"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Blossoms may be blighted; fruit rarely infected, but defoliation leads to severe sunscald"
+      ],
+      "look_alike_conditions": [
+        "Powdery mildew (white powdery growth on both surfaces)",
+        "Early blight (dark concentric spots)",
+        "Spider mite injury (fine stippling without velvety fungal sporulation)"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "High relative humidity (>85%) and warm temperatures (21\u00b0C\u201324\u00b0C); common in high tunnels, greenhouses, and dense canopies",
+      "transmission_routes": [
+        "Air currents and splashing water carry conidia",
+        "Survives as sclerotia or conidia on crop residues and greenhouse structural surfaces"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Remove and destroy crop residue after harvest",
+        "Steam-clean or sanitize greenhouse structures and stakes; avoid overhead watering"
+      ],
+      "crop_rotation": "Rotate with non-solanaceous crops in open field settings",
+      "irrigation_and_airflow": [
+        "Increase ventilation in greenhouses and high tunnels; heat and vent to lower relative humidity",
+        "Prune lower suckers to open canopy for airflow"
+      ],
+      "resistant_cultivars": [
+        "Plant cultivars with Cf-resistance genes (e.g. Cf-9, Cf-4) specific to tomato leaf mold"
+      ]
+    },
+    "treatment": {
+      "urgency": "Prompt Intervention Recommended: Humidity management must be prioritized to arrest fungal sporulation.",
+      "non_chemical_controls": [
+        "Optimize canopy ventilation and air circulation fans",
+        "Keep greenhouse temperatures above dew point at night to prevent condensation"
+      ],
+      "ipm_chemical_principles": [
+        "Preventative fungicides or bio-fungicides where labeled",
+        "Ensure thorough coverage of leaf undersides; rotate FRAC mode-of-action groups"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Verify local registrations for greenhouse vs open-field use",
+        "Strict adherence to label instructions, PPE, REI, and PHI",
+        "No unverified chemical prescriptions"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Severe defoliation in commercial high tunnels or greenhouses",
+        "Disease occurring on previously resistant cultivars indicating new fungal races"
+      ],
+      "local_specialist": "Greenhouse Crop Specialist, State University Extension Plant Pathologist, or KVK Horticulturist"
+    },
+    "sources": [
+      {
+        "organization": "Center for Agriculture, Food, and the Environment (CAFE), University of Massachusetts Amherst Extension",
+        "title": "Tomato, Leaf Mold (Passalora fulva)",
+        "url": "https://ag.umass.edu/vegetable/fact-sheets/tomato-leaf-mold",
+        "reference_url_or_publication": "https://ag.umass.edu/vegetable/fact-sheets/tomato-leaf-mold",
+        "claims_supported": "Causal agent Passalora fulva (syn. Fulvia fulva), upper surface pale yellow spots, lower surface olive-green mold, relative humidity threshold (>85%), spore survival on debris/seed, and cultural humidity management via ventilation and night heating."
+      },
+      {
+        "organization": "The Ohio State University Extension (High Tunnel Disease Facts)",
+        "title": "Leaf Mold (Passalora fulva)",
+        "url": "https://u.osu.edu/hightunneldiseasefacts/tomato-diseases/leaf-mold/",
+        "reference_url_or_publication": "https://u.osu.edu/hightunneldiseasefacts/tomato-diseases/leaf-mold/",
+        "claims_supported": "Passalora fulva taxonomy (formerly Cladosporium fulvum), diagnostic chlorotic lesions on upper leaf and velvety olive growth on lower leaf, defoliation impact, high humidity driver, resistant cultivars, row spacing, and tool sanitation."
+      }
+    ],
+    "safety_and_uncertainty_notes": "Foliar yellowing can be mistaken for powdery mildew or nutrient deficiency. Inspecting the underside of the leaf for olive-brown velvety sporulation is critical for confirmation."
+  },
+  {
+    "class_id": 9,
+    "raw_class": "Tomato___Septoria_leaf_spot",
+    "crop": "Tomato",
+    "condition": "Septoria Leaf Spot",
+    "health_status": "Diseased",
+    "causal_agent": "Septoria lycopersici (Ascomycete fungus)",
+    "symptoms": {
+      "summary": "Numerous small, circular spots with dark brown margins and sunken grayish-white centers, peppered with tiny black fruiting bodies (pycnidia).",
+      "foliar_symptoms": [
+        "Numerous small spots (1.5\u20133 mm) starting on oldest lower leaves",
+        "Distinctive grey to tan centers surrounded by narrow dark brown margins",
+        "Microscopic black dots (pycnidia) clearly visible in center of mature spots with hand lens",
+        "Severe infection causes yellowing, drying, and extensive defoliation"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Small elongated spots on stems and petioles; fruit infection is extremely rare, but fruit suffers sunscald due to leaf loss"
+      ],
+      "look_alike_conditions": [
+        "Bacterial speck (smaller dark spots without grey centers or pycnidia)",
+        "Early blight (larger spots with concentric rings)",
+        "Target spot"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Moderate to warm temperatures (20\u00b0C\u201325\u00b0C) coupled with prolonged periods of high humidity and wet foliage from rain or overhead watering",
+      "transmission_routes": [
+        "Spores exuded from pycnidia in gelatinous matrices, spread by splashing water, wind-driven rain, equipment, and handling wet plants",
+        "Overwinters in solanaceous crop debris and solanaceous weeds"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Destroy or deeply bury solanaceous crop debris after harvest",
+        "Eliminate wild solanaceous weeds; do not compost diseased leaves"
+      ],
+      "crop_rotation": "Rotate out of tomatoes and solanaceous crops for 2 to 3 years",
+      "irrigation_and_airflow": [
+        "Avoid overhead irrigation; use drip or furrow systems",
+        "Mulch around the base of plants to create a barrier against soil-splashed spores; stake plants"
+      ],
+      "resistant_cultivars": [
+        "Most commercial varieties have limited resistance; select vigorous cultivars and practice rigorous cultural sanitation"
+      ]
+    },
+    "treatment": {
+      "urgency": "Monitor and Manage: Early control prevents progressive upward defoliation.",
+      "non_chemical_controls": [
+        "Strip off and dispose of the lowest infected leaves when spots first appear in home/smallholder gardens",
+        "Keep foliage dry"
+      ],
+      "ipm_chemical_principles": [
+        "Preventative broad-spectrum protectant fungicides applied when weather favors disease or at first appearance",
+        "Rotate FRAC groups to prevent resistance"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Adhere to registered chemical labels, PPE requirements, REI, and PHI",
+        "No specific proprietary chemical rates or formulations"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Rapid defoliation threatening crop yield early in the fruiting cycle",
+        "Failure of protectant programs"
+      ],
+      "local_specialist": "Local Krishi Vigyan Kendra (KVK) Plant Pathologist or University Extension Specialist"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Tomato Diseases: Septoria Leaf Spot (Septoria lycopersici)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_4.html",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_4.html",
+        "claims_supported": "Diagnostic circular spots with grey centers and dark margins, rain splash dissemination, survival on solanaceous debris, and cultural sanitation."
+      },
+      {
+        "organization": "Clemson University Cooperative Extension (Home & Garden Information Center)",
+        "title": "Tomato Diseases & Disorders: Septoria Leaf Spot",
+        "url": "https://hgic.clemson.edu/factsheet/tomato-diseases-disorders/",
+        "reference_url_or_publication": "https://hgic.clemson.edu/factsheet/tomato-diseases-disorders/",
+        "claims_supported": "Septoria lycopersici fungal pathogen, small circular lesions with dark borders and beige centers, pycnidia fruiting bodies, lower-to-upper canopy defoliation, 68\u201377\u00b0F temperature range, high humidity, 3-year crop rotation, debris removal, avoiding overhead irrigation, and protectant fungicide principles."
+      }
+    ],
+    "safety_and_uncertainty_notes": "Presence of tiny black specks (pycnidia) in lesion centers distinguishes Septoria from bacterial spots and early blight. Physical or hand-lens verification is recommended."
+  },
+  {
+    "class_id": 10,
+    "raw_class": "Tomato___Spider_mites Two-spotted_spider_mite",
+    "crop": "Tomato",
+    "condition": "Two-spotted Spider Mite",
+    "health_status": "Diseased",
+    "causal_agent": "Tetranychus urticae (Acari: Tetranychidae / Two-spotted Spider Mite)",
+    "symptoms": {
+      "summary": "Fine chlorotic stippling (pale yellow dots) on the upper leaf surface, accompanied by fine silken webbing and a bronzed, dusty appearance on leaf undersides.",
+      "foliar_symptoms": [
+        "Initial damage appears as tiny white or light-yellow speckles/stipples on upper leaf blade",
+        "Leaves turn bronzy, yellow, or grayish, become dry and brittle, and drop prematurely",
+        "Fine silken webbing covers undersides of leaves and growing shoot tips in heavy infestations"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Heavy webbing can envelop entire upper foliage clusters; fruit exposed to sunscald; fruit development stunted"
+      ],
+      "look_alike_conditions": [
+        "Thrips feeding (silvery patches with dark fecal specks)",
+        "Tomato russet mite injury (bronze/smoky stems without visible webbing)",
+        "Ozone injury"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Hot, dry weather (>27\u00b0C / 80\u00b0F) and low relative humidity; dusty conditions and water-stressed plants exacerbate mite outbreaks",
+      "transmission_routes": [
+        "Wind dispersal on silk threads (ballooning)",
+        "Crawling between touching plants; carried on contaminated clothing, tools, and transplants"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Eliminate weeds along field margins (weeds harbor overwintering mites)",
+        "Destroy old crop residue immediately; control dust on roads near fields"
+      ],
+      "crop_rotation": "Practice rotation with non-host crops",
+      "irrigation_and_airflow": [
+        "Maintain adequate irrigation to prevent plant drought stress",
+        "Periodic overhead water rinses in small gardens can dislodge mites and raise local humidity"
+      ],
+      "resistant_cultivars": [
+        "Conserve natural enemies; select tolerant tomato varieties where available"
+      ]
+    },
+    "treatment": {
+      "urgency": "Prompt Intervention Recommended: Mite populations reproduce exponentially under hot, dry conditions.",
+      "non_chemical_controls": [
+        "Conserve resident natural predators (such as predatory thrips, ladybird beetles, and minute pirate bugs); in greenhouse structures or where commercially accessible, augmentative releases of predatory mites may be evaluated",
+        "Apply botanical extracts such as 5% neem seed kernel extract (NSKE) or registered horticultural oils and insecticidal soaps thoroughly to leaf undersides based on local extension guidance"
+      ],
+      "ipm_chemical_principles": [
+        "Avoid broad-spectrum synthetic pyrethroids or organophosphates that destroy predatory mites and cause secondary pest flare-ups",
+        "Select selective acaricides / miticides with distinct modes of action (rotate IRAC groups)"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Mandatory compliance with acaricide product labels, local pest management registrations, worker safety, PPE, REI, and PHI"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Extensive webbing covering growing tips and upper clusters",
+        "Failure of biologicals or approved miticides indicating acaricide resistance"
+      ],
+      "local_specialist": "Local Agricultural Extension Entomologist or KVK Crop Protection Specialist"
+    },
+    "sources": [
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Pest Notes: Spider Mites",
+        "url": "https://ipm.ucanr.edu/PMG/PESTNOTES/pn7405.html",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/PMG/PESTNOTES/pn7405.html",
+        "claims_supported": "Tetranychus urticae biology, foliar stippling symptoms, web production, hot and dry weather population acceleration, secondary pest flare-ups caused by broad-spectrum pyrethroids/organophosphates, and selective control principles."
+      },
+      {
+        "organization": "University of Florida IFAS Extension (EDIS)",
+        "title": "Twospotted Spider Mite, Tetranychus urticae Koch (Arachnida: Acari: Tetranychidae)",
+        "url": "https://edis.ifas.ufl.edu/publication/IN307",
+        "reference_url_or_publication": "https://edis.ifas.ufl.edu/publication/IN307",
+        "claims_supported": "Pathogen/pest taxonomy, developmental life cycle, chlorotic stippling and bronzing damage, broad host range, predatory insect conservation, and miticide resistance management."
+      }
+    ],
+    "safety_and_uncertainty_notes": "Two-spotted spider mites are tiny arachnid pests (0.4 mm), not pathogens. Confirming the presence of moving mites and webbing on the leaf underside with a 10x hand lens prevents misdiagnosis."
+  },
+  {
+    "class_id": 11,
+    "raw_class": "Tomato___Target_Spot",
+    "crop": "Tomato",
+    "condition": "Target Spot",
+    "health_status": "Diseased",
+    "causal_agent": "Corynespora cassiicola (Ascomycete fungus)",
+    "symptoms": {
+      "summary": "Small pinpoint lesions expanding into circular to irregular brown spots with pale brown centers and dark brown margins, causing severe defoliation.",
+      "foliar_symptoms": [
+        "Begins on upper or lower leaves as small, water-soaked brown pinpoint spots",
+        "Spots enlarge up to 10\u201312 mm, turning tan to brown with distinct darker brown concentric bands and light brown centers",
+        "Leaves turn chlorotic and drop prematurely"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Elongated brown lesions on stems",
+        "Circular, sunken, brown necrotic lesions on fruit, often with cracked or crater-like centers and secondary black fungal growth"
+      ],
+      "look_alike_conditions": [
+        "Early blight (more distinct circular bullseye rings on older leaves)",
+        "Bacterial spot",
+        "Septoria leaf spot (smaller with grey centers and pycnidia)"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Warm, humid weather (optimally 20\u00b0C\u201328\u00b0C) with prolonged leaf wetness (>16 hours) and high relative humidity",
+      "transmission_routes": [
+        "Spores disseminated by wind and splashing water",
+        "Overwinters on crop residues and a wide range of alternative weed and crop hosts (cotton, soybean, cucurbits)"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Remove and destroy infected crop residue immediately post-harvest",
+        "Control weed hosts around the perimeter"
+      ],
+      "crop_rotation": "Rotate away from solanaceous and other susceptible host crops for at least 2 years",
+      "irrigation_and_airflow": [
+        "Avoid overhead irrigation; stake and prune plants to improve airflow",
+        "Use wider plant spacing to accelerate canopy drying"
+      ],
+      "resistant_cultivars": [
+        "Select tolerant cultivars where commercially evaluated"
+      ]
+    },
+    "treatment": {
+      "urgency": "Monitor and Manage: Preventative fungicide programs are most effective before canopy closure.",
+      "non_chemical_controls": [
+        "Pruning lower canopy leaves to reduce humidity and remove early inoculum",
+        "Maintaining balanced plant nutrition"
+      ],
+      "ipm_chemical_principles": [
+        "Preventative fungicide applications before disease onset or when environmental conditions favor infection",
+        "Alternate FRAC mode-of-action classes (e.g. QoI, SDHI, protectants) to delay resistance development"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Use only pesticides registered for target spot on tomatoes in your region",
+        "Strict adherence to label instructions, PPE, REI, and PHI",
+        "No proprietary dosage claims"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Rapid defoliation despite protectant applications",
+        "High incidence of fruit lesions in commercial production"
+      ],
+      "local_specialist": "Local KVK Plant Pathologist, State Extension Vegetable Specialist, or University Diagnostic Lab"
+    },
+    "sources": [
+      {
+        "organization": "University of Florida IFAS Extension (EDIS)",
+        "title": "Target Spot of Tomato in Florida (Publication PP351)",
+        "url": "https://edis.ifas.ufl.edu/publication/PP351",
+        "reference_url_or_publication": "https://edis.ifas.ufl.edu/publication/PP351",
+        "claims_supported": "Corynespora cassiicola causal agent, pinpoint lesions enlarging with concentric rings and yellow chlorosis, distinguishing from bacterial spot and early blight, deeply pitted fruit lesions with cracking, warm wet weather epidemiology, dense canopy moisture retention, and fungicide resistance management."
+      },
+      {
+        "organization": "Purdue University Extension (Vegetable Crops Hotline)",
+        "title": "New Disease Report \u2013 Target Spot of Tomato",
+        "url": "https://vegcropshotline.org/article/new-disease-report-target-spot-of-tomato/",
+        "reference_url_or_publication": "https://vegcropshotline.org/article/new-disease-report-target-spot-of-tomato/",
+        "claims_supported": "Corynespora cassiicola target spot identification, concentric necrotic foliar lesions resembling early blight, 68\u201382\u00b0F temperature and extended leaf wetness triggers, survival in crop debris, crop rotation utility, and canopy pruning/spacing for leaf drying."
+      }
+    ],
+    "safety_and_uncertainty_notes": "Target spot lesions closely resemble early blight and bacterial spot. Microscopic examination of conidia is frequently required to distinguish Corynespora from Alternaria."
+  },
+  {
+    "class_id": 12,
+    "raw_class": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+    "crop": "Tomato",
+    "condition": "Yellow Leaf Curl Virus",
+    "health_status": "Diseased",
+    "causal_agent": "Tomato yellow leaf curl virus (TYLCV; Begomovirus, family Geminiviridae)",
+    "symptoms": {
+      "summary": "Severe plant stunting, erect bushy growth, small cupped leaves with prominent interveinal and marginal chlorosis (yellowing), and heavy flower drop.",
+      "foliar_symptoms": [
+        "Marked upward cupping/curling of leaf margins",
+        "Leaf size drastically reduced",
+        "Prominent yellowing (chlorosis) along margins and between veins",
+        "Leaves become thick, leathery, and brittle"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Shortened internodes leading to compact, bushy, stunted plants",
+        "Flowers drop off without fruit set; fruits formed before infection remain small and unmarketable"
+      ],
+      "look_alike_conditions": [
+        "Tomato leaf curl New Delhi virus (ToLCNDV)",
+        "Physiological leaf roll (leaves roll upward without severe stunting or chlorosis)",
+        "Tomato mosaic virus",
+        "Herbicide drift"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Warm, dry conditions that favor high populations and activity of the insect vector, the silverleaf whitefly (Bemisia tabaci)",
+      "transmission_routes": [
+        "Transmitted persistently by whiteflies (Bemisia tabaci)",
+        "Not seed-transmitted; not mechanically transmitted by sap or tools",
+        "Spreads via infected transplants and alternative weed hosts"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Rogue out and destroy virus-infected plants immediately during early season",
+        "Remove alternate weed hosts around fields"
+      ],
+      "crop_rotation": "Rotate with non-host crops and avoid continuous tomato cropping; where coordinated regionally, maintain a host-free period of at least 2 months to break whitefly vector cycles.",
+      "irrigation_and_airflow": [
+        "Protect nurseries with fine insect-proof netting (40\u201350 mesh nylon screens)",
+        "Use reflective silver/aluminum mulches to repel whiteflies"
+      ],
+      "resistant_cultivars": [
+        "Plant certified TYLCV-resistant hybrids carrying Ty-resistance genes (e.g. Ty-1, Ty-3) which provide strong field protection"
+      ]
+    },
+    "treatment": {
+      "urgency": "Urgent Preventive Action (Vector Control): Viruses cannot be cured once the plant is infected; management targets the whitefly vector and sanitation.",
+      "non_chemical_controls": [
+        "Install yellow sticky traps (10\u201315 traps/ha) for early whitefly population monitoring",
+        "Release natural predators (e.g. Encarsia, Eretmocerus, Chrysoperla) in protected greenhouses"
+      ],
+      "ipm_chemical_principles": [
+        "There are NO chemical cures for plant viruses",
+        "Vector management utilizes selective insecticides or systemic drench treatments at transplanting, rotating IRAC groups to prevent whitefly insecticide resistance"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Never apply chemicals claiming to 'cure' plant viruses",
+        "Insecticide use must follow local registrations, label rates, pollinator safety warnings, PPE, REI, and PHI"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "High whitefly infestation levels; widespread viral symptoms across young plantings",
+        "Suspected breakdown of resistant cultivars"
+      ],
+      "local_specialist": "Local KVK Entomologist, District Horticulture Officer, or State Agricultural Extension Specialist"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Tomato Diseases: Leaf Curl (Tomato Leaf Curl Virus)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_6.html",
+        "claims_supported": "Symptoms of downward rolling/curling, whitefly vector transmission, barrier crops, yellow sticky traps, and rogueing",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_6.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Tomato: Tomato Yellow Leaf Curl (TYLCV)",
+        "url": "https://ipm.ucanr.edu/agriculture/tomato/tomato-yellow-leaf-curl/",
+        "claims_supported": "Begomovirus taxonomy, Bemisia tabaci vector dynamics, host-free periods, reflective mulches, and resistant varieties",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/tomato/tomato-yellow-leaf-curl/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "No chemical treatment cures a viral infection. Symptoms can mimic abiotic leaf rolling or other viruses; vector management and resistant cultivars are the primary defenses."
+  },
+  {
+    "class_id": 13,
+    "raw_class": "Tomato___Tomato_mosaic_virus",
+    "crop": "Tomato",
+    "condition": "Mosaic Virus",
+    "health_status": "Diseased",
+    "causal_agent": "Tomato mosaic virus (ToMV; Tobamovirus)",
+    "symptoms": {
+      "summary": "Mottling of leaves with alternating light green and dark green patches, leaf blistering, distortion, and occasional 'shoestring' narrowing of leaflets.",
+      "foliar_symptoms": [
+        "Characteristic mosaic pattern of light-green and dark-green patches",
+        "Leaf puckering, blistering, and distortion",
+        "Leaflets may become severely reduced and narrow (shoestring or fern-like appearance)",
+        "Plant growth may be moderately stunted"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Internal browning (brown wall) of fruit tissue",
+        "Blotchy ripening",
+        "Necrosis or streaking on stems in severe strains"
+      ],
+      "look_alike_conditions": [
+        "Tobacco mosaic virus (TMV)",
+        "Cucumber mosaic virus (CMV)",
+        "Tomato yellow leaf curl virus",
+        "Herbicide injury (e.g. 2,4-D hormone damage)"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Wide temperature tolerance; symptoms most pronounced during periods of rapid vegetative growth in warm weather (20\u00b0C\u201328\u00b0C)",
+      "transmission_routes": [
+        "Extremely stable and contagious; transmitted mechanically via sap through contaminated hands, tools, stakes, and plant contact",
+        "Seed-borne on the seed coat",
+        "Persists in dried crop debris and tobacco products for years; not insect-transmitted"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Use certified virus-free seed (or soak seed in 10% trisodium phosphate (TSP) or hot water)",
+        "Wash hands with soap and water or milk before handling plants; prohibit tobacco use around tomato plantings",
+        "Disinfect pruning tools frequently"
+      ],
+      "crop_rotation": "Avoid replanting solanaceous crops immediately in beds with high infested debris",
+      "irrigation_and_airflow": [
+        "Handle plants only when dry",
+        "Avoid brushing against plants during cultivation",
+        "Rogue out and carefully dispose of infected plants without touching healthy ones"
+      ],
+      "resistant_cultivars": [
+        "Plant cultivars with TMV/ToMV resistance genes (Tm-1, Tm-2, or Tm-2^2) which offer reliable genetic control"
+      ]
+    },
+    "treatment": {
+      "urgency": "Urgent Sanitation Action: There is no chemical cure for viral infections; prompt rogueing prevents mechanical spread to adjacent plants.",
+      "non_chemical_controls": [
+        "Rogue out and safely destroy infected plants immediately upon detection to arrest mechanical transmission",
+        "Disinfect pruning knives, shears, and stakes between plants using appropriate sanitizing solutions (e.g. 10% household bleach, 10% trisodium phosphate, or 20% non-fat dry milk where practiced), and wash hands thoroughly with soap and water after handling plants"
+      ],
+      "ipm_chemical_principles": [
+        "There are NO chemical fungicides, bactericides, or viricides that eliminate ToMV from infected plants",
+        "Chemical sprays are completely ineffective and inappropriate against viral agents"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Do not apply pesticides for mosaic virus management",
+        "Strict focus on sanitation, seed health, and genetic resistance"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Widespread mosaic symptoms in greenhouse or commercial seedling operations",
+        "Unexpected infection in known resistant hybrid lines"
+      ],
+      "local_specialist": "Local KVK Plant Pathologist, University Extension Diagnostic Laboratory, or Horticultural Officer"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Tomato Diseases: Mosaic (Tomato Mosaic Virus)",
+        "url": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_12.html",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/crop_protection/tomato_diseases_12.html",
+        "claims_supported": "Tomato Mosaic Virus causal agent, light and dark green mottling symptoms, leaf distortion, fern leaf / shoestring symptom, mechanical transmission via contaminated tools, clothes, and worker contact, survival in infected crop debris, use of disease-free seed, and rogueing infected plants."
+      },
+      {
+        "organization": "The Ohio State University Extension (High Tunnel Disease Facts)",
+        "title": "Tomato Mosaic Virus (ToMV)",
+        "url": "https://u.osu.edu/hightunneldiseasefacts/tomato-diseases/tomato-mosaic/",
+        "reference_url_or_publication": "https://u.osu.edu/hightunneldiseasefacts/tomato-diseases/tomato-mosaic/",
+        "claims_supported": "ToMV taxonomy and distinction from TMV, worldwide prevalence, mechanical transmission by grafting and contaminated tools/workers, seed-borne transmission, absence of insect vectors, scouting, resistant varieties, and rigorous sanitation of seed, soil, tools, and hands."
+      }
+    ],
+    "safety_and_uncertainty_notes": "Viral mosaic cannot be cured with chemical sprays. Symptom expression can vary with cultivar and environmental temperature; laboratory serological (ELISA) testing is required for definitive confirmation."
+  },
+  {
+    "class_id": 14,
+    "raw_class": "Tomato___healthy",
+    "crop": "Tomato",
+    "condition": "Healthy",
+    "health_status": "Healthy",
+    "causal_agent": null,
+    "symptoms": {
+      "summary": "Foliage is vibrant green, vigorous, fully expanded, and completely free from necrotic spots, water-soaking, fungal sporulation, mosaic mottling, or pest stippling.",
+      "foliar_symptoms": [
+        "Characteristic deep green compound leaves with glandular hairs",
+        "Healthy leaflet margins without curling, necrotic spotting, or chlorotic halos"
+      ],
+      "stem_and_fruit_symptoms": [
+        "Stems sturdy, erect, and green without dark streaks or cankers",
+        "Flower clusters and green/ripe fruit develop normally without blemishes, rot, or cracking"
+      ],
+      "look_alike_conditions": [
+        "Latent early-stage infections before symptom expression",
+        "Transient minor abiotic stress (e.g. slight temperature fluctuation or temporary drought wilt)"
+      ]
+    },
+    "favorable_conditions": {
+      "environmental_factors": "Daytime temperatures 21\u00b0C\u201329\u00b0C, nighttime temperatures 15\u00b0C\u201320\u00b0C; 60%\u201370% relative humidity; fertile, well-draining sandy loam or loamy soil with pH 6.0\u20137.0",
+      "transmission_routes": [
+        "Not applicable (healthy physiological state)"
+      ]
+    },
+    "prevention_and_cultural": {
+      "sanitation": [
+        "Maintain weed-free buffer zones around fields to reduce insect vector reservoirs",
+        "Sanitize trellising stakes, pruning knives, and crates",
+        "Remove senescent lower foliage"
+      ],
+      "crop_rotation": "Rotate with non-solanaceous crops (cereals, legumes, brassicas) on a 2- to 3-year cycle",
+      "irrigation_and_airflow": [
+        "Use drip irrigation with fertigation to keep foliage dry",
+        "Stake, cage, or trellis plants",
+        "Maintain row spacing of 60\u201390 cm for canopy aeration"
+      ],
+      "resistant_cultivars": [
+        "Utilize certified hybrid seeds with multiple disease resistance traits (e.g. Ty, Mi, Ve, Fol resistances) adapted to local season"
+      ]
+    },
+    "treatment": {
+      "urgency": "Routine Maintenance: No treatment required.",
+      "non_chemical_controls": [
+        "Weekly foliar scouting of upper and lower leaf surfaces",
+        "Soil test-based balanced fertilization (preventing excess nitrogen and ensuring sufficient calcium and potassium)"
+      ],
+      "ipm_chemical_principles": [
+        "No chemical fungicides, bactericides, or insecticides are warranted or recommended for healthy foliage",
+        "Preserve natural biological control agents and pollinators"
+      ],
+      "safety_and_regulatory_constraints": [
+        "Unnecessary prophylactic pesticide application causes economic waste, environmental contamination, and risks pest resurgence"
+      ]
+    },
+    "extension_consultation": {
+      "escalation_triggers": [
+        "Poor fruit set, blossom end rot, sudden plant wilting, or root problems despite green foliar appearance"
+      ],
+      "local_specialist": "Local Krishi Vigyan Kendra (KVK) Horticulturist, State Department of Agriculture, or University Extension Agent"
+    },
+    "sources": [
+      {
+        "organization": "Tamil Nadu Agricultural University (TNAU) Agritech Portal",
+        "title": "Horticulture: Tomato Cultivation & Production Management",
+        "url": "https://agritech.tnau.ac.in/horticulture/horti_vegetables_tomato_index.html",
+        "claims_supported": "Nursery management, spacing, mulching, drip irrigation, balanced fertility, and agronomic care",
+        "reference_url_or_publication": "https://agritech.tnau.ac.in/horticulture/horti_vegetables_tomato_index.html"
+      },
+      {
+        "organization": "University of California Statewide IPM Program (UC IPM)",
+        "title": "Tomato: Agricultural Pest Management Guidelines",
+        "url": "https://ipm.ucanr.edu/agriculture/tomato/",
+        "claims_supported": "Seasonal crop monitoring, integrated pest management scouting, and beneficial insect conservation",
+        "reference_url_or_publication": "https://ipm.ucanr.edu/agriculture/tomato/"
+      }
+    ],
+    "safety_and_uncertainty_notes": "A 'Healthy' classification reflects absence of visible foliar symptoms of the 12 target diseases. It does not certify the absence of root-knot nematodes, vascular wilts, or non-foliar physiological disorders."
+  }
+];

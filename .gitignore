@@ -40,6 +40,7 @@ ml/runs/
 # Testing & Scratch Directories
 scratch/
 test_synthetic_data/
+.browser_test_tmp/
 
 # IDE & OS Files
 .vscode/

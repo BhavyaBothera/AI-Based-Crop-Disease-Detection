@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture & Technology — PHYTOSIGNAL</title>
+  <meta name="description" content="Technical methodology, two-tier leaf acceptance gate, MobileNetV2 deep learning architecture, and empirical held-out evaluation benchmarks.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Site Header -->
+  <header class="site-header app-header">
+    <div class="container container-wide header-inner">
+      <a href="index.html" class="brand-link" aria-label="PHYTOSIGNAL Home">
+        <div class="brand-symbol" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12A10 10 0 0 1 12 2z"/>
+            <path d="M12 6v12"/>
+            <path d="M8 10l4-4 4 4"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name"><span class="phyto">PHYTO</span><span class="signal">SIGNAL</span><span class="dot"></span></span>
+          <span class="brand-tagline">Clinical Foliar Intelligence</span>
+        </div>
+      </a>
+
+      <!-- Desktop Navigation -->
+      <nav class="main-nav" aria-label="Main Navigation">
+        <a href="index.html" class="nav-link" data-route="/">Home</a>
+        <a href="analyze.html" class="nav-link" data-route="/analyze">Analyze</a>
+        <a href="field-guide.html" class="nav-link" data-route="/field-guide">Field Guide</a>
+        <a href="about.html" class="nav-link active" data-route="/about">About</a>
+      </nav>
+
+      <!-- Telemetry Status & Mobile Toggle -->
+      <div class="header-actions">
+        <div class="readiness-pill" id="readiness-status-container" aria-live="polite">
+          <span id="connection-status" class="status-indicator status-ready" aria-hidden="true"></span>
+          <span id="connection-status-text">Model Ready</span>
+        </div>
+
+        <button type="button" id="mobile-menu-toggle" class="mobile-menu-btn" aria-label="Open navigation menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Navigation Drawer -->
+  <div id="mobile-menu-backdrop" class="mobile-nav-backdrop"></div>
+  <aside id="mobile-menu" class="mobile-nav-menu" aria-label="Mobile Navigation Drawer">
+    <div class="mobile-nav-header">
+      <span class="brand-name"><span class="phyto">PHYTO</span><span class="signal">SIGNAL</span></span>
+      <button type="button" id="mobile-menu-close" class="btn btn-secondary btn-sm" aria-label="Close menu">&times;</button>
+    </div>
+    <nav class="mobile-nav-links">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="analyze.html" class="nav-link">Analyze Workspace</a>
+      <a href="field-guide.html" class="nav-link">Pathology Field Guide</a>
+      <a href="about.html" class="nav-link active">About & Technology</a>
+    </nav>
+  </aside>
+
+  <main class="container" style="padding-top: 3rem;">
+    <!-- Editorial About Hero -->
+    <header class="about-hero">
+      <div class="kicker">Engineering Monograph // System Architecture</div>
+      <h1 style="font-size: clamp(2.25rem, 4.5vw, 3.5rem); margin-bottom: 1rem; line-height: 1.15;">
+        Autonomous Pathology.<br>
+        <span class="highlight-coral">Grounded in Agronomic Reality.</span>
+      </h1>
+      <p class="article-lead">
+        PHYTOSIGNAL is an independent AgriTech platform engineered to solve the most pervasive failure 
+        in applied computer vision: out-of-distribution hallucination under closed-world assumptions.
+      </p>
+    </header>
+
+    <!-- Technical Article Body -->
+    <article class="about-article">
+      <!-- Section 1: The Closed-World Problem -->
+      <section class="article-block">
+        <h2 class="article-heading">1. The Closed-World Softmax Vulnerability</h2>
+        <p class="article-text">
+          Standard deep learning image classifiers employ a final softmax normalization layer where the predicted 
+          class probabilities strictly sum to 1.0. When an arbitrary image containing zero plant tissue—such as a 
+          human portrait, a landscape, a domestic pet, or a document—is fed into such a model, the network cannot 
+          abstain. The argmax operation forcibly assigns the input to whichever class matches random latent noise, 
+          frequently with deceptively high confidence (e.g. 99%+ on a human selfie).
+        </p>
+        <p class="article-text">
+          In agricultural decision support, a false diagnosis on non-leaf imagery is dangerous. Presenting chemical 
+          fungicide recommendations for a non-leaf subject erodes trust and undermines agronomic integrity.
+        </p>
+      </section>
+
+      <!-- Section 2: Two-Tier Input Gate -->
+      <section id="safety" class="article-block">
+        <h2 class="article-heading">2. Two-Tier Input Safety & Acceptance Pipeline</h2>
+        <p class="article-text">
+          To eradicate OOD vulnerability, PHYTOSIGNAL establishes two sequential, decoupled validation gates 
+          before any tensor is permitted to reach the disease classification head:
+        </p>
+
+        <div class="steps-grid" style="margin: 1.5rem 0;">
+          <div class="step-card">
+            <span class="step-number">LAYER A</span>
+            <h3 class="step-title" style="font-size:1.1rem;">Physical & DoS Integrity</h3>
+            <p class="step-desc" style="font-size:0.85rem;">
+              Enforces a streamed chunked 10 MB payload ceiling. Validates binary magic bytes (JPEG/PNG/WEBP). 
+              Limits decoded dimensions to 20 Megapixels and enforces a 64×64 pixel floor. Analyzes luminance standard deviation (&sigma; &le; 2.0) to eliminate uniform canvases.
+            </p>
+          </div>
+
+          <div class="step-card">
+            <span class="step-number">LAYER B</span>
+            <h3 class="step-title" style="font-size:1.1rem;">Leaf Acceptance Gate</h3>
+            <p class="step-desc" style="font-size:0.85rem;">
+              A 3-class linear classifier (<code>supported_leaf</code>, <code>other_plant</code>, <code>non_leaf</code>) 
+              trained on frozen ImageNet MobileNetV2 features across 25,000+ real photographs. Demands a minimum 0.60 
+              confidence floor.
+            </p>
+          </div>
+
+          <div class="step-card">
+            <span class="step-number">LAYER C</span>
+            <h3 class="step-title" style="font-size:1.1rem;">Deterministic Fallback</h3>
+            <p class="step-desc" style="font-size:0.85rem;">
+              If neural gate weights are offline, a vectorized HSV plant-pigmentation mask (Hue 40&deg;&ndash;170&deg;, Sat &ge; 0.12, Val &ge; 0.08) 
+              and connected-component area checks guarantee that non-vegetation images are never silently passed to inference.
+            </p>
+          </div>
+        </div>
+
+        <p class="article-text">
+          When an upload fails screening, the server terminates processing immediately with an 
+          <code>HTTP 422 Unprocessable Content</code> structured payload (<code>InputRejectedError</code>). 
+          Diagnostic fields, top candidates, and chemical advisories are completely withheld.
+        </p>
+      </section>
+
+      <!-- Section 3: Empirical Benchmarks -->
+      <section id="benchmarks" class="article-block">
+        <h2 class="article-heading">3. Held-Out Evaluation Benchmarks</h2>
+        <p class="article-text">
+          The disease model is a MobileNetV2 architecture fine-tuned in two stages with Adam optimization and 
+          balanced class-weighting. All batch normalization layers remain frozen in inference mode during 
+          fine-tuning to prevent covariate shift. Performance was verified against an isolated, held-out test split:
+        </p>
+
+        <div class="metrics-strip">
+          <div class="metric-box">
+            <div class="metric-number">0.9653</div>
+            <div class="metric-caption">Macro-F1 (15-Class Test Split)</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-number">96.89%</div>
+            <div class="metric-caption">Top-1 Categorical Accuracy</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-number">100.0%</div>
+            <div class="metric-caption">Portrait / Non-Leaf Rejection Rate</div>
+          </div>
+        </div>
+
+        <p class="article-text" style="font-size:0.9rem; color:var(--text-muted);">
+          * Benchmarks measured on strictly isolated held-out test splits. Leaf-acceptance gate evaluated across 
+          disjoint sets including the PlantVillage Background-without-leaves split and real portrait photography.
+        </p>
+      </section>
+
+      <!-- Section 4: Responsible Agronomic Deployment -->
+      <section id="responsible-ai" class="article-block">
+        <h2 class="article-heading">4. Responsible AI & Agronomic Reality</h2>
+        <p class="article-text">
+          A high test-set score on controlled agricultural datasets does not translate directly into 100% diagnostic 
+          certainty in the field. Real-world foliar symptoms are influenced by multiple compounding factors:
+        </p>
+        <ul class="monograph-list" style="margin-left: 0.5rem;">
+          <li><strong>Co-Infection & Mixed Etiology:</strong> A leaf may simultaneously suffer from fungal lesions (e.g. Early Blight) and nutrient deficiencies (e.g. Nitrogen chlorosis).</li>
+          <li><strong>Environmental Stressors:</strong> Drought, hail damage, pesticide phytotoxicity, and wind scorching can visually mimic pathogenic lesions.</li>
+          <li><strong>Lighting & Capture Angle:</strong> Specular reflections, direct sunlight glare, and shadows alter color distributions.</li>
+        </ul>
+        <p class="article-text" style="margin-top:1rem;">
+          For these reasons, PHYTOSIGNAL is architected as an <strong>agronomic decision-support instrument</strong>, 
+          not an autonomous applicator. Users are explicitly directed to confirm foliar diagnoses with regional university 
+          agricultural extension personnel or licensed crop advisors before purchasing or applying commercial chemical controls.
+        </p>
+      </section>
+    </article>
+  </main>
+
+  <!-- Site Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand-col">
+          <span class="brand-name"><span class="phyto">PHYTO</span><span class="signal">SIGNAL</span></span>
+          <p class="footer-desc">
+            Plant intelligence made actionable. Scientific crop leaf pathology with rigorous two-tier input validation.
+          </p>
+        </div>
+        <div>
+          <h4 class="footer-col-title">Navigation</h4>
+          <ul class="footer-links">
+            <li><a href="index.html">Home Overview</a></li>
+            <li><a href="analyze.html">Analyze Workspace</a></li>
+            <li><a href="field-guide.html">Field Guide Catalog</a></li>
+            <li><a href="about.html">Architecture & About</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer-col-title">Pathology Taxa</h4>
+          <ul class="footer-links">
+            <li><a href="field-guide.html?crop=tomato">Tomato Diseases (10)</a></li>
+            <li><a href="field-guide.html?crop=potato">Potato Diseases (3)</a></li>
+            <li><a href="field-guide.html?crop=pepper">Bell Pepper Diseases (2)</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="footer-col-title">Safety & Governance</h4>
+          <ul class="footer-links">
+            <li><a href="about.html#safety">Two-Tier Gate Audit</a></li>
+            <li><a href="about.html#responsible-ai">Responsible Use</a></li>
+            <li><a href="about.html#benchmarks">Held-out Benchmarks</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span>&copy; 2026 PHYTOSIGNAL. Independent AgriTech Research & Development.</span>
+        <span>Version 2.4.0 // MobileNetV2 Backbone</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/api.js"></script>
+  <script src="js/knowledge_data.js"></script>
+  <script src="js/nav.js"></script>
+</body>
+</html>
