@@ -306,14 +306,35 @@
     const isHealthy = (rec.health_status || '').toLowerCase() === 'healthy';
     let html = '';
 
-    // Symptoms section
+    // Monograph Controls
+    html += `<div class="monograph-controls-bar">
+      <div class="monograph-context-pill">★ Botanical Pathology Monograph (${escapeHtml(rec.crop)} \u2014 ${escapeHtml(rec.condition)})</div>
+      <div class="monograph-toggle-group">
+        <button type="button" class="btn btn-secondary btn-xs" onclick="this.closest('.drawer-body').querySelectorAll('details.monograph-accordion').forEach(d => d.open = true)">Expand All</button>
+        <button type="button" class="btn btn-secondary btn-xs" onclick="this.closest('.drawer-body').querySelectorAll('details.monograph-accordion').forEach(d => d.open = false)">Collapse All</button>
+      </div>
+    </div>`;
+
+    // 1. Symptoms section
     if (rec.symptoms) {
-      html += `<div class="monograph-section">
-        <h4 class="monograph-heading">1. Clinical Presentation & Symptoms</h4>
-        <p class="monograph-lead">${escapeHtml(rec.symptoms.summary || '')}</p>`;
+      html += `<details class="monograph-accordion" open>
+        <summary class="monograph-accordion-header" tabindex="0">
+          <div class="accordion-left">
+            <span class="accordion-icon" aria-hidden="true">🔍</span>
+            <h5 class="monograph-accordion-title">1. Clinical Presentation & Symptoms</h5>
+          </div>
+          <div class="accordion-right">
+            <span class="badge badge-accordion">Clinical Signs</span>
+            <span class="accordion-chevron" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </summary>
+        <div class="monograph-accordion-body">
+          <p class="monograph-lead">${escapeHtml(rec.symptoms.summary || '')}</p>`;
 
       if (rec.symptoms.foliar_symptoms && rec.symptoms.foliar_symptoms.length > 0) {
-        html += `<h5 class="monograph-subheading">Foliar Symptoms</h5>
+        html += `<h5 class="monograph-subheading">Foliar Symptoms & Leaf Lesions</h5>
           <ul class="monograph-list">
             ${rec.symptoms.foliar_symptoms.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}
           </ul>`;
@@ -333,14 +354,26 @@
           </ul>`;
       }
 
-      html += `</div>`;
+      html += `</div></details>`;
     }
 
-    // Favorable conditions
+    // 2. Favorable conditions
     if (rec.favorable_conditions && !isHealthy) {
-      html += `<div class="monograph-section">
-        <h4 class="monograph-heading">2. Environmental Drivers & Transmission</h4>
-        <p><strong>Favorable Climate:</strong> ${escapeHtml(rec.favorable_conditions.environmental_factors || 'N/A')}</p>`;
+      html += `<details class="monograph-accordion">
+        <summary class="monograph-accordion-header" tabindex="0">
+          <div class="accordion-left">
+            <span class="accordion-icon" aria-hidden="true">🌦️</span>
+            <h5 class="monograph-accordion-title">2. Environmental Drivers & Transmission</h5>
+          </div>
+          <div class="accordion-right">
+            <span class="badge badge-accordion">Disease Cycle</span>
+            <span class="accordion-chevron" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </summary>
+        <div class="monograph-accordion-body">
+          <p class="knowledge-text"><strong>Favorable Climate Drivers:</strong> ${escapeHtml(rec.favorable_conditions.environmental_factors || 'N/A')}</p>`;
 
       if (rec.favorable_conditions.transmission_routes && rec.favorable_conditions.transmission_routes.length > 0) {
         html += `<h5 class="monograph-subheading">Vectors & Dispersal Routes</h5>
@@ -348,39 +381,70 @@
             ${rec.favorable_conditions.transmission_routes.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}
           </ul>`;
       }
-      html += `</div>`;
+      html += `</div></details>`;
     }
 
-    // Prevention & Cultural
+    // 3. Prevention & Cultural
     if (rec.prevention_and_cultural) {
-      html += `<div class="monograph-section">
-        <h4 class="monograph-heading">${isHealthy ? '2. Optimal Foliar Maintenance' : '3. Prevention & Cultural Sanitation'}</h4>`;
+      html += `<details class="monograph-accordion">
+        <summary class="monograph-accordion-header" tabindex="0">
+          <div class="accordion-left">
+            <span class="accordion-icon" aria-hidden="true">🛡️</span>
+            <h5 class="monograph-accordion-title">${isHealthy ? '2. Optimal Foliar Maintenance' : '3. Cultural Prevention & Field Sanitation'}</h5>
+          </div>
+          <div class="accordion-right">
+            <span class="badge badge-accordion">Field Hygiene</span>
+            <span class="accordion-chevron" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </summary>
+        <div class="monograph-accordion-body">`;
 
       if (rec.prevention_and_cultural.sanitation && rec.prevention_and_cultural.sanitation.length > 0) {
-        html += `<h5 class="monograph-subheading">Sanitation Protocols</h5>
+        html += `<h5 class="monograph-subheading">Sanitation & Hygiene Protocols</h5>
           <ul class="monograph-list">
             ${rec.prevention_and_cultural.sanitation.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}
           </ul>`;
       }
 
       if (rec.prevention_and_cultural.crop_rotation) {
-        html += `<p><strong>Crop Rotation:</strong> ${escapeHtml(rec.prevention_and_cultural.crop_rotation)}</p>`;
+        html += `<p class="knowledge-text"><strong>Crop Rotation Schedule:</strong> ${escapeHtml(rec.prevention_and_cultural.crop_rotation)}</p>`;
       }
 
       if (rec.prevention_and_cultural.irrigation_and_airflow && rec.prevention_and_cultural.irrigation_and_airflow.length > 0) {
-        html += `<h5 class="monograph-subheading">Irrigation & Airflow</h5>
+        html += `<h5 class="monograph-subheading">Irrigation & Airflow Management</h5>
           <ul class="monograph-list">
             ${rec.prevention_and_cultural.irrigation_and_airflow.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
           </ul>`;
       }
-      html += `</div>`;
+
+      if (rec.prevention_and_cultural.resistant_cultivars && rec.prevention_and_cultural.resistant_cultivars.length > 0) {
+        html += `<h5 class="monograph-subheading">Genetic Resistance & Cultivars</h5>
+          <ul class="monograph-list">
+            ${rec.prevention_and_cultural.resistant_cultivars.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}
+          </ul>`;
+      }
+      html += `</div></details>`;
     }
 
-    // Treatment & IPM principles
+    // 4. Treatment & IPM principles
     if (rec.treatment) {
-      html += `<div class="monograph-section">
-        <h4 class="monograph-heading">${isHealthy ? '3. Health Preservation Advisory' : '4. Integrated Pest Management (IPM) Protocols'}</h4>
-        <div class="urgency-callout"><span class="badge-urgency">Guidance Level</span> ${escapeHtml(rec.treatment.urgency || '')}</div>`;
+      html += `<details class="monograph-accordion">
+        <summary class="monograph-accordion-header" tabindex="0">
+          <div class="accordion-left">
+            <span class="accordion-icon" aria-hidden="true">${isHealthy ? '🌱' : '💊'}</span>
+            <h5 class="monograph-accordion-title">${isHealthy ? '3. Health Preservation Advisory' : '4. Integrated Pest Management (IPM)'}</h5>
+          </div>
+          <div class="accordion-right">
+            <span class="badge badge-accordion">${isHealthy ? 'Routine Care' : 'Action Protocol'}</span>
+            <span class="accordion-chevron" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </summary>
+        <div class="monograph-accordion-body">
+          <div class="knowledge-callout knowledge-callout-${isHealthy ? 'healthy' : 'warning'}"><strong>Guidance Level:</strong> ${escapeHtml(rec.treatment.urgency || '')}</div>`;
 
       if (rec.treatment.non_chemical_controls && rec.treatment.non_chemical_controls.length > 0) {
         html += `<h5 class="monograph-subheading">Biological & Non-Chemical Controls</h5>
@@ -390,23 +454,80 @@
       }
 
       if (rec.treatment.ipm_chemical_principles && rec.treatment.ipm_chemical_principles.length > 0) {
-        html += `<h5 class="monograph-subheading">Chemical Application Principles</h5>
+        html += `<h5 class="monograph-subheading">IPM Chemical Application Principles</h5>
           <ul class="monograph-list">
             ${rec.treatment.ipm_chemical_principles.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
           </ul>`;
       }
 
-      html += `</div>`;
+      if (rec.treatment.safety_and_regulatory_constraints && rec.treatment.safety_and_regulatory_constraints.length > 0) {
+        html += `<h5 class="monograph-subheading">Safety, PHI & Regulatory Constraints</h5>
+          <ul class="monograph-list">
+            ${rec.treatment.safety_and_regulatory_constraints.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}
+          </ul>`;
+      }
+
+      html += `</div></details>`;
     }
 
-    // References
+    // 5. Extension referral
+    if (rec.extension_consultation) {
+      html += `<details class="monograph-accordion">
+        <summary class="monograph-accordion-header" tabindex="0">
+          <div class="accordion-left">
+            <span class="accordion-icon" aria-hidden="true">📞</span>
+            <h5 class="monograph-accordion-title">5. Agricultural Extension Referral</h5>
+          </div>
+          <div class="accordion-right">
+            <span class="badge badge-accordion">Extension Authority</span>
+            <span class="accordion-chevron" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </summary>
+        <div class="monograph-accordion-body">
+          <p class="knowledge-text"><strong>Recommended Authority:</strong> ${escapeHtml(rec.extension_consultation.local_specialist || '')}</p>`;
+
+      if (rec.extension_consultation.escalation_triggers && rec.extension_consultation.escalation_triggers.length > 0) {
+        html += `<h5 class="monograph-subheading">Field Escalation Triggers</h5>
+          <ul class="monograph-list">
+            ${rec.extension_consultation.escalation_triggers.map((t) => `<li>${escapeHtml(t)}</li>`).join('')}
+          </ul>`;
+      }
+
+      html += `</div></details>`;
+    }
+
+    // 6. References
     if (rec.sources && rec.sources.length > 0) {
-      html += `<div class="monograph-section monograph-sources">
-        <h4 class="monograph-heading">Authoritative Sources & Extension Services</h4>
-        <ul class="sources-list">
-          ${rec.sources.map((s) => `<li>${escapeHtml(s)}</li>`).join('')}
-        </ul>
-      </div>`;
+      html += `<details class="monograph-accordion">
+        <summary class="monograph-accordion-header" tabindex="0">
+          <div class="accordion-left">
+            <span class="accordion-icon" aria-hidden="true">📚</span>
+            <h5 class="monograph-accordion-title">6. Scientific & Extension References</h5>
+          </div>
+          <div class="accordion-right">
+            <span class="badge badge-accordion">${rec.sources.length} Sources</span>
+            <span class="accordion-chevron" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </summary>
+        <div class="monograph-accordion-body">
+          <div class="source-list">
+            ${rec.sources.map((src) => {
+              if (typeof src === 'string') {
+                return `<div class="source-item"><span class="source-title">${escapeHtml(src)}</span></div>`;
+              }
+              const org = escapeHtml(src.organization || 'Institutional Source');
+              const title = escapeHtml(src.title || 'Agronomic Publication');
+              const claims = src.claims_supported ? `<p class="source-claims"><strong>Claims:</strong> ${escapeHtml(src.claims_supported)}</p>` : '';
+              const link = src.url ? `<a class="source-link" href="${escapeHtml(src.url)}" target="_blank" rel="noopener noreferrer">View Official Publication ↗</a>` : '';
+              return `<div class="source-item"><span class="source-org">${org}</span><h6 class="source-title">${title}</h6>${claims}${link}</div>`;
+            }).join('')}
+          </div>
+        </div>
+      </details>`;
     }
 
     return html;

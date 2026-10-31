@@ -219,6 +219,12 @@
       elements.resultHealthBadge.textContent = '\u2014';
       elements.resultHealthBadge.className = 'badge';
     }
+    const thumb = document.getElementById('result-specimen-thumb');
+    if (thumb) {
+      thumb.src = '';
+      const wrap = thumb.closest('.diagnosis-thumb-wrapper');
+      if (wrap) wrap.classList.add('hidden');
+    }
   }
 
   // ==========================================================================
@@ -478,6 +484,14 @@
     // Score formatting
     const scorePercent = (data.score * 100).toFixed(2);
     elements.resultScore.textContent = `${scorePercent}%`;
+
+    // Specimen Thumbnail in diagnosis header
+    const thumb = document.getElementById('result-specimen-thumb');
+    if (thumb && elements.imagePreview && elements.imagePreview.src) {
+      thumb.src = elements.imagePreview.src;
+      const wrap = thumb.closest('.diagnosis-thumb-wrapper');
+      if (wrap) wrap.classList.remove('hidden');
+    }
 
     // 2. Render Top 3 Candidate Predictions
     renderCandidatesList();
@@ -770,29 +784,68 @@
   // Safe DOM Builders for Knowledge Section
   // ==========================================================================
 
-  function createKnowledgeBlock(title, iconText) {
-    const block = document.createElement('div');
-    block.className = 'knowledge-block';
+  function createKnowledgeBlock(title, iconText, badgeText, defaultOpen = false) {
+    const details = document.createElement('details');
+    details.className = 'monograph-accordion';
+    if (defaultOpen) {
+      details.setAttribute('open', '');
+    }
 
-    const header = document.createElement('div');
-    header.className = 'knowledge-block-header';
+    const summary = document.createElement('summary');
+    summary.className = 'monograph-accordion-header';
+    summary.setAttribute('tabindex', '0');
 
-    const h5 = document.createElement('h5');
-    h5.className = 'knowledge-block-title';
+    const left = document.createElement('div');
+    left.className = 'accordion-left';
 
     if (iconText) {
       const iconSpan = document.createElement('span');
+      iconSpan.className = 'accordion-icon';
       iconSpan.setAttribute('aria-hidden', 'true');
       iconSpan.textContent = iconText;
-      h5.appendChild(iconSpan);
+      left.appendChild(iconSpan);
     }
 
-    const titleText = document.createTextNode(title);
-    h5.appendChild(titleText);
+    const titleEl = document.createElement('h5');
+    titleEl.className = 'monograph-accordion-title';
+    titleEl.textContent = title;
+    left.appendChild(titleEl);
+    summary.appendChild(left);
 
-    header.appendChild(h5);
-    block.appendChild(header);
-    return { block, header };
+    const right = document.createElement('div');
+    right.className = 'accordion-right';
+
+    if (badgeText) {
+      const badge = document.createElement('span');
+      badge.className = 'badge badge-accordion';
+      badge.textContent = badgeText;
+      right.appendChild(badge);
+    }
+
+    const chevron = document.createElement('span');
+    chevron.className = 'accordion-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
+    right.appendChild(chevron);
+
+    summary.appendChild(right);
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'monograph-accordion-body';
+    details.appendChild(body);
+
+    const block = details;
+    block.body = body;
+    const origAppend = block.appendChild.bind(block);
+    block.appendChild = function (child) {
+      if (child === summary || child === body) {
+        return origAppend(child);
+      }
+      return body.appendChild(child);
+    };
+
+    return { details, block, header: summary, body };
   }
 
   function createSubtitle(text) {
@@ -832,7 +885,7 @@
   }
 
   /**
-   * Safely constructs the entire knowledge section in the DOM without innerHTML.
+   * Safely constructs the entire knowledge section in the DOM with progressive disclosure accordions.
    */
   function renderKnowledgeDetails(data, meta, targetContainer = elements.knowledgeDetails) {
     const container = targetContainer || elements.knowledgeDetails;
@@ -844,9 +897,46 @@
     const isHealthy = (data.health_status || '').toLowerCase() === 'healthy';
 
     // ------------------------------------------------------------------------
+    // Monograph Controls & Context Bar
+    // ------------------------------------------------------------------------
+    const controlsBar = document.createElement('div');
+    controlsBar.className = 'monograph-controls-bar';
+
+    const statusPill = document.createElement('div');
+    statusPill.className = 'monograph-context-pill';
+    statusPill.textContent = meta?.isPrimary
+      ? `★ Primary Diagnostic Monograph (${data.crop || 'Crop'} \u2014 ${data.condition || 'Condition'})`
+      : `Differential Candidate Monograph (${data.crop || 'Crop'} \u2014 ${data.condition || 'Condition'})`;
+    controlsBar.appendChild(statusPill);
+
+    const toggleGroup = document.createElement('div');
+    toggleGroup.className = 'monograph-toggle-group';
+
+    const expandAllBtn = document.createElement('button');
+    expandAllBtn.type = 'button';
+    expandAllBtn.className = 'btn btn-secondary btn-xs';
+    expandAllBtn.textContent = 'Expand All';
+    expandAllBtn.addEventListener('click', () => {
+      container.querySelectorAll('details.monograph-accordion').forEach((d) => d.setAttribute('open', ''));
+    });
+    toggleGroup.appendChild(expandAllBtn);
+
+    const collapseAllBtn = document.createElement('button');
+    collapseAllBtn.type = 'button';
+    collapseAllBtn.className = 'btn btn-secondary btn-xs';
+    collapseAllBtn.textContent = 'Collapse All';
+    collapseAllBtn.addEventListener('click', () => {
+      container.querySelectorAll('details.monograph-accordion').forEach((d) => d.removeAttribute('open'));
+    });
+    toggleGroup.appendChild(collapseAllBtn);
+
+    controlsBar.appendChild(toggleGroup);
+    container.appendChild(controlsBar);
+
+    // ------------------------------------------------------------------------
     // 1. Overview & Pathogen Identification
     // ------------------------------------------------------------------------
-    const overview = createKnowledgeBlock('Agronomic Profile Overview', '📋');
+    const overview = createKnowledgeBlock('Agronomic Overview & Pathogen Biology', '📋', 'Verified Taxonomy', true);
 
     const metaSummaryRow = document.createElement('div');
     metaSummaryRow.style.display = 'flex';
@@ -854,10 +944,10 @@
     metaSummaryRow.style.justifyContent = 'space-between';
     metaSummaryRow.style.flexWrap = 'wrap';
     metaSummaryRow.style.gap = '0.5rem';
+    metaSummaryRow.style.marginBottom = '0.75rem';
 
     const metaTitle = document.createElement('strong');
     metaTitle.className = 'knowledge-overview-title';
-    metaTitle.style.color = '#11120F';
     metaTitle.textContent = `${data.crop || 'Crop'} \u2014 ${data.condition || 'Condition'}`;
     metaSummaryRow.appendChild(metaTitle);
 
@@ -866,111 +956,112 @@
     healthBadge.textContent = isHealthy ? '\u2713 Healthy Crop' : '\u26A0 Diseased Crop';
     metaSummaryRow.appendChild(healthBadge);
 
-    overview.block.appendChild(metaSummaryRow);
+    overview.body.appendChild(metaSummaryRow);
 
     const causalAgentP = document.createElement('p');
     causalAgentP.className = 'knowledge-text';
     const causalLabel = document.createElement('strong');
-    causalLabel.textContent = 'Causal Agent: ';
+    causalLabel.textContent = 'Causal Pathogen / State: ';
     causalAgentP.appendChild(causalLabel);
 
     if (data.causal_agent) {
       const agentSpan = document.createElement('span');
       agentSpan.style.fontStyle = 'italic';
+      agentSpan.style.color = 'var(--mineral-ice)';
       agentSpan.textContent = data.causal_agent;
       causalAgentP.appendChild(agentSpan);
     } else {
       const noneSpan = document.createElement('span');
-      noneSpan.textContent = 'None (Healthy Physiological State)';
+      noneSpan.textContent = 'None (Physiologically Normal Tissue)';
       causalAgentP.appendChild(noneSpan);
     }
-    overview.block.appendChild(causalAgentP);
+    overview.body.appendChild(causalAgentP);
 
-    container.appendChild(overview.block);
+    container.appendChild(overview.details);
 
     // ------------------------------------------------------------------------
     // 2. Diagnostic Visual Symptoms
     // ------------------------------------------------------------------------
     if (data.symptoms) {
-      const symBlock = createKnowledgeBlock('Diagnostic Visual Symptoms', '🔍');
+      const symBlock = createKnowledgeBlock('Diagnostic Visual Symptoms & Signs', '🔍', 'Clinical Signs', true);
 
       if (data.symptoms.summary) {
-        symBlock.block.appendChild(createText(data.symptoms.summary));
+        symBlock.body.appendChild(createText(data.symptoms.summary));
       }
 
       if (Array.isArray(data.symptoms.foliar_symptoms) && data.symptoms.foliar_symptoms.length > 0) {
-        symBlock.block.appendChild(createSubtitle('Foliar Signs & Leaf Lesions'));
-        symBlock.block.appendChild(createList(data.symptoms.foliar_symptoms));
+        symBlock.body.appendChild(createSubtitle('Foliar Signs & Leaf Lesions'));
+        symBlock.body.appendChild(createList(data.symptoms.foliar_symptoms));
       }
 
       if (Array.isArray(data.symptoms.stem_and_fruit_symptoms) && data.symptoms.stem_and_fruit_symptoms.length > 0) {
-        symBlock.block.appendChild(createSubtitle('Stem & Fruit Symptoms'));
-        symBlock.block.appendChild(createList(data.symptoms.stem_and_fruit_symptoms));
+        symBlock.body.appendChild(createSubtitle('Stem & Fruit Symptoms'));
+        symBlock.body.appendChild(createList(data.symptoms.stem_and_fruit_symptoms));
       }
 
       if (Array.isArray(data.symptoms.look_alike_conditions) && data.symptoms.look_alike_conditions.length > 0) {
-        symBlock.block.appendChild(createSubtitle('Differential Diagnosis & Look-Alikes'));
-        symBlock.block.appendChild(createList(data.symptoms.look_alike_conditions));
+        symBlock.body.appendChild(createSubtitle('Differential Diagnosis & Look-Alikes'));
+        symBlock.body.appendChild(createList(data.symptoms.look_alike_conditions));
       }
 
-      container.appendChild(symBlock.block);
+      container.appendChild(symBlock.details);
     }
 
     // ------------------------------------------------------------------------
     // 3. Favorable Environmental Conditions & Transmission
     // ------------------------------------------------------------------------
     if (data.favorable_conditions) {
-      const envBlock = createKnowledgeBlock('Favorable Environmental Conditions & Transmission', '🌦️');
+      const envBlock = createKnowledgeBlock('Favorable Environmental Conditions & Transmission', '🌦️', 'Disease Cycle', false);
 
       if (data.favorable_conditions.environmental_factors) {
-        envBlock.block.appendChild(createSubtitle('Environmental Drivers'));
-        envBlock.block.appendChild(createText(data.favorable_conditions.environmental_factors));
+        envBlock.body.appendChild(createSubtitle('Environmental Drivers'));
+        envBlock.body.appendChild(createText(data.favorable_conditions.environmental_factors));
       }
 
       if (
         Array.isArray(data.favorable_conditions.transmission_routes) &&
         data.favorable_conditions.transmission_routes.length > 0
       ) {
-        envBlock.block.appendChild(createSubtitle('Vectors & Transmission Pathways'));
-        envBlock.block.appendChild(createList(data.favorable_conditions.transmission_routes));
+        envBlock.body.appendChild(createSubtitle('Vectors & Transmission Pathways'));
+        envBlock.body.appendChild(createList(data.favorable_conditions.transmission_routes));
       }
 
-      container.appendChild(envBlock.block);
+      container.appendChild(envBlock.details);
     }
 
     // ------------------------------------------------------------------------
     // 4. Cultural Prevention & Field Hygiene
     // ------------------------------------------------------------------------
     if (data.prevention_and_cultural) {
-      const prevBlock = createKnowledgeBlock('Cultural Prevention & Agronomic Practices', '🛡️');
+      const prevBlock = createKnowledgeBlock('Cultural Prevention & Agronomic Practices', '🛡️', 'Field Hygiene', false);
 
       if (Array.isArray(data.prevention_and_cultural.sanitation) && data.prevention_and_cultural.sanitation.length > 0) {
-        prevBlock.block.appendChild(createSubtitle('Field Sanitation & Hygiene'));
-        prevBlock.block.appendChild(createList(data.prevention_and_cultural.sanitation));
+        prevBlock.body.appendChild(createSubtitle('Field Sanitation & Hygiene'));
+        prevBlock.body.appendChild(createList(data.prevention_and_cultural.sanitation));
       }
 
       if (data.prevention_and_cultural.crop_rotation) {
-        prevBlock.block.appendChild(createSubtitle('Crop Rotation Schedule'));
-        prevBlock.block.appendChild(createText(data.prevention_and_cultural.crop_rotation));
+        prevBlock.body.appendChild(createSubtitle('Crop Rotation Schedule'));
+        prevBlock.body.appendChild(createText(data.prevention_and_cultural.crop_rotation));
       }
 
       if (
         Array.isArray(data.prevention_and_cultural.irrigation_and_airflow) &&
         data.prevention_and_cultural.irrigation_and_airflow.length > 0
       ) {
-        prevBlock.block.appendChild(createSubtitle('Canopy Airflow & Irrigation Management'));
-        prevBlock.block.appendChild(createList(data.prevention_and_cultural.irrigation_and_airflow));
+        prevBlock.body.appendChild(createSubtitle('Canopy Airflow & Irrigation Management'));
+        prevBlock.body.appendChild(createList(data.prevention_and_cultural.irrigation_and_airflow));
       }
 
       if (
         Array.isArray(data.prevention_and_cultural.resistant_cultivars) &&
         data.prevention_and_cultural.resistant_cultivars.length > 0
       ) {
-        prevBlock.block.appendChild(createSubtitle('Genetic Resistance & Variety Selection'));
-        prevBlock.block.appendChild(createList(data.prevention_and_cultural.resistant_cultivars));
+        prevBlock.body.appendChild(createSubtitle('Genetic Resistance & Variety Selection'));
+        prevBlock.body.appendChild(createList(data.prevention_and_cultural.resistant_cultivars));
       }
 
-      container.appendChild(prevBlock.block);
+      container.appendChild(prevBlock.details);
     }
 
     // ------------------------------------------------------------------------
@@ -981,84 +1072,84 @@
         ? 'Crop Health Maintenance (No Treatment Required)'
         : 'Integrated Pest & Disease Management (IPM)';
       const treatmentIcon = isHealthy ? '🌱' : '💊';
+      const treatmentBadge = isHealthy ? 'Routine Care' : 'Action Protocol';
 
-      const treatBlock = createKnowledgeBlock(treatmentTitle, treatmentIcon);
+      const treatBlock = createKnowledgeBlock(treatmentTitle, treatmentIcon, treatmentBadge, false);
 
       if (data.treatment.urgency) {
         const calloutType = isHealthy ? 'healthy' : 'warning';
-        treatBlock.block.appendChild(createCallout(data.treatment.urgency, calloutType));
+        treatBlock.body.appendChild(createCallout(data.treatment.urgency, calloutType));
       }
 
       if (Array.isArray(data.treatment.non_chemical_controls) && data.treatment.non_chemical_controls.length > 0) {
-        treatBlock.block.appendChild(
+        treatBlock.body.appendChild(
           createSubtitle(isHealthy ? 'Routine Non-Chemical Maintenance' : 'Non-Chemical & Cultural Controls')
         );
-        treatBlock.block.appendChild(createList(data.treatment.non_chemical_controls));
+        treatBlock.body.appendChild(createList(data.treatment.non_chemical_controls));
       }
 
       if (Array.isArray(data.treatment.ipm_chemical_principles) && data.treatment.ipm_chemical_principles.length > 0) {
-        treatBlock.block.appendChild(
+        treatBlock.body.appendChild(
           createSubtitle(isHealthy ? 'Chemical Application Guidance' : 'IPM Chemical Management Principles')
         );
-        treatBlock.block.appendChild(createList(data.treatment.ipm_chemical_principles));
+        treatBlock.body.appendChild(createList(data.treatment.ipm_chemical_principles));
       }
 
+      container.appendChild(treatBlock.details);
+
+      // ----------------------------------------------------------------------
+      // 6. Safety & Regulatory Constraints (Separated into its own section)
+      // ----------------------------------------------------------------------
       if (
         Array.isArray(data.treatment.safety_and_regulatory_constraints) &&
         data.treatment.safety_and_regulatory_constraints.length > 0
       ) {
-        treatBlock.block.appendChild(createSubtitle('Safety & Regulatory Constraints'));
-        treatBlock.block.appendChild(createList(data.treatment.safety_and_regulatory_constraints));
+        const safetyBlock = createKnowledgeBlock(
+          'Safety, PHI & Regulatory Constraints',
+          '⚠️',
+          'Mandatory Safeguards',
+          false
+        );
+        safetyBlock.body.appendChild(
+          createSubtitle('Pesticide Application, PHI & Environmental Safeguards')
+        );
+        safetyBlock.body.appendChild(createList(data.treatment.safety_and_regulatory_constraints));
+        container.appendChild(safetyBlock.details);
       }
-
-      container.appendChild(treatBlock.block);
     }
 
     // ------------------------------------------------------------------------
-    // 6. Agricultural Extension Consultation
+    // 7. Agricultural Extension Consultation
     // ------------------------------------------------------------------------
     if (data.extension_consultation) {
-      const extBlock = createKnowledgeBlock('Agricultural Extension & Specialist Referral', '📞');
+      const extBlock = createKnowledgeBlock('Agricultural Extension & Specialist Referral', '📞', 'Extension Referral', false);
 
       if (data.extension_consultation.local_specialist) {
-        extBlock.block.appendChild(createSubtitle('Recommended Extension Authority'));
-        extBlock.block.appendChild(createText(data.extension_consultation.local_specialist));
+        extBlock.body.appendChild(createSubtitle('Recommended Extension Authority'));
+        extBlock.body.appendChild(createText(data.extension_consultation.local_specialist));
       }
 
       if (
         Array.isArray(data.extension_consultation.escalation_triggers) &&
         data.extension_consultation.escalation_triggers.length > 0
       ) {
-        extBlock.block.appendChild(createSubtitle('Field Escalation Triggers (Inspection Required)'));
-        extBlock.block.appendChild(createList(data.extension_consultation.escalation_triggers));
+        extBlock.body.appendChild(createSubtitle('Field Escalation Triggers (Inspection Required)'));
+        extBlock.body.appendChild(createList(data.extension_consultation.escalation_triggers));
       }
 
-      container.appendChild(extBlock.block);
-    }
-
-    // ------------------------------------------------------------------------
-    // 7. Diagnostic Uncertainty & Field Verification Notice
-    // ------------------------------------------------------------------------
-    if (data.safety_and_uncertainty_notes) {
-      const noticeDiv = document.createElement('div');
-      noticeDiv.className = 'knowledge-callout knowledge-callout-warning';
-      noticeDiv.setAttribute('role', 'note');
-
-      const strongEl = document.createElement('strong');
-      strongEl.textContent = 'Diagnostic Uncertainty & Field Verification: ';
-      noticeDiv.appendChild(strongEl);
-
-      const noteText = document.createTextNode(data.safety_and_uncertainty_notes);
-      noticeDiv.appendChild(noteText);
-
-      container.appendChild(noticeDiv);
+      container.appendChild(extBlock.details);
     }
 
     // ------------------------------------------------------------------------
     // 8. Scientific & Extension References (Untrusted Data & Safe URLs)
     // ------------------------------------------------------------------------
     if (Array.isArray(data.sources) && data.sources.length > 0) {
-      const sourcesBlock = createKnowledgeBlock('Scientific & Extension Source References', '📚');
+      const sourcesBlock = createKnowledgeBlock(
+        'Scientific Sources & Extension Citations',
+        '📚',
+        `${data.sources.length} Verified Sources`,
+        false
+      );
 
       const sourceList = document.createElement('div');
       sourceList.className = 'source-list';
@@ -1096,8 +1187,6 @@
           srcLink.href = src.url;
           srcLink.target = '_blank';
           srcLink.rel = 'noopener noreferrer';
-          srcLink.setAttribute('target', '_blank');
-          srcLink.setAttribute('rel', 'noopener noreferrer');
           srcLink.textContent = 'View Official Reference \u2197';
           srcLink.setAttribute(
             'aria-label',
@@ -1116,8 +1205,26 @@
         sourceList.appendChild(srcItem);
       });
 
-      sourcesBlock.block.appendChild(sourceList);
-      container.appendChild(sourcesBlock.block);
+      sourcesBlock.body.appendChild(sourceList);
+      container.appendChild(sourcesBlock.details);
+    }
+
+    // ------------------------------------------------------------------------
+    // 9. Diagnostic Uncertainty & Field Verification Notice
+    // ------------------------------------------------------------------------
+    if (data.safety_and_uncertainty_notes) {
+      const noticeDiv = document.createElement('div');
+      noticeDiv.className = 'knowledge-callout knowledge-callout-warning';
+      noticeDiv.setAttribute('role', 'note');
+
+      const strongEl = document.createElement('strong');
+      strongEl.textContent = 'Diagnostic Uncertainty & Field Verification: ';
+      noticeDiv.appendChild(strongEl);
+
+      const noteText = document.createTextNode(data.safety_and_uncertainty_notes);
+      noticeDiv.appendChild(noteText);
+
+      container.appendChild(noticeDiv);
     }
   }
 

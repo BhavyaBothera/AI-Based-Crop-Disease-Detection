@@ -202,12 +202,24 @@
 
         <!-- State 1: Empty Results Placeholder -->
         <div id="results-empty" class="empty-results-placeholder">
-          <svg class="empty-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-            <circle cx="9" cy="9" r="2"/>
-            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-          </svg>
-          <p>Upload a clear foliar photograph or select an <strong>Instant Test Preset</strong> to initiate neural pathology classification and access authoritative Integrated Pest Management guidance.</p>
+          <div class="empty-placeholder-radar" aria-hidden="true">
+            <svg class="empty-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 3v18"/>
+              <path d="M3 12h18"/>
+              <circle cx="12" cy="12" r="5" stroke-dasharray="2 2"/>
+              <circle cx="12" cy="12" r="2" fill="currentColor"/>
+            </svg>
+          </div>
+          <h3 class="empty-placeholder-title">Diagnostic Station Standby</h3>
+          <p class="empty-placeholder-text">Upload a foliar photograph or select a calibrated test preset to evaluate pathology vectors against our 15-class Solanaceae neural model.</p>
+
+          <div class="empty-specs-strip" aria-label="System diagnostic parameters">
+            <span class="spec-pill">🔬 MobileNetV2</span>
+            <span class="spec-pill">🍃 Solanaceae Scope</span>
+            <span class="spec-pill">🛡️ Gate Guarded</span>
+            <span class="spec-pill">⚡ &lt;100ms Inference</span>
+          </div>
 
           <div class="empty-steps-container">
             <div class="empty-step">
@@ -245,6 +257,16 @@
           </h3>
           <p id="rejection-detail" class="rejection-detail"></p>
 
+          <div class="rejection-guidance-box">
+            <h4 class="rejection-guidance-title">Foliar Capture Best Practices</h4>
+            <ul class="rejection-guidance-list">
+              <li><strong>Supported Crops:</strong> Provide foliage from Tomato, Potato, or Bell Pepper plants.</li>
+              <li><strong>Framing:</strong> Center a single plant leaf occupying at least 60% of the image frame.</li>
+              <li><strong>Lighting:</strong> Ensure even, diffuse illumination; avoid harsh glare, deep shadows, or extreme blur.</li>
+              <li><strong>Background:</strong> Position against a plain or natural soil background free of faces, pets, or non-botanical objects.</li>
+            </ul>
+          </div>
+
           <button type="button" id="rejection-action-btn" class="btn btn-secondary">
             <span>Upload Another Image</span>
           </button>
@@ -253,6 +275,9 @@
         <!-- State 3: Active Diagnostic Evaluation -->
         <div id="results-content" class="results-content hidden">
           <div class="prediction-summary-banner">
+            <div class="diagnosis-thumb-wrapper hidden">
+              <img id="result-specimen-thumb" class="diagnosis-specimen-thumb" src="" alt="Analyzed specimen thumbnail">
+            </div>
             <div class="diagnosis-left">
               <span id="result-crop" class="diagnosis-crop">Tomato</span>
               <h3 id="result-condition" class="diagnosis-condition">Late Blight</h3>
@@ -264,6 +289,7 @@
             <div class="diagnosis-score-block">
               <span class="score-label">Classification Score</span>
               <span id="result-score" class="score-value">99.8%</span>
+              <span class="score-caption">Closed-world relative confidence</span>
             </div>
           </div>
 

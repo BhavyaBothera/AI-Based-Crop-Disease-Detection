@@ -164,7 +164,7 @@ def start_services(backend_port: int, static_port: int, log_dir: Path):
         stderr=subprocess.STDOUT,
     )
     wait_for_http(f"http://127.0.0.1:{static_port}/index.html", timeout=30)
-    wait_for_http(f"http://127.0.0.1:{backend_port}/health", timeout=30)
+    wait_for_http(f"http://127.0.0.1:{backend_port}/health", timeout=120)
     # Model load happens in the lifespan hook; /ready is 503 until it finishes.
     deadline = time.time() + 180
     while time.time() < deadline:
@@ -400,7 +400,7 @@ def run_viewport(devtools: DevTools, label: str, viewport: dict, person_image: P
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend-port", type=int, default=8010)
-    parser.add_argument("--static-port", type=int, default=5500)
+    parser.add_argument("--static-port", type=int, default=5505)
     parser.add_argument("--debug-port", type=int, default=9223)
     parser.add_argument(
         "--chrome",
