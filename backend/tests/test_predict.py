@@ -127,6 +127,20 @@ class TestPredictEndpoint(unittest.TestCase):
         self.assertIn("disclaimer", data)
         self.assertIn("informational", data["disclaimer"].lower())
 
+        # Check telemetry timing structure
+        self.assertIn("timing", data)
+        self.assertIsInstance(data["timing"], dict)
+        self.assertIn("decode_ms", data["timing"])
+        self.assertIn("gate_ms", data["timing"])
+        self.assertIn("inference_ms", data["timing"])
+        self.assertIn("total_ms", data["timing"])
+        self.assertGreaterEqual(data["timing"]["total_ms"], 0.0)
+
+        # Check model metadata structure
+        self.assertIn("model_metadata", data)
+        self.assertIsInstance(data["model_metadata"], dict)
+        self.assertEqual(data["model_metadata"].get("target_classes_count"), 15)
+
     def test_alternative_image_field_name(self):
         """POST /api/predict accepts upload under 'image' field as well as 'file'."""
         model_service.set_model(MockCropModel(target_class_id=14, target_score=0.98))

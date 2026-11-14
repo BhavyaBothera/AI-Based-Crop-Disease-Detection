@@ -525,6 +525,108 @@ img {
   color: var(--status-rejected-text);
 }
 
+.badge-confidence-high {
+  background-color: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #4ade80;
+}
+
+.badge-confidence-moderate {
+  background-color: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.badge-confidence-low {
+  background-color: rgba(255, 90, 54, 0.15);
+  border: 1px solid rgba(255, 90, 54, 0.35);
+  color: #ff8a70;
+}
+
+.diagnosis-telemetry-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background-color: var(--bg-surface-3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  margin-top: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.diagnosis-telemetry-strip .telemetry-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-xs {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+.recent-scans-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.recent-scans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.recent-scan-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  background: var(--bg-surface-2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.recent-scan-item:hover {
+  background: var(--bg-surface-3);
+  border-color: var(--mineral-ice-border);
+  transform: translateY(-2px);
+}
+
+.recent-scan-thumb {
+  width: 100%;
+  height: 60px;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+  margin-bottom: 0.35rem;
+  background: #000;
+}
+
+.recent-scan-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-scan-meta {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.2rem;
+}
+
 .kicker {
   font-family: var(--font-mono);
   font-size: 0.8rem;

@@ -1,7 +1,7 @@
 """
 Pydantic schemas for prediction outputs and health checks.
 """
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -47,6 +47,14 @@ class PredictionResponse(BaseModel):
     disclaimer: str = Field(
         ...,
         description="Informational and advisory disclaimer regarding automated ML predictions."
+    )
+    timing: Optional[Dict[str, float]] = Field(
+        None,
+        description="Pipeline execution latency in milliseconds: decode_ms, gate_ms, inference_ms, total_ms."
+    )
+    model_metadata: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Metadata describing the active model architecture, checkpoint provenance, and validation metrics."
     )
 
 

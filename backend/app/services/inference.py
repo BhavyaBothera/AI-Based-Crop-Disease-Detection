@@ -24,6 +24,7 @@ from ..config import (
     MIN_IMAGE_DIMENSION,
     MODEL_PATH,
     PROJECT_ROOT,
+    TARGET_CHANNELS,
     TARGET_IMAGE_SIZE,
     UNIFORM_CANVAS_STD_THRESHOLD,
 )
@@ -329,6 +330,7 @@ class ModelService:
         self._model_path: Path = model_path or MODEL_PATH
         self._model: Any = None
         self._load_error: Optional[str] = None
+        self._metadata: Dict[str, Any] = {}
         self._lock = threading.Lock()
 
     @property
@@ -359,6 +361,44 @@ class ModelService:
         """Returns the last loading error message for internal server logging."""
         return self._load_error
 
+    @property
+    def model_metadata(self) -> Dict[str, Any]:
+        """Returns metadata describing model architecture, training configuration and validation metrics."""
+        return dict(self._metadata)
+
+    @staticmethod
+    def _load_model_metadata(target_path: Path) -> Dict[str, Any]:
+        """Loads sidecar validation and configuration metadata if present alongside the model."""
+        import json
+        meta_file = target_path.parent / "best_model_metadata.json"
+        config_file = target_path.parent / "config.json"
+        metadata: Dict[str, Any] = {
+            "model_architecture": "MobileNetV2 (Transfer Learning)",
+            "target_classes_count": len(TARGET_CLASS_MAPPING),
+            "input_resolution": f"{TARGET_IMAGE_SIZE[0]}x{TARGET_IMAGE_SIZE[1]}x{TARGET_CHANNELS}",
+        }
+        if meta_file.is_file():
+            try:
+                saved_meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                if "val_macro_f1" in saved_meta:
+                    metadata["val_macro_f1"] = round(float(saved_meta["val_macro_f1"]), 4)
+                if "val_loss" in saved_meta:
+                    metadata["val_loss"] = round(float(saved_meta["val_loss"]), 4)
+                if "stage" in saved_meta and "epoch" in saved_meta:
+                    metadata["best_epoch"] = f"Stage {saved_meta['stage']} / Epoch {saved_meta['epoch']}"
+            except Exception:
+                pass
+        if config_file.is_file():
+            try:
+                saved_config = json.loads(config_file.read_text(encoding="utf-8"))
+                if "class_weighting" in saved_config:
+                    metadata["class_weighting"] = saved_config["class_weighting"]
+                if "pipeline" in saved_config:
+                    metadata["pipeline"] = saved_config["pipeline"]
+            except Exception:
+                pass
+        return metadata
+
     def load_model(self, path: Optional[Path] = None) -> None:
         """
         Loads the Keras model from disk once during application startup.
@@ -380,10 +420,12 @@ class ModelService:
                 # Load with compile=False for faster loading (inference only)
                 self._model = keras.models.load_model(str(target_path), compile=False)
                 self._model_path = target_path
+                self._metadata = self._load_model_metadata(target_path)
                 self._load_error = None
                 logger.info("Inference model loaded successfully.")
             except Exception as exc:
                 self._model = None
+                self._metadata.clear()
                 self._load_error = f"Failed to load model: {str(exc)}"
                 logger.error(self._load_error, exc_info=True)
                 raise RuntimeError(self._load_error) from exc
@@ -393,6 +435,7 @@ class ModelService:
         with self._lock:
             self._model = None
             self._load_error = None
+            self._metadata.clear()
             logger.info("Model unloaded.")
 
     def set_model(self, model: Any) -> None:
@@ -400,6 +443,11 @@ class ModelService:
         with self._lock:
             self._model = model
             self._load_error = None
+            self._metadata = {
+                "model_architecture": "Mock Injected Model",
+                "target_classes_count": len(TARGET_CLASS_MAPPING),
+                "input_resolution": f"{TARGET_IMAGE_SIZE[0]}x{TARGET_IMAGE_SIZE[1]}x{TARGET_CHANNELS}",
+            }
 
     def predict(self, input_tensor: np.ndarray) -> Dict[str, Any]:
         """

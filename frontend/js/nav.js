@@ -72,6 +72,9 @@
     pollReadiness();
   }
 
+  let pollIntervalMs = 4000;
+  let consecutiveFailures = 0;
+
   async function pollReadiness() {
     const statusTextEl = document.getElementById('connection-status-text');
     const statusIndicatorEl = document.getElementById('connection-status');
@@ -86,22 +89,29 @@
           statusIndicatorEl.className = 'status-indicator status-ready';
           statusIndicatorEl.setAttribute('title', 'Neural inference engine & leaf gate operational');
         }
+        consecutiveFailures = 0;
+        pollIntervalMs = 30000; // Relax polling once healthy
       } else {
         statusTextEl.textContent = 'Initializing...';
         if (statusIndicatorEl) {
           statusIndicatorEl.className = 'status-indicator status-warning';
+          statusIndicatorEl.setAttribute('title', 'FastAPI daemon initializing neural weights');
         }
+        pollIntervalMs = 4000;
       }
     } catch {
+      consecutiveFailures++;
       statusTextEl.textContent = 'Backend Offline';
       if (statusIndicatorEl) {
         statusIndicatorEl.className = 'status-indicator status-offline';
         statusIndicatorEl.setAttribute('title', 'FastAPI daemon offline. Verify port 8000.');
       }
+      // Exponential backoff up to 16 seconds when offline
+      pollIntervalMs = Math.min(4000 * Math.pow(1.4, Math.min(consecutiveFailures, 4)), 16000);
     }
 
-    // Repeat poll every 20 seconds
-    setTimeout(pollReadiness, 20000);
+    // Schedule next probe with adaptive interval
+    setTimeout(pollReadiness, pollIntervalMs);
   }
 
   if (document.readyState === 'loading') {

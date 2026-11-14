@@ -80,8 +80,19 @@
     resultCondition: document.getElementById('result-condition'),
     resultHealthBadge: document.getElementById('result-health-badge'),
     resultScore: document.getElementById('result-score'),
+    confidenceBandBadge: document.getElementById('confidence-band-badge'),
+    confidenceGuidanceText: document.getElementById('confidence-guidance-text'),
+    diagnosisTelemetry: document.getElementById('diagnosis-telemetry'),
+    telemetryTotal: document.getElementById('telemetry-total'),
+    telemetryBreakdown: document.getElementById('telemetry-breakdown'),
+    telemetryModel: document.getElementById('telemetry-model'),
     candidatesList: document.getElementById('candidates-list'),
     resultDisclaimer: document.getElementById('result-disclaimer'),
+
+    // Recent Scans
+    recentScansSection: document.getElementById('recent-scans-section'),
+    recentScansList: document.getElementById('recent-scans-list'),
+    clearHistoryBtn: document.getElementById('clear-history-btn'),
 
     // Knowledge Section Elements
     knowledgeSection: document.getElementById('knowledge-section'),
@@ -218,6 +229,16 @@
     if (elements.resultHealthBadge) {
       elements.resultHealthBadge.textContent = '\u2014';
       elements.resultHealthBadge.className = 'badge';
+    }
+    if (elements.confidenceBandBadge) {
+      elements.confidenceBandBadge.textContent = 'Confidence \u2014';
+      elements.confidenceBandBadge.className = 'badge';
+    }
+    if (elements.confidenceGuidanceText) {
+      elements.confidenceGuidanceText.textContent = 'Closed-world relative confidence';
+    }
+    if (elements.diagnosisTelemetry) {
+      elements.diagnosisTelemetry.classList.add('hidden');
     }
     const thumb = document.getElementById('result-specimen-thumb');
     if (thumb) {
@@ -484,6 +505,47 @@
     // Score formatting
     const scorePercent = (data.score * 100).toFixed(2);
     elements.resultScore.textContent = `${scorePercent}%`;
+
+    // Confidence Band Evaluation (Materializes that softmax scores are not calibrated probabilities)
+    const scoreVal = typeof data.score === 'number' ? data.score : 0;
+    if (elements.confidenceBandBadge) {
+      if (scoreVal >= 0.90) {
+        elements.confidenceBandBadge.textContent = 'High Confidence';
+        elements.confidenceBandBadge.className = 'badge badge-confidence-high';
+        if (elements.confidenceGuidanceText) {
+          elements.confidenceGuidanceText.textContent = 'Strong neural convergence on characteristic foliar lesions';
+        }
+      } else if (scoreVal >= 0.70) {
+        elements.confidenceBandBadge.textContent = 'Moderate Confidence';
+        elements.confidenceBandBadge.className = 'badge badge-confidence-moderate';
+        if (elements.confidenceGuidanceText) {
+          elements.confidenceGuidanceText.textContent = 'Review differential candidate classes below before action';
+        }
+      } else {
+        elements.confidenceBandBadge.textContent = 'Low Confidence';
+        elements.confidenceBandBadge.className = 'badge badge-confidence-low';
+        if (elements.confidenceGuidanceText) {
+          elements.confidenceGuidanceText.textContent = 'Atypical symptoms or look-alike presentation; inspect candidate monographs';
+        }
+      }
+    }
+
+    // Telemetry & Latency Rendering
+    if (data.timing && elements.diagnosisTelemetry) {
+      const t = data.timing;
+      if (elements.telemetryTotal) elements.telemetryTotal.textContent = `⚡ Latency: ${t.total_ms}ms`;
+      if (elements.telemetryBreakdown) elements.telemetryBreakdown.textContent = `🛡️ Gate: ${t.gate_ms}ms · 🧠 Neural: ${t.inference_ms}ms`;
+      if (elements.telemetryModel) {
+        const meta = data.model_metadata || {};
+        const arch = meta.model_architecture || 'MobileNetV2';
+        const f1 = meta.val_macro_f1 ? ` (val-F1: ${meta.val_macro_f1})` : '';
+        elements.telemetryModel.textContent = `🔬 ${arch}${f1}`;
+      }
+      elements.diagnosisTelemetry.classList.remove('hidden');
+    }
+
+    // Save successful scan to local history
+    saveToRecentScans(data, elements.imagePreview ? elements.imagePreview.src : null);
 
     // Specimen Thumbnail in diagnosis header
     const thumb = document.getElementById('result-specimen-thumb');
@@ -1315,6 +1377,14 @@
       });
     }
 
+    // Clear history handler
+    if (elements.clearHistoryBtn) {
+      elements.clearHistoryBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearRecentScans();
+      });
+    }
+
     // Copy IPM Advisory handler
     if (elements.copyGuidanceBtn) {
       elements.copyGuidanceBtn.addEventListener('click', (e) => {
@@ -1598,10 +1668,123 @@
   }
 
   // ==========================================================================
+  // Recent Scan History (localStorage Persistence)
+  // ==========================================================================
+  const RECENT_SCANS_STORAGE_KEY = 'phytosignal_recent_scans';
+  const MAX_RECENT_SCANS = 6;
+
+  function getRecentScans() {
+    try {
+      const raw = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveToRecentScans(data, imageSrc) {
+    if (!data || typeof data.predicted_class_id !== 'number') return;
+    try {
+      const scans = getRecentScans();
+      const newScan = {
+        id: Date.now(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        crop: data.crop || 'Crop',
+        condition: data.condition || 'Condition',
+        health: data.health || 'Healthy',
+        score: data.score,
+        class_id: data.predicted_class_id,
+        // Only store compact thumbnails (presets or small images) to prevent quota issues
+        thumb: (imageSrc && imageSrc.length < 300000) ? imageSrc : null,
+      };
+
+      const filtered = scans.filter((s) => !(s.crop === newScan.crop && s.condition === newScan.condition));
+      const updated = [newScan, ...filtered].slice(0, MAX_RECENT_SCANS);
+      localStorage.setItem(RECENT_SCANS_STORAGE_KEY, JSON.stringify(updated));
+      renderRecentScans();
+    } catch {
+      // Graceful fallback if storage quota exceeded or unavailable
+    }
+  }
+
+  function renderRecentScans() {
+    if (!elements.recentScansList || !elements.recentScansSection) return;
+    const scans = getRecentScans();
+    if (scans.length === 0) {
+      elements.recentScansSection.classList.add('hidden');
+      elements.recentScansList.innerHTML = '';
+      return;
+    }
+
+    elements.recentScansSection.classList.remove('hidden');
+    elements.recentScansList.innerHTML = '';
+
+    scans.forEach((scan) => {
+      const card = document.createElement('div');
+      card.className = 'recent-scan-item';
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-label', `Review recent scan: ${scan.crop} ${scan.condition}`);
+
+      const thumb = document.createElement('img');
+      thumb.className = 'recent-scan-thumb';
+      thumb.alt = scan.condition;
+      thumb.src = scan.thumb || 'samples/hero_specimen.jpg';
+
+      const title = document.createElement('span');
+      title.className = 'recent-scan-title';
+      title.textContent = `${scan.crop} — ${scan.condition}`;
+
+      const meta = document.createElement('div');
+      meta.className = 'recent-scan-meta';
+      const scoreStr = typeof scan.score === 'number' ? `${(scan.score * 100).toFixed(1)}%` : '';
+      meta.innerHTML = `<span>${scoreStr}</span><span>${scan.timestamp}</span>`;
+
+      card.appendChild(thumb);
+      card.appendChild(title);
+      card.appendChild(meta);
+
+      const handleScanClick = () => {
+        activeCandidateClassId = scan.class_id;
+        activeCandidateMeta = {
+          isPrimary: true,
+          crop: scan.crop,
+          condition: scan.condition,
+          rank: 1,
+          score: scan.score,
+        };
+        fetchAndRenderKnowledge(scan.class_id, activeCandidateMeta);
+        showToast(`Loaded monograph for ${scan.crop} — ${scan.condition}`, '📖');
+      };
+
+      card.addEventListener('click', handleScanClick);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleScanClick();
+        }
+      });
+
+      elements.recentScansList.appendChild(card);
+    });
+  }
+
+  function clearRecentScans() {
+    try {
+      localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+      renderRecentScans();
+      showToast('Scan history cleared', '🧹');
+    } catch {}
+  }
+
+  // ==========================================================================
   // Application Bootstrap & Readiness Probe
   // ==========================================================================
   async function init() {
     setupEventListeners();
+    renderRecentScans();
 
     // Initial readiness probe
     try {

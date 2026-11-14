@@ -4,6 +4,7 @@ Prediction endpoint accepting leaf image uploads.
 import asyncio
 import logging
 import threading
+import time
 from typing import List, Optional
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
@@ -100,6 +101,8 @@ async def predict(
     file: Optional[UploadFile] = File(None, description="Leaf image file (JPEG, PNG, WEBP)"),
     image: Optional[UploadFile] = File(None, description="Alternative field name for leaf image file"),
 ) -> PredictionResponse:
+    start_time = time.perf_counter()
+
     # 1. Validate that an upload field was provided
     upload = file or image
     if upload is None:
@@ -183,16 +186,23 @@ async def predict(
 
     def _decode_and_assess(payload: bytes):
         """Decodes, validates, and screens the image in the CPU worker thread."""
+        t_decode_start = time.perf_counter()
         tensor = preprocess_image(payload)
+        decode_ms = round((time.perf_counter() - t_decode_start) * 1000.0, 2)
+
         # Both screens consume the same 224x224 RGB frame the disease model will see, so
         # the decision adds no second decode. predict_proba returns None when the gate
         # artefact is unavailable, which keeps the deterministic screen in charge.
+        t_gate_start = time.perf_counter()
         frame = tensor[0]
-        return tensor, assess_image(frame, leaf_gate_service.predict_proba(frame))
+        gate_probs = leaf_gate_service.predict_proba(frame)
+        assessment = assess_image(frame, gate_probs)
+        gate_ms = round((time.perf_counter() - t_gate_start) * 1000.0, 2)
+        return tensor, assessment, decode_ms, gate_ms
 
     try:
         async with get_decode_semaphore():
-            input_tensor, assessment = await asyncio.to_thread(_decode_and_assess, image_bytes)
+            input_tensor, assessment, decode_ms, gate_ms = await asyncio.to_thread(_decode_and_assess, image_bytes)
     except ImageValidationError as exc:
         raise HTTPException(
             status_code=exc.status_code,
@@ -224,8 +234,19 @@ async def predict(
 
     # 9. Execute inference and construct structured response via worker thread offloading
     try:
+        t_infer_start = time.perf_counter()
         async with get_inference_semaphore():
             result = await asyncio.to_thread(model_service.predict, input_tensor)
+        inference_ms = round((time.perf_counter() - t_infer_start) * 1000.0, 2)
+        total_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+
+        result["timing"] = {
+            "decode_ms": decode_ms,
+            "gate_ms": gate_ms,
+            "inference_ms": inference_ms,
+            "total_ms": total_ms,
+        }
+        result["model_metadata"] = model_service.model_metadata
         return PredictionResponse(**result)
     except RuntimeError as exc:
         logger.error("Model runtime failure during inference: %s", exc, exc_info=True)
