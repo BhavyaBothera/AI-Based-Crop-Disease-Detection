@@ -13,7 +13,6 @@ from httpx import ASGITransport
 
 from backend.app.main import create_app
 from backend.app.services.inference import (
-    CLASS_ID_TO_METADATA,
     TARGET_CLASS_MAPPING,
     model_service,
     preprocess_image,

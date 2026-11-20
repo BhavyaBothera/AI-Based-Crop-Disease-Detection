@@ -32,7 +32,7 @@ import time
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 try:
     from PIL import Image, UnidentifiedImageError

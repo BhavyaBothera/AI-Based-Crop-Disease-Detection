@@ -21,11 +21,10 @@ Key Guarantees:
 
 from __future__ import annotations
 
-import csv
 import hashlib
 import json
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -34,13 +33,11 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from .manifest_schema import (
-    CROP_TO_CLASSES,
     NAME_TO_CLASS_ID,
     TARGET_CLASS_MAPPING,
-    FieldSampleRecord,
     load_and_validate_manifest,
 )
-from .metrics import FieldEvaluationSummary, calculate_field_metrics
+from .metrics import calculate_field_metrics
 
 logger = logging.getLogger(__name__)
 

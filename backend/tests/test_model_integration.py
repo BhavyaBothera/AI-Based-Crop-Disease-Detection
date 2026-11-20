@@ -10,7 +10,6 @@ REQUIREMENTS & CONSTRAINTS:
   is rejected by the Level A blank-canvas guard before it reaches the model.
 """
 import unittest
-from pathlib import Path
 import numpy as np
 
 from backend.app.config import DEFAULT_MODEL_PATH

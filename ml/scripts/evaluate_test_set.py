@@ -23,7 +23,6 @@ Strict Integrity Rules:
 
 import csv
 import json
-import os
 import sys
 import time
 from datetime import datetime

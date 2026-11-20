@@ -22,8 +22,6 @@ Usage:
 from __future__ import annotations
 
 import csv
-import io
-import json
 import shutil
 import tempfile
 import unittest
@@ -35,15 +33,9 @@ from PIL import Image
 
 from backend.app.services.inference import TARGET_CLASS_MAPPING as BACKEND_CLASS_MAPPING
 from ml.evaluation.field_validation.data_auditor import (
-    AuditReport,
     DataQualityAuditor,
-    compute_dhash,
-    hamming_distance,
 )
 from ml.evaluation.field_validation.evaluator import (
-    PREPROCESSING_VERSION,
-    FieldEvaluator,
-    compute_file_sha256,
     preprocess_field_image,
 )
 from ml.evaluation.field_validation.gate_evaluator import (
@@ -51,23 +43,11 @@ from ml.evaluation.field_validation.gate_evaluator import (
     LeafGateEvaluator,
 )
 from ml.evaluation.field_validation.manifest_schema import (
-    ALLOWED_ANNOTATOR_STATUS,
-    ALLOWED_BACKGROUND_TYPES,
-    ALLOWED_CROPS,
-    ALLOWED_DISEASE_SEVERITIES,
-    ALLOWED_LIGHTING_CONDITIONS,
-    ALLOWED_SPLITS,
-    ALLOWED_VERIFICATION_STATUS,
     CROP_TO_CLASSES,
-    NAME_TO_CLASS_ID,
     TARGET_CLASS_MAPPING,
-    FieldSampleRecord,
-    ManifestValidationError,
     load_and_validate_manifest,
 )
 from ml.evaluation.field_validation.metrics import (
-    FieldEvaluationSummary,
-    bootstrap_macro_f1_ci,
     calculate_field_metrics,
     wilson_score_interval,
 )

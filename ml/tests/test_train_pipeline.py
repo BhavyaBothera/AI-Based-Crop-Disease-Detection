@@ -33,7 +33,6 @@ import tensorflow as tf
 from ml.scripts.prepare_dataset import TARGET_CLASS_MAPPING as PREPARE_MAPPING
 from ml.scripts.train_model import (
     CLASS_ID_TO_NAME,
-    NUM_CLASSES,
     TARGET_CLASS_MAPPING as TRAIN_MAPPING,
     BestModelCheckpointTracker,
     build_mobilenetv2_model,

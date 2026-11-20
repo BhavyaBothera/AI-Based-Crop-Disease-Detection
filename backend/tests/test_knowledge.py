@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from backend.app.config import KNOWLEDGE_BASE_PATH
 from backend.app.main import create_app
 from backend.app.schemas.knowledge import DiseaseKnowledgeRecord
-from backend.app.services.inference import CLASS_ID_TO_METADATA, TARGET_CLASS_MAPPING
+from backend.app.services.inference import CLASS_ID_TO_METADATA
 from backend.app.services.knowledge import KnowledgeBaseService, knowledge_service
 
 

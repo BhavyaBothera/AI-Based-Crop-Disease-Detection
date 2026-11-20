@@ -109,24 +109,10 @@
     printAdvisoryBtn: document.getElementById('print-advisory-btn'),
     copyGuidanceBtn: document.getElementById('copy-guidance-btn'),
 
-    // Encyclopedia Modal Elements
-    encyclopediaOpenBtn: document.getElementById('encyclopedia-open-btn'),
-    encyclopediaModal: document.getElementById('encyclopedia-modal'),
-    encyclopediaCloseBtn: document.getElementById('encyclopedia-close-btn'),
-    encyclopediaSelect: document.getElementById('encyclopedia-select'),
-    encyclopediaContent: document.getElementById('encyclopedia-content'),
-    encyclopediaLoading: document.getElementById('encyclopedia-loading'),
-
     // Toast Notification Elements
     toast: document.getElementById('toast'),
     toastMessage: document.getElementById('toast-message'),
     toastIcon: document.getElementById('toast-icon'),
-
-    // Hero & Educational Modal Elements
-    heroCtaBtn: document.getElementById('hero-cta-btn'),
-    heroHowItWorksBtn: document.getElementById('hero-how-it-works-btn'),
-    howItWorksModal: document.getElementById('how-it-works-modal'),
-    howItWorksCloseBtn: document.getElementById('how-it-works-close-btn'),
   };
 
   // ==========================================================================
@@ -1393,89 +1379,6 @@
       });
     }
 
-    // Disease Encyclopedia modal handlers
-    if (elements.encyclopediaOpenBtn) {
-      elements.encyclopediaOpenBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openEncyclopediaModal();
-      });
-    }
-
-    if (elements.encyclopediaCloseBtn) {
-      elements.encyclopediaCloseBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        closeEncyclopediaModal();
-      });
-    }
-
-    if (elements.encyclopediaSelect) {
-      elements.encyclopediaSelect.addEventListener('change', (e) => {
-        const selectedClassId = parseInt(e.target.value, 10);
-        if (!isNaN(selectedClassId)) {
-          loadEncyclopediaEntry(selectedClassId);
-        }
-      });
-    }
-
-    if (elements.encyclopediaModal) {
-      elements.encyclopediaModal.addEventListener('click', (e) => {
-        if (e.target === elements.encyclopediaModal) {
-          closeEncyclopediaModal();
-        }
-      });
-    }
-
-    // Hero & Educational Modal Handlers
-    if (elements.heroCtaBtn) {
-      elements.heroCtaBtn.addEventListener('click', (e) => {
-        const workspace = document.getElementById('workspace');
-        if (workspace) {
-          e.preventDefault();
-          workspace.scrollIntoView({ behavior: 'smooth' });
-        }
-      });
-    }
-
-    if (elements.heroHowItWorksBtn && elements.howItWorksModal) {
-      elements.heroHowItWorksBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        elements.howItWorksModal.classList.remove('hidden');
-      });
-    }
-
-    if (elements.howItWorksCloseBtn && elements.howItWorksModal) {
-      elements.howItWorksCloseBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        elements.howItWorksModal.classList.add('hidden');
-      });
-    }
-
-    if (elements.howItWorksModal) {
-      elements.howItWorksModal.addEventListener('click', (e) => {
-        if (e.target === elements.howItWorksModal) {
-          elements.howItWorksModal.classList.add('hidden');
-        }
-      });
-    }
-
-    // Keyboard handlers (Escape to close modals)
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        if (
-          elements.encyclopediaModal &&
-          !elements.encyclopediaModal.classList.contains('hidden')
-        ) {
-          closeEncyclopediaModal();
-        }
-        if (
-          elements.howItWorksModal &&
-          !elements.howItWorksModal.classList.contains('hidden')
-        ) {
-          elements.howItWorksModal.classList.add('hidden');
-        }
-      }
-    });
-
     // Quick sample leaf specimen buttons
     const sampleButtons = document.querySelectorAll('.btn-sample');
     sampleButtons.forEach((btn) => {
@@ -1620,51 +1523,6 @@
       showAlert('Could not access clipboard automatically. Please use Print to export.', 'Notice', 'info');
     }
     document.body.removeChild(ta);
-  }
-
-  // ==========================================================================
-  // Disease Encyclopedia Operations
-  // ==========================================================================
-
-  async function openEncyclopediaModal(targetClassId = null) {
-    if (!elements.encyclopediaModal) return;
-    elements.encyclopediaModal.classList.remove('hidden');
-
-    let classIdToLoad = targetClassId;
-    if (classIdToLoad === null || classIdToLoad === undefined) {
-      if (activeCandidateClassId !== null) {
-        classIdToLoad = activeCandidateClassId;
-      } else {
-        classIdToLoad = parseInt(elements.encyclopediaSelect.value, 10) || 5;
-      }
-    }
-
-    elements.encyclopediaSelect.value = String(classIdToLoad);
-    await loadEncyclopediaEntry(classIdToLoad);
-  }
-
-  function closeEncyclopediaModal() {
-    if (!elements.encyclopediaModal) return;
-    elements.encyclopediaModal.classList.add('hidden');
-  }
-
-  async function loadEncyclopediaEntry(classId) {
-    if (!elements.encyclopediaContent) return;
-    elements.encyclopediaContent.textContent = '';
-    if (elements.encyclopediaLoading) elements.encyclopediaLoading.classList.remove('hidden');
-
-    try {
-      const data = await window.CropDiseaseApi.getDiseaseKnowledge(classId);
-      if (elements.encyclopediaLoading) elements.encyclopediaLoading.classList.add('hidden');
-      renderKnowledgeDetails(data, { rank: 1, isPrimary: true }, elements.encyclopediaContent);
-    } catch (err) {
-      if (elements.encyclopediaLoading) elements.encyclopediaLoading.classList.add('hidden');
-      elements.encyclopediaContent.textContent = '';
-      const errBox = document.createElement('div');
-      errBox.className = 'alert alert-error';
-      errBox.textContent = 'Failed to load encyclopedia entry: ' + err.message;
-      elements.encyclopediaContent.appendChild(errBox);
-    }
   }
 
   // ==========================================================================

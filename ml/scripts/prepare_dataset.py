@@ -28,10 +28,8 @@ import hashlib
 import json
 import os
 import random
-import re
-import sys
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Set, Tuple

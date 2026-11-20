@@ -18,19 +18,16 @@ from __future__ import annotations
 
 import csv
 import hashlib
-import json
 import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 from PIL import Image
 
 from .manifest_schema import (
-    CROP_TO_CLASSES,
     FieldSampleRecord,
-    ManifestValidationError,
     load_and_validate_manifest,
 )
 

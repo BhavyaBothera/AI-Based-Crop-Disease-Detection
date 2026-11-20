@@ -22,28 +22,17 @@ Quantifies:
 
 from __future__ import annotations
 
-import csv
 import json
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-import numpy as np
-from PIL import Image
 
 from backend.app.config import LEAF_GATE_MODEL_PATH
 from backend.app.services.input_gate import (
     ABSTAINED,
     ACCEPTED,
-    CODE_ACCEPTED,
-    CODE_AMBIGUOUS,
-    CODE_NON_LEAF,
-    CODE_UNSUPPORTED_SPECIES,
-    GATE_NON_LEAF,
-    GATE_OTHER_PLANT,
-    GATE_SUPPORTED_LEAF,
     REJECTED,
     assess_image,
 )

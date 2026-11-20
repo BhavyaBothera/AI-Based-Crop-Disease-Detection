@@ -10,12 +10,11 @@ subgroup performance slices, and confusion matrices for field validation.
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from sklearn.metrics import (
-    accuracy_score,
     confusion_matrix,
     f1_score,
     precision_score,
@@ -23,10 +22,7 @@ from sklearn.metrics import (
 )
 
 from .manifest_schema import (
-    CLASS_ID_TO_NAME,
-    NAME_TO_CLASS_ID,
     RAW_CLASS_TO_CROP,
-    TARGET_CLASS_MAPPING,
 )
 
 CLASS_NAMES: List[str] = sorted(RAW_CLASS_TO_CROP.keys())

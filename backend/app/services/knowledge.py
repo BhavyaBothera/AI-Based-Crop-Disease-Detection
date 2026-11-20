@@ -5,7 +5,7 @@ Loads, validates, and serves validated agronomic knowledge base records
 for the 15 supported Solanaceae model classes.
 """
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 import copy
 import json
 import logging

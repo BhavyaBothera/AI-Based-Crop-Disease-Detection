@@ -2,7 +2,6 @@
 Unit tests for health, readiness, and root endpoints.
 """
 import unittest
-from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app.config import KNOWLEDGE_BASE_PATH
