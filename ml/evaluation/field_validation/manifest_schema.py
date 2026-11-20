@@ -203,6 +203,29 @@ ALLOWED_EVALUATION_TASKS: Set[str] = {"disease", "gate", "both"}
 VERIFIED_TIERS: Set[str] = {"expert_verified", "laboratory_confirmed"}
 UNVERIFIED_TIERS: Set[str] = {"visually_suspected", "ambiguous_unresolved"}
 
+# Permitted manifest field names (Phase 1: Reject unknown manifest fields)
+MANIFEST_KNOWN_KEYS: Set[str] = {
+    "image_id",
+    "file_path",
+    "crop",
+    "ground_truth_class",
+    "collection_source",
+    "split",
+    "evaluation_task",
+    "capture_device",
+    "capture_date",
+    "collection_location",
+    "lighting_condition",
+    "background_type",
+    "disease_severity",
+    "annotator_status",
+    "verification_status",
+    "duplicate_group_id",
+    "notes",
+    "sha256",
+    "dhash",
+}
+
 
 def map_ground_truth_to_gate_category(
     ground_truth_class: str,
@@ -408,19 +431,55 @@ class FieldSampleRecord:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> FieldSampleRecord:
-        """Constructs and validates a record from dictionary."""
-        known_keys = {
-            "image_id", "file_path", "crop", "ground_truth_class",
-            "collection_source", "split", "evaluation_task", "capture_device", "capture_date",
-            "collection_location", "lighting_condition", "background_type",
-            "disease_severity", "annotator_status", "verification_status",
-            "duplicate_group_id", "notes", "sha256", "dhash",
+    def from_dict(cls, data: Dict[str, Any], row_idx: Optional[int] = None) -> FieldSampleRecord:
+        """Constructs and validates a record from dictionary. Fails closed on unknown fields."""
+        if not isinstance(data, dict):
+            row_prefix = f"Row {row_idx}: " if row_idx is not None else ""
+            raise ManifestValidationError(f"{row_prefix}Manifest entry must be a dictionary, got {type(data).__name__}.")
+
+        # Check for unknown fields (Phase 1.1)
+        unknown_keys = {
+            k for k in data.keys()
+            if k is not None and str(k).strip() != "" and str(k).strip() not in MANIFEST_KNOWN_KEYS
         }
-        filtered = {k: v for k, v in data.items() if k in known_keys and v is not None}
-        if "evaluation_task" not in filtered:
-            gt = filtered.get("ground_truth_class", "")
-            filtered["evaluation_task"] = "gate" if gt in GATE_OOD_CLASSES else "both"
+        if unknown_keys:
+            row_prefix = f"Row {row_idx}: " if row_idx is not None else ""
+            raise ManifestValidationError(
+                f"{row_prefix}Unknown field(s) not permitted in manifest schema: {sorted(unknown_keys)}."
+            )
+
+        filtered: Dict[str, Any] = {
+            k: v for k, v in data.items()
+            if k in MANIFEST_KNOWN_KEYS and v is not None and str(v).strip() != ""
+        }
+
+        # Explicit evaluation task requirements (Phase 1.2)
+        task_val = data.get("evaluation_task")
+        if task_val is not None and str(task_val).strip() != "":
+            task_str = str(task_val).strip()
+            if task_str not in ALLOWED_EVALUATION_TASKS:
+                row_prefix = f"Row {row_idx}: " if row_idx is not None else ""
+                raise ManifestValidationError(
+                    f"{row_prefix}Invalid evaluation_task '{task_str}'. "
+                    f"Must be one of {sorted(ALLOWED_EVALUATION_TASKS)}."
+                )
+            filtered["evaluation_task"] = task_str
+        else:
+            # Demonstrably safe backward compatibility for legacy manifests:
+            # If and only if the class is a confirmed Solanaceae disease class with matching crop,
+            # assign task="disease" (DO NOT silently assign "both").
+            # Unsupported crops and non-leaf samples MUST explicitly provide evaluation_task="gate".
+            gt_class = str(data.get("ground_truth_class", "")).strip()
+            crop_val = str(data.get("crop", "")).strip()
+            if gt_class in RAW_CLASS_TO_CROP or crop_val in ALLOWED_CROPS:
+                filtered["evaluation_task"] = "disease"
+            else:
+                row_prefix = f"Row {row_idx}: " if row_idx is not None else ""
+                raise ManifestValidationError(
+                    f"{row_prefix}Missing required field 'evaluation_task'. Non-Solanaceae or OOD records "
+                    f"must explicitly specify evaluation_task='gate'."
+                )
+
         record = cls(**filtered)
         record.validate()
         return record
@@ -450,26 +509,32 @@ def load_and_validate_manifest(
                 raw_data = raw_data["records"]
             for idx, item in enumerate(raw_data, start=1):
                 try:
-                    rec = FieldSampleRecord.from_dict(item)
+                    rec = FieldSampleRecord.from_dict(item, row_idx=idx)
                     if rec.image_id in seen_image_ids:
                         errors.append(f"Row {idx}: Duplicate image_id '{rec.image_id}' found in manifest.")
                         continue
                     seen_image_ids.add(rec.image_id)
                     records.append(rec)
                 except Exception as exc:
-                    errors.append(f"Row {idx}: {str(exc)}")
+                    err_str = str(exc)
+                    if not err_str.startswith(f"Row {idx}:"):
+                        err_str = f"Row {idx}: {err_str}"
+                    errors.append(err_str)
     else:
         with path.open("r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for idx, row in enumerate(reader, start=2):
                 try:
-                    rec = FieldSampleRecord.from_dict(row)
+                    rec = FieldSampleRecord.from_dict(row, row_idx=idx)
                     if rec.image_id in seen_image_ids:
                         errors.append(f"Row {idx}: Duplicate image_id '{rec.image_id}' found in manifest.")
                         continue
                     seen_image_ids.add(rec.image_id)
                     records.append(rec)
                 except Exception as exc:
-                    errors.append(f"Row {idx}: {str(exc)}")
+                    err_str = str(exc)
+                    if not err_str.startswith(f"Row {idx}:"):
+                        err_str = f"Row {idx}: {err_str}"
+                    errors.append(err_str)
 
     return records, errors

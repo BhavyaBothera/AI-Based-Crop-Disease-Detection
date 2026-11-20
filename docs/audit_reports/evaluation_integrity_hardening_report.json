@@ -1,0 +1,118 @@
+{
+  "audit_name": "PHYTOSIGNAL Evaluation Integrity & Reliability Hardening (P0/P1)",
+  "timestamp_utc": "2026-11-20T15:40:00Z",
+  "status": "PASSED",
+  "modules_hardened": [
+    "ml/evaluation/field_validation/manifest_schema.py",
+    "ml/evaluation/field_validation/path_resolver.py",
+    "ml/evaluation/field_validation/data_auditor.py",
+    "ml/evaluation/field_validation/evaluator.py",
+    "ml/evaluation/field_validation/gate_evaluator.py",
+    "ml/evaluation/field_validation/metrics.py",
+    "ml/evaluation/field_validation/runner.py",
+    "ml/tests/test_field_validation.py"
+  ],
+  "failure_modes_addressed": {
+    "FM-1": {
+      "name": "Silent Manifest Field Omission",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Strict manifest schema validation rejecting unknown CSV columns/JSON keys with row-indexed errors."
+    },
+    "FM-2": {
+      "name": "OOD Plant Task Ambiguity",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Explicit evaluation task requirements (disease, gate, both). OOD species must specify gate task."
+    },
+    "FM-3": {
+      "name": "Silently Truncated Evaluation",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Runner fails closed on manifest errors unless --allow-exploratory-subset is explicitly passed."
+    },
+    "FM-4": {
+      "name": "Filesystem Traversal & Symlink Escape",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Authoritative path resolver checks '..' tokens, resolves symlinks, and enforces dataset root containment."
+    },
+    "FM-5": {
+      "name": "Unvalidated Gate Sidecar Config",
+      "severity": "P1",
+      "status": "REMEDIATED",
+      "mechanism": "Validates classes, order, output dimensions, and required fields; raises GateIntegrityError on corrupt sidecars."
+    },
+    "FM-6": {
+      "name": "Validation Split Baseline Substitution",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Requires genuine held-out test split ('test'); rejects val_accuracy and val_macro_f1 as substitutes."
+    },
+    "FM-7": {
+      "name": "Unvalidated Model Softmax Outputs",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Verifies 15-class shape, float dtype, finite values, range [-0.01, 1.01], and unit sum (1.0 +/- 0.01)."
+    },
+    "FM-8": {
+      "name": "False Bootstrap CI on Low Cluster Count",
+      "severity": "P1",
+      "status": "REMEDIATED",
+      "mechanism": "Reports macro_f1_ci_available = False and None interval when clusters < 5 or sample size < 10."
+    },
+    "FM-9": {
+      "name": "Zero-Denominator Misleading Metric",
+      "severity": "P1",
+      "status": "REMEDIATED",
+      "mechanism": "Denominators with support = 0 return None and render as N/A (support=0) instead of misleading 0.0."
+    },
+    "FM-10": {
+      "name": "Uncounted Failed Inferences",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "InferenceAccounting tracks total, valid, attempted, successful, failed, failure rate, and failure-adjusted accuracy."
+    }
+  },
+  "verification_results": {
+    "field_validation_test_suite": {
+      "file": "ml/tests/test_field_validation.py",
+      "total_tests": 77,
+      "passed": 76,
+      "skipped": 1,
+      "failed": 0,
+      "status": "OK"
+    },
+    "training_pipeline_test_suite": {
+      "file": "ml/tests/test_train_pipeline.py",
+      "total_tests": 22,
+      "passed": 22,
+      "failed": 0,
+      "status": "OK"
+    },
+    "backend_test_suite": {
+      "directory": "backend/tests",
+      "total_tests": 98,
+      "passed": 98,
+      "failed": 0,
+      "status": "OK"
+    },
+    "frontend_api_test_suite": {
+      "file": "frontend/test_api.js",
+      "total_tests": 36,
+      "passed": 33,
+      "skipped": 3,
+      "failed": 0,
+      "status": "OK"
+    }
+  },
+  "constraints_checked": {
+    "model_weights_unmodified": true,
+    "class_ids_and_ordering_preserved": true,
+    "controlled_splits_untouched": true,
+    "production_thresholds_unmodified": true,
+    "no_unrelated_features_added": true,
+    "uncommitted_working_tree": true
+  }
+}
+

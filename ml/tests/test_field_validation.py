@@ -40,11 +40,21 @@ from ml.evaluation.field_validation.data_auditor import (
     DataQualityAuditor,
 )
 from ml.evaluation.field_validation.evaluator import (
+    FieldEvaluator,
+    InferenceAccounting,
+    ModelOutputValidationError,
     preprocess_field_image,
+    validate_model_output,
 )
 from ml.evaluation.field_validation.gate_evaluator import (
+    GateIntegrityError,
     GateSampleRecord,
     LeafGateEvaluator,
+)
+from ml.evaluation.field_validation.path_resolver import (
+    InvalidImageFileError,
+    PathSecurityError,
+    resolve_safe_image_path,
 )
 from ml.evaluation.field_validation.manifest_schema import (
     CROP_TO_CLASSES,
@@ -65,6 +75,7 @@ from ml.evaluation.field_validation.metrics import (
 from ml.evaluation.field_validation.runner import (
     generate_baseline_comparison,
     parse_controlled_baseline,
+    run_field_validation,
 )
 
 
@@ -921,6 +932,503 @@ class TestGateFallbackTransparency(unittest.TestCase):
         sidecar_info = evaluator.sidecar_validation
         self.assertIn("classes", sidecar_info)
         self.assertEqual(sidecar_info["output_dim"], 3)
+
+
+class TestFailClosedManifestValidation(unittest.TestCase):
+    """Phase 1: Fail-closed manifest validation and error propagation."""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_reject_unknown_manifest_fields_csv(self):
+        p = self.temp_dir / "manifest.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id",
+                    "file_path",
+                    "crop",
+                    "ground_truth_class",
+                    "collection_source",
+                    "evaluation_task",
+                    "unknown_typo_column",
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "FLD_001",
+                "file_path": "images/test.jpg",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "collection_source": "pilot",
+                "evaluation_task": "disease",
+                "unknown_typo_column": "bad_data",
+            })
+        records, errors = load_and_validate_manifest(p)
+        self.assertEqual(len(records), 0)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("Row 2", errors[0])
+        self.assertIn("unknown_typo_column", errors[0])
+
+    def test_reject_unknown_manifest_fields_json(self):
+        p = self.temp_dir / "manifest.json"
+        data = {
+            "records": [
+                {
+                    "image_id": "FLD_002",
+                    "file_path": "images/test.jpg",
+                    "crop": "Tomato",
+                    "ground_truth_class": "Tomato___healthy",
+                    "collection_source": "pilot",
+                    "evaluation_task": "disease",
+                    "unexpected_meta": 1234,
+                }
+            ]
+        }
+        p.write_text(json.dumps(data), encoding="utf-8")
+        records, errors = load_and_validate_manifest(p)
+        self.assertEqual(len(records), 0)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("Row 1", errors[0])
+        self.assertIn("unexpected_meta", errors[0])
+
+    def test_explicit_evaluation_task_requirements(self):
+        # Unsupported crop (Apple) without explicit task='gate' must fail
+        rec_data = {
+            "image_id": "OOD_001",
+            "file_path": "images/apple.jpg",
+            "crop": "Apple",
+            "ground_truth_class": "Apple___scab",
+            "collection_source": "field",
+        }
+        with self.assertRaises(ManifestValidationError) as ctx:
+            FieldSampleRecord.from_dict(rec_data, row_idx=5)
+        self.assertIn("Row 5", str(ctx.exception))
+        self.assertIn("Missing required field 'evaluation_task'", str(ctx.exception))
+
+        # Explicit task='gate' for unsupported crop succeeds
+        rec_data["evaluation_task"] = "gate"
+        rec = FieldSampleRecord.from_dict(rec_data, row_idx=5)
+        self.assertEqual(rec.evaluation_task, "gate")
+
+        # Invalid task string fails
+        rec_data["evaluation_task"] = "unsupported_task"
+        with self.assertRaises(ManifestValidationError) as ctx:
+            FieldSampleRecord.from_dict(rec_data, row_idx=5)
+        self.assertIn("Invalid evaluation_task", str(ctx.exception))
+
+    def test_propagate_manifest_errors_fails_formal_evaluation(self):
+        # Create manifest with 1 valid and 1 invalid row
+        p = self.temp_dir / "manifest.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id",
+                    "file_path",
+                    "crop",
+                    "ground_truth_class",
+                    "collection_source",
+                    "evaluation_task",
+                    "typo_field",
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "FLD_001",
+                "file_path": "images/img1.jpg",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "collection_source": "pilot",
+                "evaluation_task": "disease",
+                "typo_field": "invalid",
+            })
+
+        out_dir = self.temp_dir / "out"
+        import argparse
+        args = argparse.Namespace(
+            manifest=p,
+            dataset_root=self.temp_dir,
+            output_dir=out_dir,
+            model_path=Path("non_existent_model.keras"),
+            gate_path=Path("non_existent_gate.keras"),
+            split=None,
+            audit_only=False,
+            eval_gate=False,
+            exclude_unverified=True,
+            baseline_comparison=None,
+            allow_exploratory_subset=False,
+        )
+        exit_code = run_field_validation(args)
+        # Must fail closed with exit code 1
+        self.assertEqual(exit_code, 1)
+
+        # When allow_exploratory_subset=True, it doesn't fail closed at manifest check
+        args.allow_exploratory_subset = True
+        args.audit_only = True
+        exit_code_exploratory = run_field_validation(args)
+        self.assertEqual(exit_code_exploratory, 0)
+
+
+class TestSafeImagePathResolution(unittest.TestCase):
+    """Phase 2: Single authoritative safe image path resolution tests."""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp()).resolve()
+        self.img_dir = self.temp_dir / "images"
+        self.img_dir.mkdir(parents=True, exist_ok=True)
+        self.valid_img = self.img_dir / "leaf.jpg"
+        self.valid_img.write_bytes(b"mock_jpeg_bytes")
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_valid_nested_file_resolved(self):
+        resolved = resolve_safe_image_path("images/leaf.jpg", dataset_root=self.temp_dir)
+        self.assertEqual(resolved, self.valid_img)
+        self.assertTrue(resolved.is_file())
+
+    def test_parent_directory_traversal_rejected(self):
+        with self.assertRaises(PathSecurityError) as ctx:
+            resolve_safe_image_path("images/../../secret.txt", dataset_root=self.temp_dir)
+        self.assertIn("traversal detected", str(ctx.exception).lower())
+
+    def test_absolute_path_outside_root_rejected(self):
+        outside_file = Path(tempfile.gettempdir()).resolve() / "outside.jpg"
+        outside_file.write_bytes(b"data")
+        try:
+            with self.assertRaises(PathSecurityError) as ctx:
+                resolve_safe_image_path(str(outside_file), dataset_root=self.temp_dir, allow_absolute=False)
+            self.assertIn("absolute path", str(ctx.exception).lower())
+
+            # Even with allow_absolute=True, escaping dataset root is strictly rejected
+            with self.assertRaises(PathSecurityError) as ctx:
+                resolve_safe_image_path(str(outside_file), dataset_root=self.temp_dir, allow_absolute=True)
+            self.assertIn("containment violation", str(ctx.exception).lower())
+        finally:
+            if outside_file.exists():
+                outside_file.unlink()
+
+    def test_missing_file_rejected(self):
+        with self.assertRaises(FileNotFoundError):
+            resolve_safe_image_path("images/non_existent.jpg", dataset_root=self.temp_dir)
+
+    def test_directory_path_rejected(self):
+        with self.assertRaises(InvalidImageFileError) as ctx:
+            resolve_safe_image_path("images", dataset_root=self.temp_dir)
+        self.assertIn("directory", str(ctx.exception).lower())
+
+    def test_symlink_escape_rejected(self):
+        outside_target = self.temp_dir.parent / f"outside_target_{self.temp_dir.name}.jpg"
+        outside_target.write_bytes(b"outside")
+        symlink_path = self.img_dir / "symlink_escape.jpg"
+        try:
+            try:
+                symlink_path.symlink_to(outside_target)
+            except OSError:
+                # Symlink creation may require admin privileges on Windows; skip if OS restricts
+                self.skipTest("Symlink creation not permitted by OS without elevation.")
+
+            with self.assertRaises(PathSecurityError) as ctx:
+                resolve_safe_image_path("images/symlink_escape.jpg", dataset_root=self.temp_dir)
+            self.assertIn("containment violation", str(ctx.exception).lower())
+        finally:
+            if symlink_path.is_symlink():
+                symlink_path.unlink()
+            if outside_target.exists():
+                outside_target.unlink()
+
+
+class TestGateModelAndSidecarIntegrity(unittest.TestCase):
+    """Phase 3: Gate model and sidecar integrity validation."""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp()).resolve()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_corrupt_sidecar_raises_gate_integrity_error(self):
+        model_file = self.temp_dir / "mock_gate.keras"
+        model_file.write_bytes(b"fake_keras_binary")
+        sidecar_file = self.temp_dir / "gate_model_config.json"
+        sidecar_file.write_text("{corrupt_json: invalid", encoding="utf-8")
+
+        class MockLoadedService:
+            is_loaded = True
+            classes = ["non_leaf", "other_plant", "supported_leaf"]
+            _model_path = model_file
+
+        with self.assertRaises(GateIntegrityError) as ctx:
+            LeafGateEvaluator(leaf_gate_service=MockLoadedService())
+        self.assertIn("Failed to parse sidecar", str(ctx.exception))
+
+    def test_sidecar_missing_required_fields_raises_gate_integrity_error(self):
+        model_file = self.temp_dir / "mock_gate.keras"
+        model_file.write_bytes(b"fake_keras_binary")
+        sidecar_file = self.temp_dir / "gate_model_config.json"
+        # Missing 'feature_backbone' and 'input'
+        sidecar_file.write_text(json.dumps({"classes": ["non_leaf", "other_plant", "supported_leaf"]}), encoding="utf-8")
+
+        class MockLoadedService:
+            is_loaded = True
+            classes = ["non_leaf", "other_plant", "supported_leaf"]
+            _model_path = model_file
+
+        with self.assertRaises(GateIntegrityError) as ctx:
+            LeafGateEvaluator(leaf_gate_service=MockLoadedService())
+        self.assertIn("missing required fields", str(ctx.exception))
+
+    def test_sidecar_wrong_class_order_raises_gate_integrity_error(self):
+        model_file = self.temp_dir / "mock_gate.keras"
+        model_file.write_bytes(b"fake_keras_binary")
+        sidecar_file = self.temp_dir / "gate_model_config.json"
+        # Wrong order: supported_leaf first
+        sidecar_file.write_text(
+            json.dumps({
+                "classes": ["supported_leaf", "other_plant", "non_leaf"],
+                "feature_backbone": "MobileNetV2",
+                "input": "224x224 RGB in [0, 255]",
+            }),
+            encoding="utf-8",
+        )
+
+        class MockLoadedService:
+            is_loaded = True
+            classes = ["supported_leaf", "other_plant", "non_leaf"]
+            _model_path = model_file
+
+        with self.assertRaises(GateIntegrityError) as ctx:
+            LeafGateEvaluator(leaf_gate_service=MockLoadedService())
+        self.assertIn("exact ordering required", str(ctx.exception))
+
+    def test_missing_sidecar_when_model_exists_raises_gate_integrity_error(self):
+        model_file = self.temp_dir / "mock_gate.keras"
+        model_file.write_bytes(b"fake_keras_binary")
+        # No gate_model_config.json created
+
+        class MockLoadedService:
+            is_loaded = True
+            classes = ["non_leaf", "other_plant", "supported_leaf"]
+            _model_path = model_file
+
+        with self.assertRaises(GateIntegrityError) as ctx:
+            LeafGateEvaluator(leaf_gate_service=MockLoadedService())
+        self.assertIn("sidecar config is missing", str(ctx.exception))
+
+
+class TestControlledBaselineValidation(unittest.TestCase):
+    """Phase 4: Controlled baseline validation and rejection of validation metrics."""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp()).resolve()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_reject_validation_split_json_report(self):
+        report_file = self.temp_dir / "val_baseline.json"
+        data = {
+            "split_evaluated": "validation",
+            "metrics": {
+                "test_accuracy": 0.95,
+                "test_macro_f1": 0.94,
+            },
+        }
+        report_file.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(ValueError) as ctx:
+            parse_controlled_baseline(report_file)
+        self.assertIn("held-out 'test' split required", str(ctx.exception))
+
+    def test_reject_validation_only_metrics(self):
+        report_file = self.temp_dir / "val_metrics.json"
+        data = {
+            "metrics": {
+                "val_accuracy": 0.975,
+                "val_macro_f1": 0.968,
+            },
+        }
+        report_file.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(ValueError) as ctx:
+            parse_controlled_baseline(report_file)
+        self.assertIn("only validation metrics", str(ctx.exception))
+
+    def test_accept_genuine_held_out_test_split(self):
+        report_file = self.temp_dir / "genuine_test.json"
+        data = {
+            "split_evaluated": "test",
+            "model_checkpoint": "best_model.keras",
+            "timestamp_utc": "2026-10-20T12:00:00Z",
+            "metrics": {
+                "test_accuracy": 0.9689,
+                "test_macro_f1": 0.9652,
+                "test_top_3_accuracy": 0.995,
+            },
+        }
+        report_file.write_text(json.dumps(data), encoding="utf-8")
+        res = parse_controlled_baseline(report_file)
+        self.assertEqual(res["accuracy"], 0.9689)
+        self.assertEqual(res["macro_f1"], 0.9652)
+        self.assertEqual(res["top_3_accuracy"], 0.995)
+
+    def test_reject_out_of_range_metrics(self):
+        report_file = self.temp_dir / "bad_range.json"
+        data = {
+            "split_evaluated": "test",
+            "metrics": {
+                "test_accuracy": 1.25,
+                "test_macro_f1": 0.95,
+            },
+        }
+        report_file.write_text(json.dumps(data), encoding="utf-8")
+        with self.assertRaises(ValueError) as ctx:
+            parse_controlled_baseline(report_file)
+        self.assertIn("outside valid range [0.0, 1.0]", str(ctx.exception))
+
+
+class TestDiseaseModelOutputValidation(unittest.TestCase):
+    """Phase 5: Disease model output mathematical and structural validation."""
+
+    def test_valid_model_output(self):
+        probs = np.full(15, 1.0 / 15.0, dtype=np.float32)
+        validated = validate_model_output(probs, expected_classes=15)
+        self.assertEqual(validated.shape, (15,))
+        self.assertAlmostEqual(float(np.sum(validated)), 1.0, places=4)
+
+    def test_reject_nan_output(self):
+        probs = np.full(15, 1.0 / 15.0)
+        probs[3] = float("nan")
+        with self.assertRaises(ModelOutputValidationError) as ctx:
+            validate_model_output(probs, expected_classes=15)
+        self.assertIn("non-finite values", str(ctx.exception))
+
+    def test_reject_infinite_output(self):
+        probs = np.full(15, 1.0 / 15.0)
+        probs[0] = float("inf")
+        with self.assertRaises(ModelOutputValidationError) as ctx:
+            validate_model_output(probs, expected_classes=15)
+        self.assertIn("non-finite values", str(ctx.exception))
+
+    def test_reject_negative_probability(self):
+        probs = np.full(15, 1.0 / 14.0)
+        probs[0] = -0.1
+        with self.assertRaises(ModelOutputValidationError) as ctx:
+            validate_model_output(probs, expected_classes=15)
+        self.assertIn("out of bounds", str(ctx.exception))
+
+    def test_reject_invalid_sum(self):
+        probs = np.full(15, 0.02)  # sums to 0.30
+        with self.assertRaises(ModelOutputValidationError) as ctx:
+            validate_model_output(probs, expected_classes=15)
+        self.assertIn("must sum to 1.0", str(ctx.exception))
+
+    def test_reject_wrong_dimension(self):
+        probs = np.full(14, 1.0 / 14.0)  # 14 instead of 15
+        with self.assertRaises(ModelOutputValidationError) as ctx:
+            validate_model_output(probs, expected_classes=15)
+        self.assertIn("invalid", str(ctx.exception).lower())
+
+
+class TestMetricStatisticalReliability(unittest.TestCase):
+    """Phase 6: Metric and statistical reliability, macro F1, and cluster bootstrap."""
+
+    def test_report_both_fixed_and_observed_macro_f1(self):
+        # 10 samples only covering Tomato___healthy and Tomato___Early_blight
+        predictions = [
+            {
+                "image_id": f"IMG_{i}",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy" if i < 5 else "Tomato___Early_blight",
+                "predicted_class": "Tomato___healthy" if i < 5 else "Tomato___Early_blight",
+                "is_correct": True,
+                "top_3_predictions": [{"class_name": "Tomato___healthy"}],
+                "verification_status": "expert_verified",
+            }
+            for i in range(10)
+        ]
+        summary = calculate_field_metrics(predictions)
+        # Observed classes (2 classes): F1 = 1.0
+        self.assertEqual(summary.observed_macro_f1, 1.0)
+        # Fixed classes (15 classes, 13 have 0 F1): 2/15 = 0.1333
+        self.assertAlmostEqual(summary.fixed_macro_f1, 2.0 / 15.0, places=3)
+        self.assertEqual(summary.observed_classes_count, 2)
+        self.assertEqual(len(summary.unobserved_classes), 13)
+
+    def test_cluster_bootstrap_reports_unavailable_when_clusters_under_5(self):
+        # 4 unique clusters (under minimum 5)
+        predictions = [
+            {
+                "image_id": f"IMG_{i}",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "predicted_class": "Tomato___healthy",
+                "is_correct": True,
+                "top_3_predictions": [{"class_name": "Tomato___healthy"}],
+                "duplicate_group_id": f"GROUP_{i % 4}",
+                "verification_status": "expert_verified",
+            }
+            for i in range(12)
+        ]
+        summary = calculate_field_metrics(predictions)
+        self.assertFalse(summary.macro_f1_ci_available)
+        self.assertIsNone(summary.macro_f1_ci_95)
+        self.assertIn("Insufficient unique clusters", summary.macro_f1_ci_reason)
+
+    def test_group_majority_voting_tie_breaking(self):
+        # Group with a tie: 1 vote for Class A (confidence 0.60), 1 vote for Class B (confidence 0.80)
+        predictions = [
+            {
+                "image_id": "1",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "predicted_class": "Tomato___healthy",
+                "raw_scores": {"Tomato___healthy": 0.60},
+                "duplicate_group_id": "GRP_TIE",
+                "verification_status": "expert_verified",
+            },
+            {
+                "image_id": "2",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "predicted_class": "Tomato___Early_blight",
+                "raw_scores": {"Tomato___Early_blight": 0.80},
+                "duplicate_group_id": "GRP_TIE",
+                "verification_status": "expert_verified",
+            },
+        ]
+        summary = calculate_field_metrics(predictions)
+        # Tie broken by higher confidence -> Early blight chosen -> Group is incorrect (ground truth is healthy)
+        self.assertEqual(summary.cluster_metrics["cluster_accuracy"], 0.0)
+        self.assertEqual(summary.cluster_metrics["aggregation_method"], "plurality_with_confidence_tie_breaking")
+
+
+class TestGateVerificationPolicy(unittest.TestCase):
+    """Phase 7: Gate verification policy and zero-denominator safety."""
+
+    def test_zero_denominator_far_frr_returns_none(self):
+        class MockService:
+            is_loaded = True
+            classes = ["non_leaf", "other_plant", "supported_leaf"]
+            def predict_proba(self, frame):
+                return {"non_leaf": 0.1, "other_plant": 0.1, "supported_leaf": 0.8}
+
+        evaluator = LeafGateEvaluator(leaf_gate_service=MockService())
+        # Empty dataset evaluation
+        results = evaluator.evaluate_dataset([])
+        gm = results["gate_metrics"]
+        # Rates with 0 support MUST be None, never 0.0
+        self.assertIsNone(gm["supported_leaves"]["false_rejection_rate"])
+        self.assertIsNone(gm["other_plant_species"]["false_acceptance_rate"])
+        self.assertIsNone(gm["non_leaf_objects"]["false_acceptance_rate"])
+        self.assertIsNone(gm["overall_ood_summary"]["combined_false_acceptance_rate"])
+
+        # Markdown summary must render N/A without crashing
+        md = evaluator.generate_markdown_summary(results)
+        self.assertIn("N/A (support=0)", md)
 
 
 if __name__ == "__main__":

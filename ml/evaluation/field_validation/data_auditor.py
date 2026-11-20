@@ -30,6 +30,11 @@ from .manifest_schema import (
     FieldSampleRecord,
     load_and_validate_manifest,
 )
+from .path_resolver import (
+    InvalidImageFileError,
+    PathSecurityError,
+    resolve_safe_image_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,9 +169,11 @@ class AuditReport:
     total_records: int = 0
     valid_records: int = 0
     invalid_records: int = 0
+    schema_errors: List[str] = field(default_factory=list)
     missing_files: List[Dict[str, str]] = field(default_factory=list)
     corrupt_images: List[Dict[str, str]] = field(default_factory=list)
     unsupported_format_images: List[Dict[str, str]] = field(default_factory=list)
+    path_traversal_errors: List[Dict[str, str]] = field(default_factory=list)
     exact_duplicates: List[Dict[str, Any]] = field(default_factory=list)
     near_duplicates: List[Dict[str, Any]] = field(default_factory=list)
     group_leaks: List[Dict[str, Any]] = field(default_factory=list)
@@ -184,9 +191,11 @@ class AuditReport:
     def is_clean(self) -> bool:
         """Returns True if no fatal data integrity or leakage issues were detected."""
         return (
-            len(self.missing_files) == 0
+            len(self.schema_errors) == 0
+            and len(self.missing_files) == 0
             and len(self.corrupt_images) == 0
             and len(self.unsupported_format_images) == 0
+            and len(self.path_traversal_errors) == 0
             and len(self.group_leaks) == 0
             and len(self.controlled_dataset_leaks) == 0
             and len(self.duplicate_group_inconsistencies) == 0
@@ -264,17 +273,23 @@ class DataQualityAuditor:
             raise FileNotFoundError(f"Manifest not found: {target_path}")
 
         records, schema_errors = load_and_validate_manifest(target_path)
-        return self.audit(records)
+        return self.audit(records, schema_errors=schema_errors)
 
     def audit(
         self,
         records: List[FieldSampleRecord],
         compute_perceptual_hashes: bool = True,
+        schema_errors: Optional[List[str]] = None,
     ) -> AuditReport:
         """
         Executes complete quality, integrity, and leakage audit across all records.
         """
-        report = AuditReport(total_records=len(records))
+        errs = list(schema_errors or [])
+        report = AuditReport(
+            total_records=len(records) + len(errs),
+            schema_errors=errs,
+            invalid_records=len(errs),
+        )
 
         sha_to_records: Dict[str, List[FieldSampleRecord]] = {}
         dhash_to_records: Dict[str, List[FieldSampleRecord]] = {}
@@ -297,39 +312,33 @@ class DataQualityAuditor:
                     group_to_records[grp_id] = []
                 group_to_records[grp_id].append(rec)
 
-            # Resolve image file with containment safeguards (Bug 6)
-            raw_path = Path(rec.file_path)
-            if raw_path.is_absolute():
-                target_path = raw_path.resolve()
-            else:
-                target_path = (self.dataset_root / raw_path).resolve()
-
-            # Enforce dataset_root containment
+            # Resolve image file safely using authoritative path resolver (Phase 2)
             try:
-                target_path.relative_to(self.dataset_root)
-            except ValueError:
+                target_path = resolve_safe_image_path(rec.file_path, self.dataset_root)
+            except PathSecurityError as sec_err:
+                report.invalid_records += 1
+                report.path_traversal_errors.append({
+                    "image_id": rec.image_id,
+                    "file_path": rec.file_path,
+                    "error": str(sec_err),
+                })
+                continue
+            except FileNotFoundError as fnf_err:
                 report.invalid_records += 1
                 report.missing_files.append({
                     "image_id": rec.image_id,
                     "file_path": rec.file_path,
-                    "error": f"Path containment violation: path '{rec.file_path}' resolves outside dataset_root '{self.dataset_root}'.",
+                    "error": str(fnf_err),
                 })
                 continue
-
-            # Enforce symlink safety: resolved target must remain within dataset_root
-            raw_loc = self.dataset_root / raw_path if not raw_path.is_absolute() else raw_path
-            if raw_loc.is_symlink():
-                resolved_sym = raw_loc.resolve()
-                try:
-                    resolved_sym.relative_to(self.dataset_root)
-                except ValueError:
-                    report.invalid_records += 1
-                    report.missing_files.append({
-                        "image_id": rec.image_id,
-                        "file_path": rec.file_path,
-                        "error": f"Symlink escape violation: symlink '{rec.file_path}' points outside dataset_root to '{resolved_sym}'.",
-                    })
-                    continue
+            except InvalidImageFileError as inv_err:
+                report.invalid_records += 1
+                report.corrupt_images.append({
+                    "image_id": rec.image_id,
+                    "file_path": rec.file_path,
+                    "error": str(inv_err),
+                })
+                continue
 
             img_report = audit_single_image(target_path)
 
@@ -473,6 +482,8 @@ class DataQualityAuditor:
         md.append("")
 
         md.append("## Integrity Issues Ledger")
+        md.append(f"- **Manifest Schema / Parsing Errors:** {len(report.schema_errors)}")
+        md.append(f"- **Path Traversal / Containment Violations:** {len(report.path_traversal_errors)}")
         md.append(f"- **Missing Image Files:** {len(report.missing_files)}")
         md.append(f"- **Corrupted / Unreadable Images:** {len(report.corrupt_images)}")
         md.append(f"- **Unsupported Format Images:** {len(report.unsupported_format_images)}")
@@ -482,6 +493,12 @@ class DataQualityAuditor:
         md.append(f"- **Controlled Baseline Leaks:** {len(report.controlled_dataset_leaks)}")
         md.append(f"- **Duplicate Group Metadata Inconsistencies:** {len(report.duplicate_group_inconsistencies)}")
         md.append("")
+
+        if report.schema_errors:
+            md.append("### [CRITICAL ALERT] Manifest Schema Validation Errors")
+            for err in report.schema_errors:
+                md.append(f"- {err}")
+            md.append("")
 
         if report.duplicate_group_inconsistencies:
             md.append("### [CRITICAL ALERT] Duplicate Group Metadata Inconsistencies")

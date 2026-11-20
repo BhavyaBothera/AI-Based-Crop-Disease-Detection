@@ -42,10 +42,21 @@ from .manifest_schema import (
     GATE_CATEGORY_NON_LEAF,
     GATE_CATEGORY_OTHER_PLANT,
     GATE_CATEGORY_SUPPORTED_LEAF,
+    UNVERIFIED_TIERS,
     VALID_GATE_CATEGORIES,
+    VERIFIED_TIERS,
 )
+from .path_resolver import resolve_safe_image_path
 
 logger = logging.getLogger(__name__)
+
+REQUIRED_SIDECAR_FIELDS = {"classes", "feature_backbone", "input"}
+EXPECTED_GATE_CLASSES = [GATE_CATEGORY_NON_LEAF, GATE_CATEGORY_OTHER_PLANT, GATE_CATEGORY_SUPPORTED_LEAF]
+
+
+class GateIntegrityError(RuntimeError):
+    """Raised when gate model, sidecar config, or output dimensionality fails integrity checks."""
+    pass
 
 
 @dataclass
@@ -55,6 +66,7 @@ class GateSampleRecord:
     ground_truth_category: str  # 'supported_leaf', 'other_plant', 'non_leaf'
     challenge_type: str = "standard"  # 'foliage_clutter', 'partial_leaf', 'multi_leaf', 'blur', 'background_only', 'standard'
     crop: Optional[str] = None
+    verification_status: str = "expert_verified"
     notes: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
@@ -105,9 +117,12 @@ class LeafGateEvaluator:
         gate_model_path: Optional[Union[Path, str]] = None,
         leaf_gate_service: Optional[LeafGateService] = None,
     ):
+        self.fallback_reason: Optional[str] = None
         if leaf_gate_service is not None:
             self.service = leaf_gate_service
             self.model_path = getattr(leaf_gate_service, "_model_path", LEAF_GATE_MODEL_PATH)
+            if not getattr(leaf_gate_service, "is_loaded", False):
+                self.fallback_reason = getattr(leaf_gate_service, "load_error", "Mock or uninitialized service")
         else:
             model_p = Path(gate_model_path or LEAF_GATE_MODEL_PATH).resolve()
             self.model_path = model_p
@@ -116,12 +131,15 @@ class LeafGateEvaluator:
                 try:
                     self.service.load_model(model_p)
                 except Exception as exc:
-                    logger.warning("Failed to load gate model at %s: %s. Using deterministic fallback.", model_p, exc)
+                    self.fallback_reason = f"Failed to load gate model at {model_p}: {exc}"
+                    logger.warning("%s Using deterministic fallback.", self.fallback_reason)
             else:
-                logger.warning("Gate model file not found at %s. Using deterministic fallback.", model_p)
+                self.fallback_reason = f"Gate model file not found at {model_p}."
+                logger.warning("%s Using deterministic fallback.", self.fallback_reason)
 
         self.is_trained_model = bool(getattr(self.service, "is_loaded", False))
         self.gate_backend = "trained_model" if self.is_trained_model else "deterministic_fallback"
+        self.evaluation_type = "trained_model_evaluation" if self.is_trained_model else "fallback_evaluation"
         self.model_sha256 = (
             compute_file_sha256(self.model_path) if (self.is_trained_model and self.model_path.is_file()) else "N/A"
         )
@@ -129,9 +147,10 @@ class LeafGateEvaluator:
 
     def _validate_sidecar_and_model(self) -> Dict[str, Any]:
         """
-        Validates sidecar class mappings and model output dimensions.
+        Validates sidecar class mappings, required schema fields, and model output dimensions.
+        Fails closed by raising GateIntegrityError if sidecar exists but is invalid or corrupted.
         """
-        service_classes = list(getattr(self.service, "classes", [GATE_CATEGORY_NON_LEAF, GATE_CATEGORY_OTHER_PLANT, GATE_CATEGORY_SUPPORTED_LEAF]))
+        service_classes = list(getattr(self.service, "classes", EXPECTED_GATE_CLASSES))
         validation_info: Dict[str, Any] = {
             "sidecar_present": False,
             "classes": service_classes,
@@ -140,7 +159,7 @@ class LeafGateEvaluator:
             "errors": [],
         }
         if not self.is_trained_model:
-            validation_info["notice"] = "Deterministic fallback active; no trained model loaded."
+            validation_info["notice"] = f"Deterministic fallback active: {self.fallback_reason or 'no trained model loaded'}."
             return validation_info
 
         sidecar_path = self.model_path.parent / "gate_model_config.json"
@@ -148,21 +167,44 @@ class LeafGateEvaluator:
             validation_info["sidecar_present"] = True
             try:
                 cfg = json.loads(sidecar_path.read_text(encoding="utf-8"))
-                sidecar_classes = cfg.get("classes", [])
-                expected_classes = [GATE_CATEGORY_NON_LEAF, GATE_CATEGORY_OTHER_PLANT, GATE_CATEGORY_SUPPORTED_LEAF]
-                if sidecar_classes != expected_classes:
-                    err = f"Sidecar classes {sidecar_classes} do not match expected {expected_classes}"
-                    validation_info["errors"].append(err)
-                    validation_info["is_valid"] = False
-                    logger.warning(err)
-                else:
-                    validation_info["sidecar_classes"] = sidecar_classes
             except Exception as exc:
-                err = f"Failed to parse sidecar config: {exc}"
+                err = f"Failed to parse sidecar config at {sidecar_path}: {exc}"
                 validation_info["errors"].append(err)
                 validation_info["is_valid"] = False
-                logger.warning(err)
+                raise GateIntegrityError(err) from exc
+
+            if not isinstance(cfg, dict):
+                err = f"Sidecar config at {sidecar_path} must be a JSON object, got {type(cfg).__name__}."
+                validation_info["errors"].append(err)
+                validation_info["is_valid"] = False
+                raise GateIntegrityError(err)
+
+            missing_fields = REQUIRED_SIDECAR_FIELDS - set(cfg.keys())
+            if missing_fields:
+                err = f"Sidecar config at {sidecar_path} missing required fields: {sorted(missing_fields)}."
+                validation_info["errors"].append(err)
+                validation_info["is_valid"] = False
+                raise GateIntegrityError(err)
+
+            sidecar_classes = cfg.get("classes", [])
+            if sidecar_classes != EXPECTED_GATE_CLASSES:
+                err = (
+                    f"Sidecar classes {sidecar_classes} do not match expected {EXPECTED_GATE_CLASSES} "
+                    f"(exact ordering required)."
+                )
+                validation_info["errors"].append(err)
+                validation_info["is_valid"] = False
+                raise GateIntegrityError(err)
+
+            validation_info["sidecar_classes"] = sidecar_classes
+            validation_info["feature_backbone"] = cfg.get("feature_backbone")
+            validation_info["input"] = cfg.get("input")
         else:
+            if self.model_path.is_file():
+                err = f"Trained gate model file exists at {self.model_path} but sidecar config is missing at {sidecar_path}."
+                validation_info["errors"].append(err)
+                validation_info["is_valid"] = False
+                raise GateIntegrityError(err)
             validation_info["notice"] = "No sidecar config found; using default classes."
 
         if getattr(self.service, "_model", None) is not None:
@@ -170,11 +212,13 @@ class LeafGateEvaluator:
                 output_shape = getattr(self.service._model, "output_shape", None)
                 if output_shape is not None:
                     validation_info["model_output_shape"] = list(output_shape)
-                    if output_shape[-1] != len(self.service.classes):
-                        err = f"Model output shape {output_shape} last dim != num classes {len(self.service.classes)}"
+                    if output_shape[-1] != len(EXPECTED_GATE_CLASSES):
+                        err = f"Model output shape {output_shape} last dim != num expected classes {len(EXPECTED_GATE_CLASSES)}."
                         validation_info["errors"].append(err)
                         validation_info["is_valid"] = False
-                        logger.error(err)
+                        raise GateIntegrityError(err)
+            except GateIntegrityError:
+                raise
             except Exception as exc:
                 logger.debug("Could not inspect model.output_shape: %s", exc)
 
@@ -195,12 +239,11 @@ class LeafGateEvaluator:
                 f"Must be one of {sorted(VALID_GATE_CATEGORIES)}"
             )
 
-        img_p = Path(sample.file_path)
-        if not img_p.is_absolute() and dataset_root:
-            img_p = (dataset_root / img_p).resolve()
-
-        if not img_p.is_file():
-            raise FileNotFoundError(f"Image not found: {img_p}")
+        img_p = resolve_safe_image_path(
+            sample.file_path,
+            dataset_root=dataset_root,
+            allow_absolute=(dataset_root is None),
+        )
 
         # Decodes image to raw 224x224 RGB array in [0.0, 255.0]
         frame_4d = preprocess_field_image(img_p, enforce_level_a=False)
@@ -261,124 +304,161 @@ class LeafGateEvaluator:
         self,
         samples: List[GateSampleRecord],
         dataset_root: Optional[Union[Path, str]] = None,
+        exclude_unverified: bool = True,
     ) -> Dict[str, Any]:
         """
         Evaluates a set of gate sample records and returns aggregated metrics.
+        Separates verified samples from unverified/suspected annotations (Phase 7).
+        Calculates valid rates with support counts; denominators with 0 support return None (not 0.0).
         """
         root_path = Path(dataset_root).resolve() if dataset_root else None
-        results: List[GatePredictionResult] = []
-        errors: List[Dict[str, str]] = []
 
-        for sample in samples:
-            try:
-                res = self.evaluate_sample(sample, dataset_root=root_path)
-                results.append(res)
-            except Exception as exc:
-                errors.append({
-                    "sample_id": sample.sample_id,
-                    "file_path": sample.file_path,
-                    "error": str(exc),
-                })
+        # Partition samples by verification status
+        verified_samples = [s for s in samples if getattr(s, "verification_status", "expert_verified") in VERIFIED_TIERS]
+        unverified_samples = [s for s in samples if getattr(s, "verification_status", "expert_verified") not in VERIFIED_TIERS]
 
-        # Calculate metrics
-        total = len(results)
-        supported_samples = [r for r in results if r.ground_truth_category == "supported_leaf"]
-        other_plant_samples = [r for r in results if r.ground_truth_category == "other_plant"]
-        non_leaf_samples = [r for r in results if r.ground_truth_category == "non_leaf"]
+        unverified_breakdown: Dict[str, int] = {}
+        for s in unverified_samples:
+            st = getattr(s, "verification_status", "unknown")
+            unverified_breakdown[st] = unverified_breakdown.get(st, 0) + 1
 
-        # Supported leaf metrics
-        n_supp = len(supported_samples)
-        supp_accepted = sum(1 for r in supported_samples if r.decision == ACCEPTED)
-        supp_abstained = sum(1 for r in supported_samples if r.decision == ABSTAINED)
-        supp_rejected = sum(1 for r in supported_samples if r.decision == REJECTED)
-        frr = (supp_abstained + supp_rejected) / n_supp if n_supp > 0 else 0.0
-        strict_frr = supp_rejected / n_supp if n_supp > 0 else 0.0
+        def _evaluate_batch(batch: List[GateSampleRecord]) -> Tuple[List[GatePredictionResult], List[Dict[str, str]], Dict[str, Any]]:
+            batch_results: List[GatePredictionResult] = []
+            batch_errors: List[Dict[str, str]] = []
 
-        # Other plant metrics
-        n_other = len(other_plant_samples)
-        other_accepted = sum(1 for r in other_plant_samples if r.decision == ACCEPTED)
-        other_abstained = sum(1 for r in other_plant_samples if r.decision == ABSTAINED)
-        other_rejected = sum(1 for r in other_plant_samples if r.decision == REJECTED)
-        other_far = other_accepted / n_other if n_other > 0 else 0.0
+            for sample in batch:
+                try:
+                    res = self.evaluate_sample(sample, dataset_root=root_path)
+                    batch_results.append(res)
+                except Exception as exc:
+                    batch_errors.append({
+                        "sample_id": sample.sample_id,
+                        "file_path": sample.file_path,
+                        "error": str(exc),
+                    })
 
-        # Non-leaf metrics
-        n_non_leaf = len(non_leaf_samples)
-        non_leaf_accepted = sum(1 for r in non_leaf_samples if r.decision == ACCEPTED)
-        non_leaf_abstained = sum(1 for r in non_leaf_samples if r.decision == ABSTAINED)
-        non_leaf_rejected = sum(1 for r in non_leaf_samples if r.decision == REJECTED)
-        non_leaf_far = non_leaf_accepted / n_non_leaf if n_non_leaf > 0 else 0.0
+            supported_samples = [r for r in batch_results if r.ground_truth_category == "supported_leaf"]
+            other_plant_samples = [r for r in batch_results if r.ground_truth_category == "other_plant"]
+            non_leaf_samples = [r for r in batch_results if r.ground_truth_category == "non_leaf"]
 
-        # Combined OOD (other_plant + non_leaf)
-        n_ood = n_other + n_non_leaf
-        total_ood_accepted = other_accepted + non_leaf_accepted
-        combined_far = total_ood_accepted / n_ood if n_ood > 0 else 0.0
+            # Supported leaf metrics
+            n_supp = len(supported_samples)
+            supp_accepted = sum(1 for r in supported_samples if r.decision == ACCEPTED)
+            supp_abstained = sum(1 for r in supported_samples if r.decision == ABSTAINED)
+            supp_rejected = sum(1 for r in supported_samples if r.decision == REJECTED)
+            acceptance_rate = round(supp_accepted / n_supp, 4) if n_supp > 0 else None
+            frr = round((supp_abstained + supp_rejected) / n_supp, 4) if n_supp > 0 else None
+            strict_frr = round(supp_rejected / n_supp, 4) if n_supp > 0 else None
 
-        # Breakdown by challenge condition
-        challenges: Dict[str, Dict[str, Any]] = {}
-        for r in results:
-            c = r.challenge_type
-            if c not in challenges:
-                challenges[c] = {"total": 0, "accepted": 0, "abstained": 0, "rejected": 0}
-            challenges[c]["total"] += 1
-            challenges[c][r.decision] += 1
+            # Other plant metrics
+            n_other = len(other_plant_samples)
+            other_accepted = sum(1 for r in other_plant_samples if r.decision == ACCEPTED)
+            other_abstained = sum(1 for r in other_plant_samples if r.decision == ABSTAINED)
+            other_rejected = sum(1 for r in other_plant_samples if r.decision == REJECTED)
+            other_rejection_rate = round(other_rejected / n_other, 4) if n_other > 0 else None
+            other_far = round(other_accepted / n_other, 4) if n_other > 0 else None
 
-        for c, counts in challenges.items():
-            tot = counts["total"]
-            counts["acceptance_rate"] = round(counts["accepted"] / tot, 4) if tot else 0.0
+            # Non-leaf metrics
+            n_non_leaf = len(non_leaf_samples)
+            non_leaf_accepted = sum(1 for r in non_leaf_samples if r.decision == ACCEPTED)
+            non_leaf_abstained = sum(1 for r in non_leaf_samples if r.decision == ABSTAINED)
+            non_leaf_rejected = sum(1 for r in non_leaf_samples if r.decision == REJECTED)
+            non_leaf_rejection_rate = round(non_leaf_rejected / n_non_leaf, 4) if n_non_leaf > 0 else None
+            non_leaf_far = round(non_leaf_accepted / n_non_leaf, 4) if n_non_leaf > 0 else None
 
-        metadata: Dict[str, Any] = {
-            "evaluation_timestamp": datetime.now(timezone.utc).isoformat(),
-            "gate_model_path": str(self.model_path),
-            "gate_model_sha256": self.model_sha256,
-            "is_trained_model": self.is_trained_model,
-            "gate_backend": self.gate_backend,
-            "deterministic_fallback_active": not self.is_trained_model,
-            "sidecar_validation": self.sidecar_validation,
-            "total_samples": len(samples),
-            "evaluated_samples": total,
-            "failed_samples": len(errors),
-        }
-        if not self.is_trained_model:
-            metadata["warning"] = "EVALUATION_PERFORMED_ON_DETERMINISTIC_FALLBACK_NOT_TRAINED_GATE_MODEL"
+            # Combined OOD (other_plant + non_leaf)
+            n_ood = n_other + n_non_leaf
+            total_ood_accepted = other_accepted + non_leaf_accepted
+            combined_far = round(total_ood_accepted / n_ood, 4) if n_ood > 0 else None
 
-        summary = {
-            "metadata": metadata,
-            "gate_metrics": {
+            # Breakdown by challenge condition
+            challenges: Dict[str, Dict[str, Any]] = {}
+            for r in batch_results:
+                c = r.challenge_type
+                if c not in challenges:
+                    challenges[c] = {"total": 0, "accepted": 0, "abstained": 0, "rejected": 0}
+                challenges[c]["total"] += 1
+                challenges[c][r.decision] += 1
+
+            for c, counts in challenges.items():
+                tot = counts["total"]
+                counts["acceptance_rate"] = round(counts["accepted"] / tot, 4) if tot else None
+
+            metrics_dict = {
                 "supported_leaves": {
                     "support": n_supp,
                     "accepted": supp_accepted,
                     "abstained": supp_abstained,
                     "rejected": supp_rejected,
-                    "acceptance_rate": round(supp_accepted / n_supp, 4) if n_supp else 0.0,
-                    "false_rejection_rate": round(frr, 4),
-                    "strict_false_rejection_rate": round(strict_frr, 4),
+                    "acceptance_rate": acceptance_rate,
+                    "false_rejection_rate": frr,
+                    "strict_false_rejection_rate": strict_frr,
                 },
                 "other_plant_species": {
                     "support": n_other,
                     "accepted": other_accepted,
                     "abstained": other_abstained,
                     "rejected": other_rejected,
-                    "rejection_rate": round(other_rejected / n_other, 4) if n_other else 0.0,
-                    "false_acceptance_rate": round(other_far, 4),
+                    "rejection_rate": other_rejection_rate,
+                    "false_acceptance_rate": other_far,
                 },
                 "non_leaf_objects": {
                     "support": n_non_leaf,
                     "accepted": non_leaf_accepted,
                     "abstained": non_leaf_abstained,
                     "rejected": non_leaf_rejected,
-                    "rejection_rate": round(non_leaf_rejected / n_non_leaf, 4) if n_non_leaf else 0.0,
-                    "false_acceptance_rate": round(non_leaf_far, 4),
+                    "rejection_rate": non_leaf_rejection_rate,
+                    "false_acceptance_rate": non_leaf_far,
                 },
                 "overall_ood_summary": {
                     "total_unsupported_samples": n_ood,
                     "total_falsely_accepted": total_ood_accepted,
-                    "combined_false_acceptance_rate": round(combined_far, 4),
+                    "combined_false_acceptance_rate": combined_far,
                 },
                 "challenge_conditions": challenges,
-            },
-            "errors": errors,
-            "sample_results": [r.to_dict() for r in results],
+            }
+            return batch_results, batch_errors, metrics_dict
+
+        # Evaluate primary and exploratory populations
+        primary_batch = verified_samples if exclude_unverified else samples
+        primary_results, primary_errors, primary_metrics = _evaluate_batch(primary_batch)
+
+        exploratory_metrics = None
+        if exclude_unverified and unverified_samples:
+            _, _, exploratory_metrics = _evaluate_batch(unverified_samples)
+
+        all_results = primary_results
+        all_errors = primary_errors
+
+        metadata: Dict[str, Any] = {
+            "evaluation_timestamp": datetime.now(timezone.utc).isoformat(),
+            "evaluation_type": self.evaluation_type,
+            "gate_model_path": str(self.model_path),
+            "gate_model_sha256": self.model_sha256,
+            "is_trained_model": self.is_trained_model,
+            "gate_backend": self.gate_backend,
+            "fallback_reason": self.fallback_reason,
+            "deterministic_fallback_active": not self.is_trained_model,
+            "sidecar_validation": self.sidecar_validation,
+            "total_samples": len(samples),
+            "verified_samples_count": len(verified_samples),
+            "unverified_samples_count": len(unverified_samples),
+            "unverified_breakdown": unverified_breakdown,
+            "exclude_unverified_from_primary": exclude_unverified,
+            "evaluated_samples": len(all_results),
+            "failed_samples": len(all_errors),
         }
+        if not self.is_trained_model:
+            metadata["warning"] = "EVALUATION_PERFORMED_ON_DETERMINISTIC_FALLBACK_NOT_TRAINED_GATE_MODEL"
+
+        summary = {
+            "metadata": metadata,
+            "gate_metrics": primary_metrics,
+            "errors": all_errors,
+            "sample_results": [r.to_dict() for r in all_results],
+        }
+        if exploratory_metrics:
+            summary["exploratory_metrics_unverified"] = exploratory_metrics
 
         return summary
 
@@ -418,13 +498,25 @@ class LeafGateEvaluator:
         is_trained = meta.get("is_trained_model", False)
         gate_backend = meta.get("gate_backend", "trained_model" if is_trained else "deterministic_fallback")
 
+        def _fmt(rate: Optional[float], label: str) -> str:
+            if rate is None:
+                return f"**{label}: N/A (support=0)**"
+            return f"**{label}: {rate * 100:.2f}%**"
+
         md = []
         md.append("# Leaf Acceptance Gate Field Evaluation Summary")
         md.append(f"**Evaluation Timestamp:** {meta['evaluation_timestamp']}")
+        md.append(f"**Evaluation Type:** `{meta.get('evaluation_type', 'trained_model_evaluation')}`")
         md.append(f"**Gate Backend:** `{gate_backend}`")
         md.append(f"**Trained Model Evaluated:** `{'YES' if is_trained else 'NO (Deterministic Heuristic Fallback)'}`")
+        if meta.get("fallback_reason"):
+            md.append(f"**Fallback Reason:** `{meta['fallback_reason']}`")
         md.append(f"**Gate Checkpoint SHA-256:** `{meta['gate_model_sha256']}`")
-        md.append(f"**Total Samples:** {meta['total_samples']} (Evaluated: {meta['evaluated_samples']}, Failed: {meta['failed_samples']})")
+        md.append(
+            f"**Total Samples:** {meta['total_samples']} (Verified: {meta.get('verified_samples_count', 'N/A')}, "
+            f"Unverified: {meta.get('unverified_samples_count', 'N/A')}, "
+            f"Evaluated: {meta['evaluated_samples']}, Failed: {meta['failed_samples']})"
+        )
         md.append("")
 
         if not is_trained:
@@ -440,20 +532,39 @@ class LeafGateEvaluator:
         md.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
         md.append(
             f"| **Supported Crop Leaves** | {supp['support']} | {supp['accepted']} | {supp['abstained']} | "
-            f"{supp['rejected']} | **FRR: {supp['false_rejection_rate'] * 100:.2f}%** |"
+            f"{supp['rejected']} | {_fmt(supp['false_rejection_rate'], 'FRR')} |"
         )
         md.append(
             f"| **Other Plant Species** | {other['support']} | {other['accepted']} | {other['abstained']} | "
-            f"{other['rejected']} | **FAR: {other['false_acceptance_rate'] * 100:.2f}%** |"
+            f"{other['rejected']} | {_fmt(other['false_acceptance_rate'], 'FAR')} |"
         )
         md.append(
             f"| **Non-Leaf Objects / BG** | {non_leaf['support']} | {non_leaf['accepted']} | {non_leaf['abstained']} | "
-            f"{non_leaf['rejected']} | **FAR: {non_leaf['false_acceptance_rate'] * 100:.2f}%** |"
+            f"{non_leaf['rejected']} | {_fmt(non_leaf['false_acceptance_rate'], 'FAR')} |"
         )
         md.append(
             f"| **Combined OOD Pool** | {ood['total_unsupported_samples']} | {ood['total_falsely_accepted']} | - | "
-            f"- | **Combined FAR: {ood['combined_false_acceptance_rate'] * 100:.2f}%** |"
+            f"- | {_fmt(ood['combined_false_acceptance_rate'], 'Combined FAR')} |"
         )
+        md.append("")
+
+        md.append("## Challenge Conditions Robustness")
+        md.append("| Challenge Type | Support | Accepted | Abstained | Rejected | Accept Rate |")
+        md.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
+        for cname, cdata in gm.get("challenge_conditions", {}).items():
+            acc_rate = cdata.get("acceptance_rate")
+            rate_str = f"{acc_rate * 100:.2f}%" if acc_rate is not None else "N/A"
+            md.append(
+                f"| `{cname}` | {cdata['total']} | {cdata['accepted']} | {cdata['abstained']} | "
+                f"{cdata['rejected']} | {rate_str} |"
+            )
+        md.append("")
+
+        md.append("> [!IMPORTANT]")
+        md.append("> Input gate acceptance indicates only that sufficient plant foliage was verified.")
+        md.append("> It does **not** constitute proof that downstream disease classification is correct or reliable.")
+
+        return "\n".join(md)
         md.append("")
 
         md.append("## Challenge Conditions Robustness")

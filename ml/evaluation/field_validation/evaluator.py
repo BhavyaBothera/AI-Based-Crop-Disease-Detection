@@ -24,7 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -49,10 +49,105 @@ from .manifest_schema import (
     load_and_validate_manifest,
 )
 from .metrics import calculate_field_metrics
+from .path_resolver import (
+    InvalidImageFileError,
+    PathSecurityError,
+    resolve_safe_image_path,
+)
 
 logger = logging.getLogger(__name__)
 
 PREPROCESSING_VERSION = "2.1-authoritative-inference-parity"
+
+
+class ModelOutputValidationError(ValueError):
+    """Raised when model predictions violate mathematical or structural probability distribution bounds."""
+    pass
+
+
+def validate_model_output(
+    scores: Any,
+    expected_classes: int = 15,
+    tolerance: float = 0.01,
+) -> np.ndarray:
+    """
+    Validates that raw disease model output is a valid probability distribution (Phase 5).
+    Requirements:
+    - 1D shape (expected_classes,) or 2D (1, expected_classes)
+    - Numeric floating-point dtype
+    - Finite values (no NaN, +Inf, -Inf)
+    - Valid probability values in [-tolerance, 1.0 + tolerance]
+    - Sum is approximately 1.0 within tolerance (1e-2)
+    Raises ModelOutputValidationError on failure.
+    """
+    if scores is None:
+        raise ModelOutputValidationError("Model output is None.")
+
+    try:
+        arr = np.asarray(scores)
+    except Exception as exc:
+        raise ModelOutputValidationError(f"Cannot convert model output to numpy array: {exc}") from exc
+
+    if not np.issubdtype(arr.dtype, np.floating) and not np.issubdtype(arr.dtype, np.integer):
+        raise ModelOutputValidationError(f"Model output dtype must be numeric, got {arr.dtype}.")
+
+    arr = arr.astype(np.float64)
+
+    # Check shape: allow (1, expected_classes) or (expected_classes,)
+    if arr.ndim == 2:
+        if arr.shape[0] != 1 or arr.shape[1] != expected_classes:
+            raise ModelOutputValidationError(
+                f"Model output shape {arr.shape} invalid. Expected (1, {expected_classes}) or ({expected_classes},)."
+            )
+        arr = arr[0]
+    elif arr.ndim == 1:
+        if arr.shape[0] != expected_classes:
+            raise ModelOutputValidationError(
+                f"Model output shape {arr.shape} invalid. Expected ({expected_classes},)."
+            )
+    else:
+        raise ModelOutputValidationError(
+            f"Model output has invalid dimension {arr.ndim}. Expected 1D or 2D batch of size 1."
+        )
+
+    # Check finite
+    if not np.all(np.isfinite(arr)):
+        nan_count = int(np.sum(np.isnan(arr)))
+        inf_count = int(np.sum(np.isinf(arr)))
+        raise ModelOutputValidationError(
+            f"Model output contains non-finite values (NaN: {nan_count}, Inf: {inf_count})."
+        )
+
+    # Check probability range [-tolerance, 1.0 + tolerance]
+    if np.any(arr < -tolerance) or np.any(arr > 1.0 + tolerance):
+        min_val = float(np.min(arr))
+        max_val = float(np.max(arr))
+        raise ModelOutputValidationError(
+            f"Model output probabilities out of bounds [0.0, 1.0]: min={min_val}, max={max_val}."
+        )
+
+    # Check sum
+    prob_sum = float(np.sum(arr))
+    if abs(prob_sum - 1.0) > tolerance:
+        raise ModelOutputValidationError(
+            f"Model output probabilities must sum to 1.0 within tolerance {tolerance}: sum={prob_sum}."
+        )
+
+    return arr
+
+
+@dataclass
+class InferenceAccounting:
+    total_records: int
+    valid_records: int
+    inference_attempts: int
+    successful_inferences: int
+    failed_inferences: int
+    failure_rate: float
+    failure_adjusted_accuracy: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
@@ -218,6 +313,7 @@ class FieldEvaluator:
     def predict_single(self, preprocessed_frame: np.ndarray) -> Tuple[str, int, List[TopPrediction], Dict[str, float]]:
         """
         Runs inference on a single preprocessed frame of shape (1, 224, 224, 3).
+        Validates model output probability bounds (Phase 5).
         Returns:
             (top_1_class_name, top_1_class_id, top_3_candidates, raw_softmax_scores_dict)
         """
@@ -225,7 +321,7 @@ class FieldEvaluator:
             raise RuntimeError("Model is not loaded.")
 
         raw_output = self._model.predict(preprocessed_frame, verbose=0)
-        scores = np.asarray(raw_output[0], dtype=np.float64)
+        scores = validate_model_output(raw_output, expected_classes=len(TARGET_CLASS_MAPPING), tolerance=0.01)
 
         # Map to class IDs
         # id to class name
@@ -266,6 +362,8 @@ class FieldEvaluator:
         Executes end-to-end evaluation on the records within a field manifest.
         Separates disease classification from gate-only tasks (Bug 5).
         Excludes visually suspected / ambiguous samples from primary metrics by default (Bug 4).
+        Enforces safe image path resolution (Phase 2) and model output validation (Phase 5).
+        Tracks full failed inference accounting (Phase 6.4).
         """
         manifest_path = Path(manifest_path).resolve()
         if dataset_root is None:
@@ -297,18 +395,17 @@ class FieldEvaluator:
         timestamp = datetime.now(timezone.utc).isoformat()
 
         for idx, rec in enumerate(disease_records, start=1):
-            # Resolve image file path
-            img_path = Path(rec.file_path)
-            if not img_path.is_absolute():
-                img_path = (dataset_root / img_path).resolve()
-
-            if not img_path.is_file():
+            # Resolve image file path safely with directory traversal protection (Phase 2)
+            try:
+                img_path = resolve_safe_image_path(rec.file_path, dataset_root=dataset_root)
+            except Exception as exc:
+                logger.error("Path resolution failed for image_id %s: %s", rec.image_id, exc)
                 error_records.append(
                     EvaluationErrorRecord(
                         image_id=rec.image_id,
-                        file_path=str(img_path),
-                        error_type="FileNotFoundError",
-                        error_message=f"File not found on disk: {img_path}",
+                        file_path=rec.file_path,
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
                     )
                 )
                 continue
@@ -356,6 +453,27 @@ class FieldEvaluator:
                     )
                 )
 
+        total_manifest_records = len(records)
+        disease_task_records = len(disease_records)
+        successful_inferences = len(evaluation_records)
+        failed_inferences = len(error_records)
+        inference_attempts = disease_task_records
+        failure_rate = (failed_inferences / inference_attempts) if inference_attempts > 0 else 0.0
+        successful_correct = sum(1 for r in evaluation_records if r.is_correct)
+        failure_adjusted_accuracy = (successful_correct / inference_attempts) if inference_attempts > 0 else 0.0
+
+        accounting = InferenceAccounting(
+            total_records=total_manifest_records,
+            valid_records=disease_task_records,
+            inference_attempts=inference_attempts,
+            successful_inferences=successful_inferences,
+            failed_inferences=failed_inferences,
+            failure_rate=round(failure_rate, 4),
+            failure_adjusted_accuracy=round(failure_adjusted_accuracy, 4),
+        )
+
+        formal_passed = (len(error_records) == 0 and len(validation_errors) == 0)
+
         # Convert to dictionaries for metrics calculation
         eval_dicts = [r.to_dict() for r in evaluation_records]
 
@@ -363,12 +481,14 @@ class FieldEvaluator:
         summary = calculate_field_metrics(
             eval_dicts,
             exclude_unverified=exclude_unverified_from_primary,
+            inference_accounting=accounting.to_dict(),
         )
 
         # Also calculate exploratory metrics on full evaluated set (Bug 4)
         exploratory_summary = calculate_field_metrics(
             eval_dicts,
             exclude_unverified=False,
+            inference_accounting=accounting.to_dict(),
         )
 
         run_output = {
@@ -380,15 +500,17 @@ class FieldEvaluator:
                 "model_path": str(self.model_path),
                 "model_sha256": self.model_sha256,
                 "preprocessing_version": PREPROCESSING_VERSION,
-                "total_manifest_records": len(records),
-                "disease_task_records": len(disease_records),
+                "total_manifest_records": total_manifest_records,
+                "disease_task_records": disease_task_records,
                 "gate_only_records_bypassed": len(gate_only_records),
-                "successfully_evaluated": len(evaluation_records),
-                "failed_inferences": len(error_records),
-                "inference_error_rate": (
-                    len(error_records) / len(disease_records) if disease_records else 0.0
-                ),
+                "successfully_evaluated": successful_inferences,
+                "failed_inferences": failed_inferences,
+                "inference_error_rate": round(failure_rate, 4),
+                "failure_adjusted_accuracy": round(failure_adjusted_accuracy, 4),
+                "formal_evaluation_passed": formal_passed,
+                "evaluation_status": "PASSED" if formal_passed else "FAILED_INTEGRITY_VIOLATION",
                 "exclude_unverified_from_primary": exclude_unverified_from_primary,
+                "inference_accounting": accounting.to_dict(),
             },
             "metrics": summary.to_dict(),
             "exploratory_metrics": exploratory_summary.to_dict(),
@@ -448,7 +570,14 @@ class FieldEvaluator:
         md.append("## Overall Metrics (95% Confidence Intervals)")
         md.append(f"- **Top-1 Accuracy:** {metrics['accuracy'] * 100:.2f}% (95% CI: [{metrics['accuracy_ci_95'][0] * 100:.2f}%, {metrics['accuracy_ci_95'][1] * 100:.2f}%])")
         md.append(f"- **Top-3 Accuracy:** {metrics['top_3_accuracy'] * 100:.2f}% (95% CI: [{metrics['top_3_ci_95'][0] * 100:.2f}%, {metrics['top_3_ci_95'][1] * 100:.2f}%])")
-        md.append(f"- **Macro-F1 Score:** {metrics['macro_f1']:.4f} (95% CI: [{metrics['macro_f1_ci_95'][0]:.4f}, {metrics['macro_f1_ci_95'][1]:.4f}])")
+        if metrics.get("macro_f1_ci_95") is not None:
+            f1_ci_str = f"[{metrics['macro_f1_ci_95'][0]:.4f}, {metrics['macro_f1_ci_95'][1]:.4f}]"
+        else:
+            reason = metrics.get("macro_f1_ci_reason", "insufficient clusters")
+            f1_ci_str = f"N/A ({reason})"
+        md.append(f"- **Macro-F1 Score (Primary/Observed):** {metrics['macro_f1']:.4f} (95% CI: {f1_ci_str})")
+        if "fixed_macro_f1" in metrics:
+            md.append(f"- **Fixed Macro-F1 (All 15 classes):** {metrics['fixed_macro_f1']:.4f}")
         md.append(f"- **Macro Precision:** {metrics['macro_precision']:.4f}")
         md.append(f"- **Macro Recall:** {metrics['macro_recall']:.4f}")
         md.append("")
