@@ -22,6 +22,9 @@ Usage:
 from __future__ import annotations
 
 import csv
+import io
+import json
+import math
 import shutil
 import tempfile
 import unittest
@@ -32,6 +35,7 @@ import numpy as np
 from PIL import Image
 
 from backend.app.services.inference import TARGET_CLASS_MAPPING as BACKEND_CLASS_MAPPING
+from backend.app.services.inference import preprocess_image as prod_preprocess_image
 from ml.evaluation.field_validation.data_auditor import (
     DataQualityAuditor,
 )
@@ -44,12 +48,23 @@ from ml.evaluation.field_validation.gate_evaluator import (
 )
 from ml.evaluation.field_validation.manifest_schema import (
     CROP_TO_CLASSES,
+    GATE_CATEGORY_NON_LEAF,
+    GATE_CATEGORY_OTHER_PLANT,
+    GATE_CATEGORY_SUPPORTED_LEAF,
     TARGET_CLASS_MAPPING,
+    VALID_GATE_CATEGORIES,
+    FieldSampleRecord,
+    ManifestValidationError,
     load_and_validate_manifest,
+    map_ground_truth_to_gate_category,
 )
 from ml.evaluation.field_validation.metrics import (
     calculate_field_metrics,
     wilson_score_interval,
+)
+from ml.evaluation.field_validation.runner import (
+    generate_baseline_comparison,
+    parse_controlled_baseline,
 )
 
 
@@ -322,14 +337,14 @@ class TestPreprocessingParity(unittest.TestCase):
         img = Image.new("RGB", (250, 250), color=(255, 255, 255))
         with self.assertRaises(ValueError) as ctx:
             preprocess_field_image(img, enforce_level_a=True)
-        self.assertIn("uniform canvas", str(ctx.exception).lower())
+        self.assertTrue("canvas" in str(ctx.exception).lower() or "blank" in str(ctx.exception).lower())
 
     def test_undersized_image_rejection(self):
         # Below 64x64 minimum floor
         img = Image.new("RGB", (50, 50), color=(100, 150, 50))
         with self.assertRaises(ValueError) as ctx:
             preprocess_field_image(img, enforce_level_a=True)
-        self.assertIn("below minimum floor", str(ctx.exception).lower())
+        self.assertTrue("small" in str(ctx.exception).lower() or "resolution" in str(ctx.exception).lower())
 
 
 class TestMetricCalculations(unittest.TestCase):
@@ -436,6 +451,476 @@ class TestLeafGateEvaluator(unittest.TestCase):
             self.assertEqual(gm["non_leaf_objects"]["false_acceptance_rate"], 1.0)
         finally:
             shutil.rmtree(test_dir)
+
+
+class TestGateGroundTruthMapping(unittest.TestCase):
+    """Bug 1 Regression Tests: Gate Ground-Truth Labels Mapping."""
+
+    def test_supported_leaf_crops_mapping(self):
+        # Supported crop leaves must map to supported_leaf
+        self.assertEqual(map_ground_truth_to_gate_category("Tomato___healthy", "Tomato"), GATE_CATEGORY_SUPPORTED_LEAF)
+        self.assertEqual(map_ground_truth_to_gate_category("Tomato___Early_blight", "Tomato"), GATE_CATEGORY_SUPPORTED_LEAF)
+        self.assertEqual(map_ground_truth_to_gate_category("Potato___Early_blight", "Potato"), GATE_CATEGORY_SUPPORTED_LEAF)
+        self.assertEqual(map_ground_truth_to_gate_category("Pepper,_bell___Bacterial_spot", "Bell Pepper"), GATE_CATEGORY_SUPPORTED_LEAF)
+        self.assertEqual(map_ground_truth_to_gate_category("supported_leaf"), GATE_CATEGORY_SUPPORTED_LEAF)
+
+    def test_other_plant_species_mapping(self):
+        # Unsupported plant species must map to other_plant
+        self.assertEqual(map_ground_truth_to_gate_category("Apple___Apple_scab", "Apple"), GATE_CATEGORY_OTHER_PLANT)
+        self.assertEqual(map_ground_truth_to_gate_category("Corn___Common_rust", "Corn"), GATE_CATEGORY_OTHER_PLANT)
+        self.assertEqual(map_ground_truth_to_gate_category("Grape___Black_rot", "Grape"), GATE_CATEGORY_OTHER_PLANT)
+        self.assertEqual(map_ground_truth_to_gate_category("Weed_Dandelion", "Weed"), GATE_CATEGORY_OTHER_PLANT)
+        self.assertEqual(map_ground_truth_to_gate_category("other_plant"), GATE_CATEGORY_OTHER_PLANT)
+
+    def test_non_leaf_mapping(self):
+        # Non-leaf objects must map to non_leaf
+        self.assertEqual(map_ground_truth_to_gate_category("non_leaf"), GATE_CATEGORY_NON_LEAF)
+        self.assertEqual(map_ground_truth_to_gate_category("background_soil"), GATE_CATEGORY_NON_LEAF)
+        self.assertEqual(map_ground_truth_to_gate_category("glove_or_hand"), GATE_CATEGORY_NON_LEAF)
+        self.assertEqual(map_ground_truth_to_gate_category("irrigation_pipe"), GATE_CATEGORY_NON_LEAF)
+
+    def test_unknown_and_ambiguous_rejected(self):
+        # Unknown/ambiguous records must NOT silently default to supported_leaf
+        with self.assertRaises(ValueError):
+            map_ground_truth_to_gate_category("completely_unknown_token", "UnknownCrop")
+        with self.assertRaises(ValueError):
+            map_ground_truth_to_gate_category("", "")
+
+    def test_gate_evaluator_rejects_invalid_category(self):
+        class MockService:
+            is_loaded = True
+            classes = ["non_leaf", "other_plant", "supported_leaf"]
+            def predict_proba(self, frame):
+                return {"non_leaf": 0.1, "other_plant": 0.1, "supported_leaf": 0.8}
+
+        evaluator = LeafGateEvaluator(leaf_gate_service=MockService())
+        test_dir = Path(tempfile.mkdtemp())
+        try:
+            img = Image.new("RGB", (200, 200), color=(50, 150, 50))
+            for i in range(20):
+                img.putpixel((i, i), (10, 30, 10))
+            p = test_dir / "t.jpg"
+            img.save(p, "JPEG")
+            sample = GateSampleRecord("S1", str(p), ground_truth_category="invalid_category")
+            with self.assertRaises(ValueError):
+                evaluator.evaluate_sample(sample)
+        finally:
+            shutil.rmtree(test_dir)
+
+
+class TestPreprocessingParityComprehensive(unittest.TestCase):
+    """Bug 2 Regression Tests: Exact preprocessing parity between production backend and evaluation."""
+
+    def _create_synthetic_bytes(self, fmt: str = "JPEG", mode: str = "RGB", size=(250, 250), orientation: int = None) -> bytes:
+        img = Image.new(mode, size, color=(100, 160, 50) if mode != "L" else 128)
+        # Add texture so it is not a uniform canvas
+        for x in range(40):
+            for y in range(40):
+                if mode == "RGB":
+                    img.putpixel((x, y), (20, 50, 10))
+                elif mode == "RGBA":
+                    img.putpixel((x, y), (20, 50, 10, 255))
+                elif mode == "L":
+                    img.putpixel((x, y), 35)
+
+        buf = io.BytesIO()
+        if orientation is not None:
+            exif = img.getexif()
+            exif[0x0112] = orientation
+            img.save(buf, format=fmt, exif=exif)
+        else:
+            img.save(buf, format=fmt)
+        return buf.getvalue()
+
+    def test_jpeg_parity(self):
+        b = self._create_synthetic_bytes("JPEG", "RGB")
+        prod_res = prod_preprocess_image(b, enforce_level_a=True)
+        eval_res = preprocess_field_image(b, enforce_level_a=True)
+        self.assertEqual(prod_res.shape, (1, 224, 224, 3))
+        self.assertEqual(prod_res.dtype, np.float32)
+        self.assertTrue(np.allclose(prod_res, eval_res, atol=1e-5))
+        self.assertGreater(float(prod_res.max()), 1.0)
+        self.assertLessEqual(float(prod_res.max()), 255.0)
+
+    def test_png_parity(self):
+        b = self._create_synthetic_bytes("PNG", "RGB")
+        prod_res = prod_preprocess_image(b, enforce_level_a=True)
+        eval_res = preprocess_field_image(b, enforce_level_a=True)
+        self.assertTrue(np.allclose(prod_res, eval_res, atol=1e-5))
+
+    def test_webp_parity(self):
+        b = self._create_synthetic_bytes("WEBP", "RGB")
+        prod_res = prod_preprocess_image(b, enforce_level_a=True)
+        eval_res = preprocess_field_image(b, enforce_level_a=True)
+        self.assertTrue(np.allclose(prod_res, eval_res, atol=1e-5))
+
+    def test_exif_rotated_parity(self):
+        for orient in (3, 6, 8):
+            b = self._create_synthetic_bytes("JPEG", "RGB", orientation=orient)
+            prod_res = prod_preprocess_image(b, enforce_level_a=True)
+            eval_res = preprocess_field_image(b, enforce_level_a=True)
+            self.assertTrue(np.allclose(prod_res, eval_res, atol=1e-5))
+
+    def test_grayscale_parity(self):
+        b = self._create_synthetic_bytes("PNG", "L")
+        prod_res = prod_preprocess_image(b, enforce_level_a=True)
+        eval_res = preprocess_field_image(b, enforce_level_a=True)
+        self.assertEqual(prod_res.shape, (1, 224, 224, 3))
+        self.assertTrue(np.allclose(prod_res, eval_res, atol=1e-5))
+
+    def test_rgba_parity(self):
+        b = self._create_synthetic_bytes("PNG", "RGBA")
+        prod_res = prod_preprocess_image(b, enforce_level_a=True)
+        eval_res = preprocess_field_image(b, enforce_level_a=True)
+        self.assertEqual(prod_res.shape, (1, 224, 224, 3))
+        self.assertTrue(np.allclose(prod_res, eval_res, atol=1e-5))
+
+    def test_small_image_rejection_parity(self):
+        b = self._create_synthetic_bytes("JPEG", "RGB", size=(40, 40))
+        with self.assertRaises(ValueError):
+            prod_preprocess_image(b, enforce_level_a=True)
+        with self.assertRaises(ValueError):
+            preprocess_field_image(b, enforce_level_a=True)
+
+    def test_corrupted_image_rejection_parity(self):
+        corrupt = b"\xFF\xD8\xFF\xE0\x00\x10JFIFbadbytes"
+        with self.assertRaises(ValueError):
+            prod_preprocess_image(corrupt, enforce_level_a=True)
+        with self.assertRaises(ValueError):
+            preprocess_field_image(corrupt, enforce_level_a=True)
+
+    def test_uniform_canvas_rejection_parity(self):
+        img = Image.new("RGB", (200, 200), color=(255, 255, 255))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        b = buf.getvalue()
+        with self.assertRaises(ValueError):
+            prod_preprocess_image(b, enforce_level_a=True)
+        with self.assertRaises(ValueError):
+            preprocess_field_image(b, enforce_level_a=True)
+
+
+class TestBaselineComparison(unittest.TestCase):
+    """Bug 3 Regression Tests: Baseline report parsing and comparative reporting."""
+
+    def setUp(self):
+        self.test_dir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def test_parse_valid_json_baseline(self):
+        baseline_file = self.test_dir / "baseline.json"
+        data = {
+            "evaluation_name": "Test Run",
+            "timestamp_utc": "2026-10-20T12:00:00Z",
+            "model_checkpoint": "best_model.keras",
+            "metrics": {
+                "test_accuracy": 0.955,
+                "test_macro_f1": 0.945,
+                "test_top_3_accuracy": 0.995,
+            },
+        }
+        baseline_file.write_text(json.dumps(data), encoding="utf-8")
+        parsed = parse_controlled_baseline(baseline_file)
+        self.assertAlmostEqual(parsed["accuracy"], 0.955)
+        self.assertAlmostEqual(parsed["macro_f1"], 0.945)
+        self.assertAlmostEqual(parsed["top_3_accuracy"], 0.995)
+        self.assertEqual(parsed["model_checkpoint"], "best_model.keras")
+        self.assertEqual(parsed["timestamp"], "2026-10-20T12:00:00Z")
+
+    def test_parse_real_json_report(self):
+        real_json = Path("docs/audit_reports/final_test_evaluation_report.json")
+        if real_json.is_file():
+            parsed = parse_controlled_baseline(real_json)
+            self.assertAlmostEqual(parsed["accuracy"], 0.968942, places=4)
+            self.assertAlmostEqual(parsed["macro_f1"], 0.965288, places=4)
+            self.assertIn("best_model.keras", parsed["model_checkpoint"])
+
+    def test_parse_real_md_report(self):
+        real_md = Path("docs/audit_reports/final_test_evaluation_report.md")
+        if real_md.is_file():
+            parsed = parse_controlled_baseline(real_md)
+            self.assertAlmostEqual(parsed["accuracy"], 0.968942, places=4)
+            self.assertAlmostEqual(parsed["macro_f1"], 0.965288, places=4)
+
+    def test_reject_missing_baseline_file(self):
+        with self.assertRaises(FileNotFoundError):
+            parse_controlled_baseline(self.test_dir / "nonexistent.json")
+
+    def test_reject_malformed_json_baseline(self):
+        # Missing required macro_f1
+        f = self.test_dir / "bad.json"
+        f.write_text(json.dumps({"metrics": {"test_accuracy": 0.90}}), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            parse_controlled_baseline(f)
+
+    def test_generate_baseline_comparison_no_hardcoding(self):
+        f = self.test_dir / "baseline.json"
+        data = {
+            "metrics": {"test_accuracy": 0.92, "test_macro_f1": 0.91, "test_top_3_accuracy": 0.98},
+            "model_checkpoint": "model_v1.keras",
+            "timestamp_utc": "2026-10-20",
+        }
+        f.write_text(json.dumps(data), encoding="utf-8")
+
+        field_results = {
+            "metadata": {"evaluation_timestamp": "2026-11-20T00:00:00Z"},
+            "metrics": {"accuracy": 0.85, "macro_f1": 0.83, "top_3_accuracy": 0.95},
+        }
+        md = generate_baseline_comparison(f, field_results)
+        self.assertIn("92.00%", md)
+        self.assertIn("0.9100", md)
+        self.assertIn("-7.00%", md)
+        self.assertIn("model_v1.keras", md)
+
+
+class TestVerificationPolicy(unittest.TestCase):
+    """Bug 4 Regression Tests: Verification tiers and default exclusion of unverified samples."""
+
+    def test_verification_status_changes_metric_population(self):
+        predictions = [
+            {
+                "image_id": f"IMG_V_{i}",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "predicted_class": "Tomato___healthy",
+                "is_correct": True,
+                "top_3_predictions": [{"class_name": "Tomato___healthy"}],
+                "raw_scores": {"Tomato___healthy": 0.95},
+                "verification_status": "expert_verified",
+            }
+            for i in range(3)
+        ] + [
+            {
+                "image_id": f"IMG_U_{j}",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "predicted_class": "Tomato___Early_blight",
+                "is_correct": False,
+                "top_3_predictions": [{"class_name": "Tomato___Early_blight"}],
+                "raw_scores": {"Tomato___Early_blight": 0.85},
+                "verification_status": "visually_suspected",
+            }
+            for j in range(2)
+        ]
+
+        # By default exclude_unverified=True
+        summary_default = calculate_field_metrics(predictions)
+        self.assertEqual(summary_default.total_samples, 3)
+        self.assertEqual(summary_default.accuracy, 1.0)
+        self.assertEqual(summary_default.verified_sample_count, 3)
+        self.assertEqual(summary_default.excluded_unverified_count, 2)
+        self.assertEqual(summary_default.unverified_breakdown.get("visually_suspected"), 2)
+
+        # When exclude_unverified=False, all 5 are included
+        summary_all = calculate_field_metrics(predictions, exclude_unverified=False)
+        self.assertEqual(summary_all.total_samples, 5)
+        self.assertAlmostEqual(summary_all.accuracy, 3 / 5)
+        self.assertEqual(summary_all.excluded_unverified_count, 0)
+
+
+class TestDiseaseVsGateSeparation(unittest.TestCase):
+    """Bug 5 Regression Tests: Separation of disease vs gate tasks and label spaces."""
+
+    def setUp(self):
+        self.test_dir = Path(tempfile.mkdtemp())
+        self.manifest_path = self.test_dir / "manifest.csv"
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def _write_csv(self, rows: List[Dict[str, Any]]):
+        with self.manifest_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def test_invalid_evaluation_task_rejected(self):
+        row = {
+            "image_id": "T1",
+            "file_path": "images/t.jpg",
+            "crop": "Tomato",
+            "ground_truth_class": "Tomato___healthy",
+            "collection_source": "pilot",
+            "split": "field_dev",
+            "evaluation_task": "invalid_task",
+        }
+        self._write_csv([row])
+        records, errors = load_and_validate_manifest(self.manifest_path)
+        self.assertTrue(any("Invalid evaluation_task 'invalid_task'" in str(e) for e in errors))
+
+    def test_unsupported_crop_with_disease_task_rejected(self):
+        # Apple is not in Solanaceae 15-class space; cannot have evaluation_task='disease'
+        row = {
+            "image_id": "T2",
+            "file_path": "images/apple.jpg",
+            "crop": "Apple",
+            "ground_truth_class": "Apple___Apple_scab",
+            "collection_source": "pilot",
+            "split": "field_dev",
+            "evaluation_task": "disease",
+        }
+        self._write_csv([row])
+        records, errors = load_and_validate_manifest(self.manifest_path)
+        self.assertTrue(any("cannot have evaluation_task 'disease'" in str(e) for e in errors))
+
+    def test_unsupported_crop_with_gate_task_accepted(self):
+        # Apple with evaluation_task='gate' is completely valid!
+        row = {
+            "image_id": "T3",
+            "file_path": "images/apple.jpg",
+            "crop": "Apple",
+            "ground_truth_class": "Apple___Apple_scab",
+            "collection_source": "pilot",
+            "split": "field_dev",
+            "evaluation_task": "gate",
+        }
+        self._write_csv([row])
+        records, errors = load_and_validate_manifest(self.manifest_path)
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].evaluation_task, "gate")
+
+
+class TestManifestAndDatasetSafety(unittest.TestCase):
+    """Bug 6 Regression Tests: Manifest uniqueness, path safety, and duplicate group consistency."""
+
+    def setUp(self):
+        self.test_dir = Path(tempfile.mkdtemp())
+        self.img_dir = self.test_dir / "images"
+        self.img_dir.mkdir()
+        self.manifest_path = self.test_dir / "manifest.csv"
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def _write_csv(self, rows: List[Dict[str, Any]]):
+        with self.manifest_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def test_duplicate_image_id_rejected(self):
+        rows = [
+            {"image_id": "DUP_ID", "file_path": "images/1.jpg", "crop": "Tomato", "ground_truth_class": "Tomato___healthy", "collection_source": "p", "split": "field_dev"},
+            {"image_id": "DUP_ID", "file_path": "images/2.jpg", "crop": "Tomato", "ground_truth_class": "Tomato___healthy", "collection_source": "p", "split": "field_dev"},
+        ]
+        self._write_csv(rows)
+        records, errors = load_and_validate_manifest(self.manifest_path)
+        self.assertTrue(any("Duplicate image_id 'DUP_ID'" in str(e) for e in errors))
+
+    def test_path_traversal_rejected_in_manifest(self):
+        row = {
+            "image_id": "TRAV_1",
+            "file_path": "../evil/path.jpg",
+            "crop": "Tomato",
+            "ground_truth_class": "Tomato___healthy",
+            "collection_source": "p",
+            "split": "field_dev",
+        }
+        self._write_csv([row])
+        records, errors = load_and_validate_manifest(self.manifest_path)
+        self.assertTrue(any("traversal" in str(e).lower() for e in errors))
+
+    def test_duplicate_group_metadata_inconsistency_audited(self):
+        # Two images in same plant group but different crop
+        img = Image.new("RGB", (100, 100), color=(80, 150, 40))
+        (self.img_dir / "1.jpg").write_bytes(b"image1")
+        (self.img_dir / "2.jpg").write_bytes(b"image2")
+        rows = [
+            {"image_id": "S1", "file_path": "images/1.jpg", "crop": "Tomato", "ground_truth_class": "Tomato___healthy", "collection_source": "p", "split": "field_dev", "duplicate_group_id": "PLANT_GRP_99"},
+            {"image_id": "S2", "file_path": "images/2.jpg", "crop": "Potato", "ground_truth_class": "Potato___healthy", "collection_source": "p", "split": "field_dev", "duplicate_group_id": "PLANT_GRP_99"},
+        ]
+        self._write_csv(rows)
+        auditor = DataQualityAuditor(self.manifest_path, self.test_dir)
+        report = auditor.audit_all()
+        self.assertGreaterEqual(len(report.duplicate_group_inconsistencies), 1)
+        self.assertEqual(report.duplicate_group_inconsistencies[0]["group_id"], "PLANT_GRP_99")
+        self.assertFalse(report.is_clean)
+
+
+class TestMetricReliability(unittest.TestCase):
+    """Bug 7 Regression Tests: Metric calculations reliability, missing classes, empty datasets, and cluster bootstrap."""
+
+    def test_empty_dataset_handling(self):
+        summary = calculate_field_metrics([])
+        self.assertEqual(summary.total_samples, 0)
+        self.assertEqual(summary.accuracy, 0.0)
+        self.assertEqual(summary.macro_f1, 0.0)
+        self.assertEqual(summary.accuracy_ci_95, (0.0, 0.0))
+        self.assertEqual(len(summary.unobserved_classes), 15)
+
+    def test_single_class_dataset_handling(self):
+        predictions = [
+            {
+                "image_id": f"IMG_{i}",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "predicted_class": "Tomato___healthy",
+                "is_correct": True,
+                "top_3_predictions": [{"class_name": "Tomato___healthy"}],
+                "raw_scores": {"Tomato___healthy": 0.95},
+                "duplicate_group_id": f"PLANT_{i % 2}",
+            }
+            for i in range(10)
+        ]
+        summary = calculate_field_metrics(predictions)
+        self.assertEqual(summary.total_samples, 10)
+        self.assertEqual(summary.observed_classes_count, 1)
+        self.assertEqual(len(summary.unobserved_classes), 14)
+        self.assertEqual(summary.accuracy, 1.0)
+        self.assertEqual(summary.macro_f1, 1.0)
+
+    def test_nan_infinite_scores_safe_handling(self):
+        predictions = [
+            {
+                "image_id": "IMG_NAN",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "predicted_class": "Tomato___healthy",
+                "is_correct": True,
+                "top_3_predictions": [{"class_name": "Tomato___healthy"}],
+                "raw_scores": {"Tomato___healthy": float("nan"), "Tomato___Early_blight": float("inf")},
+            }
+        ]
+        summary = calculate_field_metrics(predictions)
+        self.assertEqual(summary.total_samples, 1)
+        self.assertFalse(math.isnan(summary.accuracy))
+
+    def test_cluster_aware_metrics(self):
+        predictions = [
+            {"image_id": "1", "crop": "Tomato", "ground_truth_class": "Tomato___healthy", "predicted_class": "Tomato___healthy", "is_correct": True, "top_3_predictions": [{"class_name": "Tomato___healthy"}], "duplicate_group_id": "PLANT_A"},
+            {"image_id": "2", "crop": "Tomato", "ground_truth_class": "Tomato___healthy", "predicted_class": "Tomato___healthy", "is_correct": True, "top_3_predictions": [{"class_name": "Tomato___healthy"}], "duplicate_group_id": "PLANT_A"},
+            {"image_id": "3", "crop": "Tomato", "ground_truth_class": "Tomato___healthy", "predicted_class": "Tomato___Early_blight", "is_correct": False, "top_3_predictions": [{"class_name": "Tomato___Early_blight"}], "duplicate_group_id": "PLANT_B"},
+        ]
+        summary = calculate_field_metrics(predictions)
+        self.assertIn("cluster_accuracy", summary.cluster_metrics)
+        self.assertEqual(summary.cluster_metrics["cluster_count"], 2)
+
+
+class TestGateFallbackTransparency(unittest.TestCase):
+    """Bug 8 Regression Tests: Fallback transparency and sidecar validation."""
+
+    def test_deterministic_fallback_identification_and_warning(self):
+        evaluator = LeafGateEvaluator(gate_model_path="non_existent_gate_model.keras")
+        self.assertFalse(evaluator.is_trained_model)
+        self.assertEqual(evaluator.gate_backend, "deterministic_fallback")
+
+        results = evaluator.evaluate_dataset([])
+        self.assertEqual(results["metadata"]["gate_backend"], "deterministic_fallback")
+        self.assertIn("warning", results["metadata"])
+        self.assertIn("DETERMINISTIC_FALLBACK", results["metadata"]["warning"])
+
+        md = evaluator.generate_markdown_summary(results)
+        self.assertIn("Deterministic Heuristic Fallback", md)
+        self.assertIn("DETERMINISTIC FALLBACK EVALUATION NOTICE", md)
+
+    def test_sidecar_validation(self):
+        evaluator = LeafGateEvaluator(gate_model_path="non_existent_gate_model.keras")
+        sidecar_info = evaluator.sidecar_validation
+        self.assertIn("classes", sidecar_info)
+        self.assertEqual(sidecar_info["output_dim"], 3)
 
 
 if __name__ == "__main__":

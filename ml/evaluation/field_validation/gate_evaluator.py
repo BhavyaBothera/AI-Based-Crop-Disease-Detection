@@ -38,6 +38,12 @@ from backend.app.services.input_gate import (
 )
 from backend.app.services.leaf_gate import LeafGateService
 from .evaluator import compute_file_sha256, preprocess_field_image
+from .manifest_schema import (
+    GATE_CATEGORY_NON_LEAF,
+    GATE_CATEGORY_OTHER_PLANT,
+    GATE_CATEGORY_SUPPORTED_LEAF,
+    VALID_GATE_CATEGORIES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,13 +113,72 @@ class LeafGateEvaluator:
             self.model_path = model_p
             self.service = LeafGateService(model_path=model_p)
             if model_p.is_file():
-                self.service.load_model(model_p)
+                try:
+                    self.service.load_model(model_p)
+                except Exception as exc:
+                    logger.warning("Failed to load gate model at %s: %s. Using deterministic fallback.", model_p, exc)
             else:
                 logger.warning("Gate model file not found at %s. Using deterministic fallback.", model_p)
 
+        self.is_trained_model = bool(getattr(self.service, "is_loaded", False))
+        self.gate_backend = "trained_model" if self.is_trained_model else "deterministic_fallback"
         self.model_sha256 = (
-            compute_file_sha256(self.model_path) if self.model_path.is_file() else "N/A"
+            compute_file_sha256(self.model_path) if (self.is_trained_model and self.model_path.is_file()) else "N/A"
         )
+        self.sidecar_validation: Dict[str, Any] = self._validate_sidecar_and_model()
+
+    def _validate_sidecar_and_model(self) -> Dict[str, Any]:
+        """
+        Validates sidecar class mappings and model output dimensions.
+        """
+        service_classes = list(getattr(self.service, "classes", [GATE_CATEGORY_NON_LEAF, GATE_CATEGORY_OTHER_PLANT, GATE_CATEGORY_SUPPORTED_LEAF]))
+        validation_info: Dict[str, Any] = {
+            "sidecar_present": False,
+            "classes": service_classes,
+            "output_dim": len(service_classes),
+            "is_valid": True,
+            "errors": [],
+        }
+        if not self.is_trained_model:
+            validation_info["notice"] = "Deterministic fallback active; no trained model loaded."
+            return validation_info
+
+        sidecar_path = self.model_path.parent / "gate_model_config.json"
+        if sidecar_path.is_file():
+            validation_info["sidecar_present"] = True
+            try:
+                cfg = json.loads(sidecar_path.read_text(encoding="utf-8"))
+                sidecar_classes = cfg.get("classes", [])
+                expected_classes = [GATE_CATEGORY_NON_LEAF, GATE_CATEGORY_OTHER_PLANT, GATE_CATEGORY_SUPPORTED_LEAF]
+                if sidecar_classes != expected_classes:
+                    err = f"Sidecar classes {sidecar_classes} do not match expected {expected_classes}"
+                    validation_info["errors"].append(err)
+                    validation_info["is_valid"] = False
+                    logger.warning(err)
+                else:
+                    validation_info["sidecar_classes"] = sidecar_classes
+            except Exception as exc:
+                err = f"Failed to parse sidecar config: {exc}"
+                validation_info["errors"].append(err)
+                validation_info["is_valid"] = False
+                logger.warning(err)
+        else:
+            validation_info["notice"] = "No sidecar config found; using default classes."
+
+        if getattr(self.service, "_model", None) is not None:
+            try:
+                output_shape = getattr(self.service._model, "output_shape", None)
+                if output_shape is not None:
+                    validation_info["model_output_shape"] = list(output_shape)
+                    if output_shape[-1] != len(self.service.classes):
+                        err = f"Model output shape {output_shape} last dim != num classes {len(self.service.classes)}"
+                        validation_info["errors"].append(err)
+                        validation_info["is_valid"] = False
+                        logger.error(err)
+            except Exception as exc:
+                logger.debug("Could not inspect model.output_shape: %s", exc)
+
+        return validation_info
 
     def evaluate_sample(
         self,
@@ -123,6 +188,13 @@ class LeafGateEvaluator:
         """
         Runs input gate assessment on a single image sample.
         """
+        gt = sample.ground_truth_category
+        if gt not in VALID_GATE_CATEGORIES:
+            raise ValueError(
+                f"Sample '{sample.sample_id}' has invalid ground_truth_category '{gt}'. "
+                f"Must be one of {sorted(VALID_GATE_CATEGORIES)}"
+            )
+
         img_p = Path(sample.file_path)
         if not img_p.is_absolute() and dataset_root:
             img_p = (dataset_root / img_p).resolve()
@@ -147,8 +219,6 @@ class LeafGateEvaluator:
         probs = assessment.signals.get("gate_probabilities", gate_probs or {})
         conf = assessment.signals.get("gate_confidence", 0.0)
         label = assessment.signals.get("gate_label", "unknown")
-
-        gt = sample.ground_truth_category
 
         # Define correctness and error flags
         is_false_rejection = False
@@ -256,15 +326,23 @@ class LeafGateEvaluator:
             tot = counts["total"]
             counts["acceptance_rate"] = round(counts["accepted"] / tot, 4) if tot else 0.0
 
+        metadata: Dict[str, Any] = {
+            "evaluation_timestamp": datetime.now(timezone.utc).isoformat(),
+            "gate_model_path": str(self.model_path),
+            "gate_model_sha256": self.model_sha256,
+            "is_trained_model": self.is_trained_model,
+            "gate_backend": self.gate_backend,
+            "deterministic_fallback_active": not self.is_trained_model,
+            "sidecar_validation": self.sidecar_validation,
+            "total_samples": len(samples),
+            "evaluated_samples": total,
+            "failed_samples": len(errors),
+        }
+        if not self.is_trained_model:
+            metadata["warning"] = "EVALUATION_PERFORMED_ON_DETERMINISTIC_FALLBACK_NOT_TRAINED_GATE_MODEL"
+
         summary = {
-            "metadata": {
-                "evaluation_timestamp": datetime.now(timezone.utc).isoformat(),
-                "gate_model_path": str(self.model_path),
-                "gate_model_sha256": self.model_sha256,
-                "total_samples": len(samples),
-                "evaluated_samples": total,
-                "failed_samples": len(errors),
-            },
+            "metadata": metadata,
             "gate_metrics": {
                 "supported_leaves": {
                     "support": n_supp,
@@ -337,12 +415,25 @@ class LeafGateEvaluator:
         non_leaf = gm["non_leaf_objects"]
         ood = gm["overall_ood_summary"]
 
+        is_trained = meta.get("is_trained_model", False)
+        gate_backend = meta.get("gate_backend", "trained_model" if is_trained else "deterministic_fallback")
+
         md = []
         md.append("# Leaf Acceptance Gate Field Evaluation Summary")
         md.append(f"**Evaluation Timestamp:** {meta['evaluation_timestamp']}")
+        md.append(f"**Gate Backend:** `{gate_backend}`")
+        md.append(f"**Trained Model Evaluated:** `{'YES' if is_trained else 'NO (Deterministic Heuristic Fallback)'}`")
         md.append(f"**Gate Checkpoint SHA-256:** `{meta['gate_model_sha256']}`")
         md.append(f"**Total Samples:** {meta['total_samples']} (Evaluated: {meta['evaluated_samples']}, Failed: {meta['failed_samples']})")
         md.append("")
+
+        if not is_trained:
+            md.append("> [!WARNING]")
+            md.append("> **DETERMINISTIC FALLBACK EVALUATION NOTICE**")
+            md.append("> This evaluation was executed using the deterministic rule-based plant screening fallback,")
+            md.append("> NOT the trained `leaf_gate.keras` neural model. These metrics reflect heuristic baseline")
+            md.append("> capabilities only and must NOT be cited as trained neural gate performance.")
+            md.append("")
 
         md.append("## Core Gate Reliability Metrics")
         md.append("| Target Domain | Support | Accepted | Abstained | Rejected | Key Metric |")

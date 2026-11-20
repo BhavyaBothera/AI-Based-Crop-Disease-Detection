@@ -32,6 +32,17 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 from PIL import Image, ImageOps
 
+from backend.app.config import (
+    ALLOWED_PIL_FORMATS,
+    MAX_IMAGE_PIXELS,
+    MIN_IMAGE_DIMENSION,
+    TARGET_IMAGE_SIZE,
+    UNIFORM_CANVAS_STD_THRESHOLD,
+)
+from backend.app.services.inference import (
+    ImageValidationError,
+    preprocess_image,
+)
 from .manifest_schema import (
     NAME_TO_CLASS_ID,
     TARGET_CLASS_MAPPING,
@@ -41,13 +52,7 @@ from .metrics import calculate_field_metrics
 
 logger = logging.getLogger(__name__)
 
-# Preprocessing Constants
-TARGET_IMAGE_SIZE = (224, 224)
-ALLOWED_PIL_FORMATS = {"JPEG", "PNG", "WEBP"}
-MIN_IMAGE_DIMENSION = 64
-MAX_IMAGE_PIXELS = 20_000_000
-UNIFORM_CANVAS_STD_THRESHOLD = 3.0
-PREPROCESSING_VERSION = "2.0-exact-inference-parity"
+PREPROCESSING_VERSION = "2.1-authoritative-inference-parity"
 
 
 @dataclass
@@ -155,65 +160,27 @@ def preprocess_field_image(
     Decodes an image, handles EXIF orientation, converts to RGB,
     resizes to 224x224, and outputs float32 values in [0.0, 255.0].
 
-    Matches `backend/app/services/inference.py::preprocess_image` EXACTLY.
-    Crucial: Layer 1 of `best_model.keras` includes `layers.Rescaling(1/127.5, offset=-1.0)`.
-    Normalizing here to [0, 1] or [-1, 1] would double-rescale and corrupt predictions.
+    Delegates directly to `backend.app.services.inference.preprocess_image` to
+    guarantee 100% exact parity with production preprocessing, security limits,
+    decompression-bomb safeguards, and validation thresholds.
     """
-    if isinstance(image_input, Image.Image):
-        img = image_input
-    elif isinstance(image_input, (str, Path)):
+    if isinstance(image_input, (str, Path)):
         p = Path(image_input)
         if not p.is_file():
             raise FileNotFoundError(f"Image file does not exist: {p}")
-        img = Image.open(p)
+        raw_bytes = p.read_bytes()
     elif isinstance(image_input, bytes):
-        if not image_input:
-            raise ValueError("Image bytes payload is empty.")
+        raw_bytes = image_input
+    elif isinstance(image_input, Image.Image):
         import io
-        img = Image.open(io.BytesIO(image_input))
+        buf = io.BytesIO()
+        fmt = image_input.format or "PNG"
+        image_input.save(buf, format=fmt)
+        raw_bytes = buf.getvalue()
     else:
         raise TypeError(f"Unsupported image input type: {type(image_input)}")
 
-    # Enforce resolution limit to prevent decompression bombs
-    width, height = img.size
-    num_pixels = width * height
-    if num_pixels > MAX_IMAGE_PIXELS:
-        raise ValueError(
-            f"Image resolution ({width}x{height} = {num_pixels} px) exceeds limit of {MAX_IMAGE_PIXELS} px."
-        )
-
-    # EXIF orientation handling
-    img = ImageOps.exif_transpose(img)
-
-    width, height = img.size
-    if enforce_level_a:
-        if min(width, height) < MIN_IMAGE_DIMENSION:
-            raise ValueError(
-                f"Image resolution ({width}x{height}) is below minimum floor of {MIN_IMAGE_DIMENSION}x{MIN_IMAGE_DIMENSION} px."
-            )
-
-    # Convert to 3-channel RGB safely
-    if img.mode != "RGB":
-        img = img.convert("RGB")
-
-    # Force raster load
-    img.load()
-
-    # Bilinear resize to (224, 224)
-    img_resized = img.resize(TARGET_IMAGE_SIZE, Image.Resampling.BILINEAR)
-    arr_rgb = np.asarray(img_resized, dtype=np.float32)
-
-    if enforce_level_a:
-        # ITU-R BT.601 luminance
-        luminance = 0.2989 * arr_rgb[:, :, 0] + 0.5870 * arr_rgb[:, :, 1] + 0.1140 * arr_rgb[:, :, 2]
-        sigma = float(np.std(luminance))
-        if sigma <= UNIFORM_CANVAS_STD_THRESHOLD:
-            raise ValueError(
-                f"Image luminance standard deviation ({sigma:.2f}) is <= {UNIFORM_CANVAS_STD_THRESHOLD} (uniform canvas)."
-            )
-
-    # Shape: (1, 224, 224, 3) in [0.0, 255.0]
-    return np.expand_dims(arr_rgb, axis=0)
+    return preprocess_image(raw_bytes, enforce_level_a=enforce_level_a)
 
 
 class FieldEvaluator:
@@ -293,10 +260,12 @@ class FieldEvaluator:
         dataset_root: Optional[Union[Path, str]] = None,
         split_filter: Optional[str] = None,
         enforce_level_a: bool = True,
-        exclude_unverified_from_primary: bool = False,
+        exclude_unverified_from_primary: bool = True,
     ) -> Dict[str, Any]:
         """
         Executes end-to-end evaluation on the records within a field manifest.
+        Separates disease classification from gate-only tasks (Bug 5).
+        Excludes visually suspected / ambiguous samples from primary metrics by default (Bug 4).
         """
         manifest_path = Path(manifest_path).resolve()
         if dataset_root is None:
@@ -312,13 +281,22 @@ class FieldEvaluator:
         if split_filter:
             records = [r for r in records if r.split == split_filter]
 
-        logger.info("Evaluating %d records from manifest %s", len(records), manifest_path.name)
+        # Separate disease-classification tasks from gate-only tasks (Bug 5)
+        disease_records = [r for r in records if r.evaluation_task in ("disease", "both")]
+        gate_only_records = [r for r in records if r.evaluation_task == "gate"]
+
+        logger.info(
+            "Manifest records: %d total (%d disease-applicable, %d gate-only bypassed)",
+            len(records),
+            len(disease_records),
+            len(gate_only_records),
+        )
 
         evaluation_records: List[SamplePredictionRecord] = []
         error_records: List[EvaluationErrorRecord] = []
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        for idx, rec in enumerate(records, start=1):
+        for idx, rec in enumerate(disease_records, start=1):
             # Resolve image file path
             img_path = Path(rec.file_path)
             if not img_path.is_absolute():
@@ -340,7 +318,7 @@ class FieldEvaluator:
                 pred_name, pred_id, top_3, raw_scores = self.predict_single(frame)
 
                 is_correct = pred_name == rec.ground_truth_class
-                gt_id = NAME_TO_CLASS_ID.get(rec.ground_truth_class, -1)
+                gt_id = NAME_TO_CLASS_ID[rec.ground_truth_class]
 
                 eval_rec = SamplePredictionRecord(
                     image_id=rec.image_id,
@@ -381,10 +359,16 @@ class FieldEvaluator:
         # Convert to dictionaries for metrics calculation
         eval_dicts = [r.to_dict() for r in evaluation_records]
 
-        # Calculate metrics
+        # Calculate primary verified metrics (Bug 4)
         summary = calculate_field_metrics(
             eval_dicts,
             exclude_unverified=exclude_unverified_from_primary,
+        )
+
+        # Also calculate exploratory metrics on full evaluated set (Bug 4)
+        exploratory_summary = calculate_field_metrics(
+            eval_dicts,
+            exclude_unverified=False,
         )
 
         run_output = {
@@ -397,13 +381,17 @@ class FieldEvaluator:
                 "model_sha256": self.model_sha256,
                 "preprocessing_version": PREPROCESSING_VERSION,
                 "total_manifest_records": len(records),
+                "disease_task_records": len(disease_records),
+                "gate_only_records_bypassed": len(gate_only_records),
                 "successfully_evaluated": len(evaluation_records),
                 "failed_inferences": len(error_records),
                 "inference_error_rate": (
-                    len(error_records) / len(records) if records else 0.0
+                    len(error_records) / len(disease_records) if disease_records else 0.0
                 ),
+                "exclude_unverified_from_primary": exclude_unverified_from_primary,
             },
             "metrics": summary.to_dict(),
+            "exploratory_metrics": exploratory_summary.to_dict(),
             "errors": [e.to_dict() for e in error_records],
             "predictions": eval_dicts,
         }

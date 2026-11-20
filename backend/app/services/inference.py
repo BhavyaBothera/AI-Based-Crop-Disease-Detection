@@ -181,7 +181,10 @@ def sniff_image_format(image_bytes: bytes) -> Optional[str]:
     return None
 
 
-def preprocess_image(image_bytes: bytes) -> np.ndarray:
+def preprocess_image(
+    image_bytes: bytes,
+    enforce_level_a: Optional[bool] = None,
+) -> np.ndarray:
     """
     Decodes an image from bytes, verifies format, checks pixel dimensions,
     converts to RGB, resizes to 224x224, and returns a float32 array in [0.0, 255.0].
@@ -270,7 +273,10 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
                 )
 
             # Step 6: Enforce minimum dimension floor if Level A is enabled
-            if ENABLE_LEVEL_A_PREVALIDATION:
+            should_enforce_level_a = (
+                ENABLE_LEVEL_A_PREVALIDATION if enforce_level_a is None else bool(enforce_level_a)
+            )
+            if should_enforce_level_a:
                 if min(width, height) < MIN_IMAGE_DIMENSION:
                     raise InvalidImageDimensionsError(
                         f"Image resolution ({width}x{height}) is too small. "
@@ -292,7 +298,7 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
             arr_rgb = np.asarray(img_resized, dtype=np.float32)
 
             # Step 11: Uniform / blank canvas detection on 224x224 luminance
-            if ENABLE_LEVEL_A_PREVALIDATION:
+            if should_enforce_level_a:
                 # ITU-R BT.601 luminance formula
                 luminance = 0.2989 * arr_rgb[:, :, 0] + 0.5870 * arr_rgb[:, :, 1] + 0.1140 * arr_rgb[:, :, 2]
                 sigma = float(np.std(luminance))

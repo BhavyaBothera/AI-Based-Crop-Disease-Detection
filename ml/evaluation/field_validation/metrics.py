@@ -10,7 +10,7 @@ subgroup performance slices, and confusion matrices for field validation.
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -23,6 +23,8 @@ from sklearn.metrics import (
 
 from .manifest_schema import (
     RAW_CLASS_TO_CROP,
+    UNVERIFIED_TIERS,
+    VERIFIED_TIERS,
 )
 
 CLASS_NAMES: List[str] = sorted(RAW_CLASS_TO_CROP.keys())
@@ -50,33 +52,68 @@ def wilson_score_interval(successes: int, total: int, confidence: float = 0.95) 
 def bootstrap_macro_f1_ci(
     y_true: np.ndarray,
     y_pred: np.ndarray,
+    clusters: Optional[np.ndarray] = None,
     num_bootstrap: int = 500,
     seed: int = 42,
+    labels: Optional[List[int]] = None,
 ) -> Tuple[float, float]:
     """
     Computes 95% percentile bootstrap confidence intervals for Macro-F1.
+    Supports cluster-aware bootstrap when clusters (e.g. plant_id or duplicate_group_id)
+    are provided to account for within-group correlation.
+    Safely handles single-class, missing-class, and small sample scenarios.
     """
-    if len(y_true) < 10:
-        return 0.0, 1.0
+    if len(y_true) == 0 or len(y_pred) == 0:
+        return 0.0, 0.0
+
+    eval_labels = labels if labels is not None else sorted(list(set(y_true) | set(y_pred)))
+    if len(eval_labels) == 0:
+        return 0.0, 0.0
+
+    n = len(y_true)
+    if n < 5:
+        base_f1 = float(f1_score(y_true, y_pred, labels=eval_labels, average="macro", zero_division=0))
+        return round(base_f1, 4), round(base_f1, 4)
 
     rng = np.random.default_rng(seed)
-    n = len(y_true)
     f1_samples: List[float] = []
 
-    for _ in range(num_bootstrap):
-        idx = rng.choice(n, size=n, replace=True)
-        score = f1_score(
-            y_true[idx],
-            y_pred[idx],
-            labels=list(range(NUM_CLASSES)),
-            average="macro",
-            zero_division=0,
-        )
-        f1_samples.append(float(score))
+    if clusters is not None and len(clusters) == n:
+        unique_clusters = np.unique(clusters)
+        if len(unique_clusters) < 3:
+            # Insufficient clusters for trustworthy cluster bootstrap
+            base_f1 = float(f1_score(y_true, y_pred, labels=eval_labels, average="macro", zero_division=0))
+            return round(base_f1, 4), round(base_f1, 4)
+
+        cluster_to_indices = {c: np.where(clusters == c)[0] for c in unique_clusters}
+        n_clusters = len(unique_clusters)
+
+        for _ in range(num_bootstrap):
+            sampled_clusters = rng.choice(unique_clusters, size=n_clusters, replace=True)
+            sampled_indices = np.concatenate([cluster_to_indices[c] for c in sampled_clusters])
+            score = f1_score(
+                y_true[sampled_indices],
+                y_pred[sampled_indices],
+                labels=eval_labels,
+                average="macro",
+                zero_division=0,
+            )
+            f1_samples.append(float(score))
+    else:
+        for _ in range(num_bootstrap):
+            idx = rng.choice(n, size=n, replace=True)
+            score = f1_score(
+                y_true[idx],
+                y_pred[idx],
+                labels=eval_labels,
+                average="macro",
+                zero_division=0,
+            )
+            f1_samples.append(float(score))
 
     lower = float(np.percentile(f1_samples, 2.5))
     upper = float(np.percentile(f1_samples, 97.5))
-    return lower, upper
+    return round(lower, 4), round(upper, 4)
 
 
 @dataclass
@@ -103,6 +140,11 @@ class FieldEvaluationSummary:
     group_level_accuracy: Optional[float] = None
     group_count: int = 0
     excluded_unverified_count: int = 0
+    observed_classes_count: int = 0
+    unobserved_classes: List[str] = field(default_factory=list)
+    verified_sample_count: int = 0
+    unverified_breakdown: Dict[str, int] = field(default_factory=dict)
+    cluster_metrics: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def total_evaluated(self) -> int:
@@ -138,20 +180,25 @@ EvaluationResults = FieldEvaluationSummary
 
 def calculate_field_metrics(
     eval_records: List[Dict[str, Any]],
-    exclude_unverified: bool = False,
+    exclude_unverified: bool = True,
     bootstrap_samples: int = 500,
 ) -> FieldEvaluationSummary:
     """
-    Computes all standard, sliced, and failure metrics from prediction records.
+    Computes all standard, sliced, cluster-aware, and failure metrics from prediction records.
+    By default excludes visually suspected/unresolved samples from primary verified metrics (Bug 4).
     """
     valid_records: List[Dict[str, Any]] = []
     excluded_count = 0
+    unverified_breakdown: Dict[str, int] = {}
 
     for r in eval_records:
         v_status = r.get("verification_status") or r.get("metadata", {}).get("verification_status", "unknown")
         gt_class = r.get("ground_truth_class")
 
-        if exclude_unverified and v_status in ("visually_suspected", "ambiguous_unresolved"):
+        if v_status in UNVERIFIED_TIERS:
+            unverified_breakdown[v_status] = unverified_breakdown.get(v_status, 0) + 1
+
+        if exclude_unverified and v_status in UNVERIFIED_TIERS:
             excluded_count += 1
             continue
 
@@ -181,7 +228,14 @@ def calculate_field_metrics(
             confidence_stats_correct={},
             confidence_stats_incorrect={},
             low_performing_classes=[],
+            group_level_accuracy=None,
+            group_count=0,
             excluded_unverified_count=excluded_count,
+            observed_classes_count=0,
+            unobserved_classes=list(CLASS_NAMES),
+            verified_sample_count=0,
+            unverified_breakdown=unverified_breakdown,
+            cluster_metrics={},
         )
 
     y_true = np.array([CLASS_NAME_TO_ID[r["ground_truth_class"]] for r in valid_records], dtype=int)
@@ -208,12 +262,29 @@ def calculate_field_metrics(
     top3_ci = wilson_score_interval(top3_hits, total)
 
     all_class_labels = list(range(NUM_CLASSES))
-    macro_f1 = float(f1_score(y_true, y_pred, labels=all_class_labels, average="macro", zero_division=0))
-    macro_prec = float(precision_score(y_true, y_pred, labels=all_class_labels, average="macro", zero_division=0))
-    macro_rec = float(recall_score(y_true, y_pred, labels=all_class_labels, average="macro", zero_division=0))
-    weighted_f1 = float(f1_score(y_true, y_pred, labels=all_class_labels, average="weighted", zero_division=0))
+    observed_labels = [idx for idx, name in enumerate(CLASS_NAMES) if np.sum(y_true == idx) > 0 or np.sum(y_pred == idx) > 0]
+    eval_labels = observed_labels if observed_labels else all_class_labels
 
-    macro_f1_ci = bootstrap_macro_f1_ci(y_true, y_pred, num_bootstrap=bootstrap_samples)
+    macro_f1 = float(f1_score(y_true, y_pred, labels=eval_labels, average="macro", zero_division=0))
+    macro_prec = float(precision_score(y_true, y_pred, labels=eval_labels, average="macro", zero_division=0))
+    macro_rec = float(recall_score(y_true, y_pred, labels=eval_labels, average="macro", zero_division=0))
+    weighted_f1 = float(f1_score(y_true, y_pred, labels=eval_labels, average="weighted", zero_division=0))
+
+    # Cluster-aware bootstrap confidence interval (Bug 7)
+    cluster_ids = []
+    for r in valid_records:
+        grp = r.get("duplicate_group_id") or r.get("plant_id") or r.get("metadata", {}).get("duplicate_group_id") or "NONE"
+        grp = str(grp).strip()
+        if grp and grp != "NONE":
+            cluster_ids.append(grp)
+        else:
+            cluster_ids.append(f"single_{r.get('image_id', id(r))}")
+    cluster_arr = np.array(cluster_ids)
+    macro_f1_ci = bootstrap_macro_f1_ci(y_true, y_pred, clusters=cluster_arr, num_bootstrap=bootstrap_samples, labels=eval_labels)
+
+    # Observed vs unobserved classes (Bug 7)
+    observed_classes = [name for idx, name in enumerate(CLASS_NAMES) if np.sum(y_true == idx) > 0]
+    unobserved_classes = [name for idx, name in enumerate(CLASS_NAMES) if np.sum(y_true == idx) == 0]
 
     # Per-class metrics
     prec_per_class = precision_score(y_true, y_pred, labels=all_class_labels, average=None, zero_division=0)
@@ -268,15 +339,20 @@ def calculate_field_metrics(
                 "recall": crop_rec,
             }
 
-    # Confidence distribution (top prediction scores)
+    # Confidence distribution with NaN/Inf protection (Bug 7)
     def extract_score(rec: Dict[str, Any]) -> float:
+        sc = 0.0
         if "raw_scores" in rec and rec.get("predicted_class") in rec["raw_scores"]:
-            return float(rec["raw_scores"][rec["predicted_class"]])
-        if "top_3_predictions" in rec and len(rec["top_3_predictions"]) > 0:
+            sc = float(rec["raw_scores"][rec["predicted_class"]])
+        elif "top_3_predictions" in rec and len(rec["top_3_predictions"]) > 0:
             first = rec["top_3_predictions"][0]
             if isinstance(first, dict) and "raw_score" in first:
-                return float(first["raw_score"])
-        return float(rec.get("top_1_score", 0.0))
+                sc = float(first["raw_score"])
+        else:
+            sc = float(rec.get("top_1_score", 0.0))
+        if math.isnan(sc) or math.isinf(sc):
+            return 0.0
+        return sc
 
     scores_correct = [extract_score(r) for idx, r in enumerate(valid_records) if correct_mask[idx]]
     scores_incorrect = [extract_score(r) for idx, r in enumerate(valid_records) if not correct_mask[idx]]
@@ -333,7 +409,7 @@ def calculate_field_metrics(
                 "low_sample_warning": sub_count < 10,
             }
 
-    # Grouped / Plant-level accuracy
+    # Grouped / Plant-level accuracy & cluster metrics (Bug 7)
     group_map: Dict[str, List[int]] = {}
     for idx, r in enumerate(valid_records):
         grp = r.get("duplicate_group_id") or r.get("metadata", {}).get("duplicate_group_id") or "NONE"
@@ -344,14 +420,35 @@ def calculate_field_metrics(
             group_map[grp].append(idx)
 
     group_accuracy: Optional[float] = None
+    cluster_metrics: Dict[str, Any] = {}
     if group_map:
         group_correct = 0
+        group_top3_hits = 0
         for grp, indices in group_map.items():
             grp_true = y_true[indices]
             grp_pred = y_pred[indices]
             if np.mean(grp_true == grp_pred) >= 0.5:
                 group_correct += 1
+
+            top3_in_cluster = sum(
+                1 for i in indices
+                if valid_records[i].get("ground_truth_class") in [
+                    c if isinstance(c, str) else c.get("class_name", "")
+                    for c in valid_records[i].get("top_3_predictions", [])
+                ]
+            )
+            if top3_in_cluster / len(indices) >= 0.5:
+                group_top3_hits += 1
+
         group_accuracy = group_correct / len(group_map)
+        cluster_metrics = {
+            "cluster_count": len(group_map),
+            "cluster_accuracy": round(group_accuracy, 4),
+            "cluster_top3_accuracy": round(group_top3_hits / len(group_map), 4),
+            "aggregation_method": "majority_vote_50pct",
+        }
+
+    verified_count = sum(1 for r in valid_records if (r.get("verification_status") or "unknown") in VERIFIED_TIERS)
 
     return FieldEvaluationSummary(
         total_samples=total,
@@ -375,6 +472,11 @@ def calculate_field_metrics(
         group_level_accuracy=group_accuracy,
         group_count=len(group_map),
         excluded_unverified_count=excluded_count,
+        observed_classes_count=len(observed_classes),
+        unobserved_classes=unobserved_classes,
+        verified_sample_count=verified_count,
+        unverified_breakdown=unverified_breakdown,
+        cluster_metrics=cluster_metrics,
     )
 
 

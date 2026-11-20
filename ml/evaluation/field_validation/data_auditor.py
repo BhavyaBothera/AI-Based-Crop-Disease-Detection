@@ -171,6 +171,7 @@ class AuditReport:
     near_duplicates: List[Dict[str, Any]] = field(default_factory=list)
     group_leaks: List[Dict[str, Any]] = field(default_factory=list)
     controlled_dataset_leaks: List[Dict[str, Any]] = field(default_factory=list)
+    duplicate_group_inconsistencies: List[Dict[str, Any]] = field(default_factory=list)
     class_distribution: Dict[str, int] = field(default_factory=dict)
     crop_distribution: Dict[str, int] = field(default_factory=dict)
     split_distribution: Dict[str, int] = field(default_factory=dict)
@@ -188,6 +189,7 @@ class AuditReport:
             and len(self.unsupported_format_images) == 0
             and len(self.group_leaks) == 0
             and len(self.controlled_dataset_leaks) == 0
+            and len(self.duplicate_group_inconsistencies) == 0
         )
 
     @property
@@ -295,10 +297,39 @@ class DataQualityAuditor:
                     group_to_records[grp_id] = []
                 group_to_records[grp_id].append(rec)
 
-            # Resolve image file
-            target_path = Path(rec.file_path)
-            if not target_path.is_absolute():
-                target_path = self.dataset_root / target_path
+            # Resolve image file with containment safeguards (Bug 6)
+            raw_path = Path(rec.file_path)
+            if raw_path.is_absolute():
+                target_path = raw_path.resolve()
+            else:
+                target_path = (self.dataset_root / raw_path).resolve()
+
+            # Enforce dataset_root containment
+            try:
+                target_path.relative_to(self.dataset_root)
+            except ValueError:
+                report.invalid_records += 1
+                report.missing_files.append({
+                    "image_id": rec.image_id,
+                    "file_path": rec.file_path,
+                    "error": f"Path containment violation: path '{rec.file_path}' resolves outside dataset_root '{self.dataset_root}'.",
+                })
+                continue
+
+            # Enforce symlink safety: resolved target must remain within dataset_root
+            raw_loc = self.dataset_root / raw_path if not raw_path.is_absolute() else raw_path
+            if raw_loc.is_symlink():
+                resolved_sym = raw_loc.resolve()
+                try:
+                    resolved_sym.relative_to(self.dataset_root)
+                except ValueError:
+                    report.invalid_records += 1
+                    report.missing_files.append({
+                        "image_id": rec.image_id,
+                        "file_path": rec.file_path,
+                        "error": f"Symlink escape violation: symlink '{rec.file_path}' points outside dataset_root to '{resolved_sym}'.",
+                    })
+                    continue
 
             img_report = audit_single_image(target_path)
 
@@ -361,8 +392,15 @@ class DataQualityAuditor:
                     "crosses_splits": len(splits) > 1,
                     "splits": sorted(splits),
                 })
+                if len(splits) > 1:
+                    report.group_leaks.append({
+                        "group_id": f"sha256:{sha[:12]}",
+                        "image_ids": [r.image_id for r in matched_recs],
+                        "splits": sorted(splits),
+                        "leak_type": "exact_sha256_cross_split",
+                    })
 
-        # 2. Group Leakage Analysis (Same duplicate_group_id across splits)
+        # 2. Group Leakage & Metadata Consistency Analysis (Bug 6)
         for grp, grecs in group_to_records.items():
             splits = {r.split for r in grecs}
             if len(splits) > 1:
@@ -370,6 +408,18 @@ class DataQualityAuditor:
                     "group_id": grp,
                     "image_ids": [r.image_id for r in grecs],
                     "splits": sorted(splits),
+                    "leak_type": "duplicate_group_cross_split",
+                })
+
+            classes = {r.ground_truth_class for r in grecs}
+            crops = {r.crop for r in grecs}
+            if len(classes) > 1 or len(crops) > 1:
+                report.duplicate_group_inconsistencies.append({
+                    "group_id": grp,
+                    "image_ids": [r.image_id for r in grecs],
+                    "classes": sorted(classes),
+                    "crops": sorted(crops),
+                    "error": f"Duplicate group '{grp}' has conflicting classes {classes} or crops {crops}.",
                 })
 
         # 3. Near-Duplicate Analysis (dHash Hamming distance <= threshold)
@@ -430,7 +480,16 @@ class DataQualityAuditor:
         md.append(f"- **Perceptual Near-Duplicates:** {len(report.near_duplicates)}")
         md.append(f"- **Cross-Split Group Leakages:** {len(report.group_leaks)}")
         md.append(f"- **Controlled Baseline Leaks:** {len(report.controlled_dataset_leaks)}")
+        md.append(f"- **Duplicate Group Metadata Inconsistencies:** {len(report.duplicate_group_inconsistencies)}")
         md.append("")
+
+        if report.duplicate_group_inconsistencies:
+            md.append("### [CRITICAL ALERT] Duplicate Group Metadata Inconsistencies")
+            md.append("| Group ID | Conflicting Classes | Conflicting Crops | Samples |")
+            md.append("| :--- | :---: | :---: | :---: |")
+            for dgi in report.duplicate_group_inconsistencies:
+                md.append(f"| `{dgi['group_id']}` | {', '.join(dgi['classes'])} | {', '.join(dgi['crops'])} | {len(dgi['image_ids'])} |")
+            md.append("")
 
         if report.group_leaks:
             md.append("### [ALERT] Cross-Split Leakage Details")

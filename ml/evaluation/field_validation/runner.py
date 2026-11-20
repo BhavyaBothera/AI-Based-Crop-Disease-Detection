@@ -22,12 +22,15 @@ import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from .data_auditor import DataQualityAuditor
 from .evaluator import FieldEvaluator
 from .gate_evaluator import GateSampleRecord, LeafGateEvaluator
-from .manifest_schema import load_and_validate_manifest
+from .manifest_schema import (
+    load_and_validate_manifest,
+    map_ground_truth_to_gate_category,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -94,8 +97,16 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--exclude-unverified",
+        dest="exclude_unverified",
         action="store_true",
-        help="Exclude unverified/suspected annotations from primary supervised metrics.",
+        default=True,
+        help="Exclude unverified/suspected annotations from primary supervised metrics (default: True).",
+    )
+    parser.add_argument(
+        "--include-unverified",
+        dest="exclude_unverified",
+        action="store_false",
+        help="Include unverified/suspected annotations in primary supervised metrics (default: False; unverified samples are excluded by default).",
     )
     parser.add_argument(
         "--baseline-comparison",
@@ -182,18 +193,41 @@ def run_field_validation(args: argparse.Namespace) -> int:
         if args.split:
             records = [r for r in records if r.split == args.split]
 
-        gate_samples = [
-            GateSampleRecord(
-                sample_id=r.image_id,
-                file_path=r.file_path,
-                ground_truth_category="supported_leaf",
-                crop=r.crop,
-                notes=r.notes,
+        gate_records = [r for r in records if getattr(r, "evaluation_task", "both") in ("gate", "both")]
+        gate_samples: List[GateSampleRecord] = []
+        unmapped_gate_records: List[Dict[str, Any]] = []
+
+        for r in gate_records:
+            try:
+                gate_cat = map_ground_truth_to_gate_category(r.ground_truth_class, r.crop)
+                gate_samples.append(
+                    GateSampleRecord(
+                        sample_id=r.image_id,
+                        file_path=r.file_path,
+                        ground_truth_category=gate_cat,
+                        crop=r.crop,
+                        notes=r.notes,
+                    )
+                )
+            except ValueError as exc:
+                unmapped_gate_records.append({
+                    "sample_id": r.image_id,
+                    "ground_truth_class": r.ground_truth_class,
+                    "crop": r.crop,
+                    "error": str(exc),
+                })
+
+        if unmapped_gate_records:
+            logger.warning(
+                "Skipping %d gate records with unmapped or ambiguous categories: %s",
+                len(unmapped_gate_records),
+                [u["sample_id"] for u in unmapped_gate_records[:5]],
             )
-            for r in records
-        ]
 
         gate_results = gate_eval.evaluate_dataset(gate_samples, dataset_root=dataset_root)
+        if unmapped_gate_records:
+            gate_results["metadata"]["unmapped_gate_records"] = unmapped_gate_records
+
         gate_json, gate_md = gate_eval.save_results(
             gate_results,
             output_dir=output_dir,
@@ -202,11 +236,12 @@ def run_field_validation(args: argparse.Namespace) -> int:
         logger.info("Gate evaluation saved to %s", gate_json.name)
 
     # Step 4: Comparative Report Generation (if baseline specified)
-    if args.baseline_comparison and args.baseline_comparison.is_file():
-        logger.info("Generating comparison against controlled baseline: %s", args.baseline_comparison)
+    if args.baseline_comparison:
+        baseline_path = args.baseline_comparison.resolve()
+        logger.info("Generating comparison against controlled baseline: %s", baseline_path)
         comp_md_path = output_dir / f"controlled_vs_field_{timestamp_str}.md"
         comp_content = generate_baseline_comparison(
-            controlled_report_path=args.baseline_comparison,
+            controlled_report_path=baseline_path,
             field_results=eval_results,
         )
         with comp_md_path.open("w", encoding="utf-8") as f:
@@ -217,34 +252,166 @@ def run_field_validation(args: argparse.Namespace) -> int:
     return 0
 
 
+def parse_controlled_baseline(controlled_report_path: Union[Path, str]) -> Dict[str, Any]:
+    """
+    Parses a controlled baseline evaluation report (.json or .md).
+
+    Extracts:
+    - accuracy: float in [0.0, 1.0]
+    - macro_f1: float in [0.0, 1.0]
+    - top_3_accuracy: Optional[float]
+    - source_file: str
+    - model_checkpoint: str
+    - timestamp: str
+
+    Raises:
+    - FileNotFoundError if the baseline file does not exist.
+    - ValueError if the baseline file is malformed, missing required metrics, or unparseable.
+    """
+    p = Path(controlled_report_path).resolve()
+    if not p.is_file():
+        raise FileNotFoundError(f"Controlled baseline report not found: {p}")
+
+    content = p.read_text(encoding="utf-8")
+    acc: Optional[float] = None
+    f1: Optional[float] = None
+    top_3: Optional[float] = None
+    timestamp: str = "Unknown"
+    provenance: str = "Unknown"
+
+    if p.suffix.lower() == ".json":
+        try:
+            data = json.loads(content)
+        except Exception as exc:
+            raise ValueError(f"Failed to parse baseline JSON file at {p}: {exc}") from exc
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Baseline JSON at {p} must be a dictionary.")
+
+        metrics = data.get("metrics") if isinstance(data.get("metrics"), dict) else data
+
+        for key in ("test_accuracy", "accuracy", "val_accuracy"):
+            if key in metrics and metrics[key] is not None:
+                try:
+                    acc = float(metrics[key])
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+        for key in ("test_macro_f1", "macro_f1", "val_macro_f1"):
+            if key in metrics and metrics[key] is not None:
+                try:
+                    f1 = float(metrics[key])
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+        for key in ("test_top_3_accuracy", "top_3_accuracy", "val_top_3_accuracy"):
+            if key in metrics and metrics[key] is not None:
+                try:
+                    top_3 = float(metrics[key])
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+        timestamp = str(data.get("timestamp_utc") or data.get("evaluation_date") or data.get("timestamp") or "Unknown")
+        provenance = str(data.get("model_checkpoint") or data.get("model_path") or data.get("model_name") or "Unknown")
+
+    else:
+        import re
+
+        f1_m = re.search(r"\|\s*\*\*Macro-F1(?:\s*\(Primary\))?\*\*\s*\|\s*(?:\*\*)?`?([0-9.]+)`?", content, re.IGNORECASE)
+        if f1_m:
+            try:
+                f1 = float(f1_m.group(1))
+            except ValueError:
+                pass
+
+        acc_m = re.search(r"\|\s*\*\*Accuracy\*\*\s*\|\s*(?:\*\*)?`?([0-9.]+)`?", content, re.IGNORECASE)
+        if acc_m:
+            try:
+                acc = float(acc_m.group(1))
+            except ValueError:
+                pass
+
+        top3_m = re.search(r"\|\s*\*\*Top-3\s+Accuracy\*\*\s*\|\s*(?:\*\*)?`?([0-9.]+)`?", content, re.IGNORECASE)
+        if top3_m:
+            try:
+                top_3 = float(top3_m.group(1))
+            except ValueError:
+                pass
+
+        date_m = re.search(r"\*\*(?:Evaluation\s+Date|Timestamp)\*\*:\s*`?([^`\r\n]+)`?", content, re.IGNORECASE)
+        if date_m:
+            timestamp = date_m.group(1).strip()
+
+        model_m = re.search(r"\*\*(?:Selected\s+Model|Model\s+Checkpoint)\*\*:\s*(?:\[`?([^`\]\r\n]+)`?\]|`?([^`\r\n]+)`?)", content, re.IGNORECASE)
+        if model_m:
+            provenance = (model_m.group(1) or model_m.group(2) or "Unknown").strip()
+
+    if acc is None or f1 is None:
+        raise ValueError(
+            f"Baseline file at {p} is malformed or missing required metrics ('accuracy', 'macro_f1'). "
+            f"Found accuracy={acc}, macro_f1={f1}."
+        )
+
+    if not (0.0 <= acc <= 1.0) or not (0.0 <= f1 <= 1.0):
+        raise ValueError(
+            f"Parsed baseline metrics outside valid range [0.0, 1.0]: accuracy={acc}, macro_f1={f1} in {p}."
+        )
+
+    if top_3 is not None and not (0.0 <= top_3 <= 1.0):
+        top_3 = None
+
+    return {
+        "accuracy": acc,
+        "macro_f1": f1,
+        "top_3_accuracy": top_3,
+        "source_file": str(p),
+        "timestamp": timestamp,
+        "model_checkpoint": provenance,
+    }
+
+
 def generate_baseline_comparison(
-    controlled_report_path: Path,
+    controlled_report_path: Union[Path, str],
     field_results: Dict[str, Any],
 ) -> str:
-    """Generates comparison between controlled PlantVillage baseline and field results."""
+    """Generates comparison between parsed controlled baseline and field results."""
+    baseline = parse_controlled_baseline(controlled_report_path)
+
     field_m = field_results["metrics"]
     field_acc = field_m["accuracy"]
     field_f1 = field_m["macro_f1"]
+    field_top3 = field_m.get("top_3_accuracy")
 
-    # Controlled baseline reference (verified from final_test_evaluation_report.md)
-    ctrl_acc = 0.968942
-    ctrl_f1 = 0.965288
+    ctrl_acc = baseline["accuracy"]
+    ctrl_f1 = baseline["macro_f1"]
+    ctrl_top3 = baseline["top_3_accuracy"]
 
     delta_acc = field_acc - ctrl_acc
     delta_f1 = field_f1 - ctrl_f1
 
     md = []
-    md.append("# Generalization Analysis: Controlled Studio vs. Real Field")
+    md.append("# Generalization Analysis: Controlled Baseline vs. Real Field")
     md.append(f"**Field Evaluation Timestamp:** {field_results['metadata']['evaluation_timestamp']}")
+    md.append(f"**Controlled Baseline Source:** `{baseline['source_file']}`")
+    md.append(f"**Controlled Model Checkpoint:** `{baseline['model_checkpoint']}`")
+    md.append(f"**Controlled Evaluation Date:** `{baseline['timestamp']}`")
     md.append("")
     md.append("## High-Level Benchmark Comparison")
-    md.append("| Metric | Controlled Baseline (Studio) | Field Validation | Delta (Shift) |")
+    md.append("| Metric | Controlled Baseline | Field Validation | Delta (Shift) |")
     md.append("| :--- | :---: | :---: | :---: |")
     md.append(f"| **Top-1 Accuracy** | {ctrl_acc * 100:.2f}% | {field_acc * 100:.2f}% | {delta_acc * 100:+.2f}% |")
     md.append(f"| **Macro-F1 Score** | {ctrl_f1:.4f} | {field_f1:.4f} | {delta_f1:+.4f} |")
-    md.append(f"| **Top-3 Accuracy** | 99.71% | {field_m['top_3_accuracy'] * 100:.2f}% | {(field_m['top_3_accuracy'] - 0.9971) * 100:+.2f}% |")
-    md.append("")
 
+    if ctrl_top3 is not None and field_top3 is not None:
+        delta_top3 = field_top3 - ctrl_top3
+        md.append(f"| **Top-3 Accuracy** | {ctrl_top3 * 100:.2f}% | {field_top3 * 100:.2f}% | {delta_top3 * 100:+.2f}% |")
+    elif field_top3 is not None:
+        md.append(f"| **Top-3 Accuracy** | N/A | {field_top3 * 100:.2f}% | N/A |")
+
+    md.append("")
     md.append("## Distribution Shift Drivers")
     md.append("The observed generalization delta cannot be attributed solely to background differences. Real-world degradation stems from:")
     md.append("1. **Optical Acquisition Variations:** Sensor noise, autofocus drift, hand shake, rolling shutter.")
