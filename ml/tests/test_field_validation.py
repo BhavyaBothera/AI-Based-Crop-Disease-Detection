@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import math
@@ -64,6 +65,9 @@ from ml.evaluation.field_validation.manifest_schema import (
     TARGET_CLASS_MAPPING,
     VALID_GATE_CATEGORIES,
     FieldSampleRecord,
+    ManifestDuplicateIdError,
+    ManifestSchemaError,
+    ManifestSecurityError,
     ManifestValidationError,
     load_and_validate_manifest,
     map_ground_truth_to_gate_category,
@@ -1624,6 +1628,220 @@ class TestExploratoryModeIsolation(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             generate_baseline_comparison(baseline_file, dummy_field_results)
         self.assertIn("cannot be performed on exploratory evaluation results", str(ctx.exception))
+
+    def test_exploratory_mode_cannot_bypass_cross_split_leakage(self):
+        img1 = self.img_dir / "leaf1.jpg"
+        img2 = self.img_dir / "leaf2.jpg"
+        Image.fromarray(np.random.randint(30, 200, size=(224, 224, 3), dtype=np.uint8)).save(img1, format="JPEG")
+        Image.fromarray(np.random.randint(30, 200, size=(224, 224, 3), dtype=np.uint8)).save(img2, format="JPEG")
+
+        p = self.temp_dir / "manifest_leak.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id", "file_path", "crop", "ground_truth_class",
+                    "collection_source", "split", "duplicate_group_id", "evaluation_task"
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "L1", "file_path": "images/leaf1.jpg", "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy", "collection_source": "pilot",
+                "split": "field_dev", "duplicate_group_id": "LEAK_GRP_1", "evaluation_task": "disease"
+            })
+            writer.writerow({
+                "image_id": "L2", "file_path": "images/leaf2.jpg", "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy", "collection_source": "pilot",
+                "split": "field_test", "duplicate_group_id": "LEAK_GRP_1", "evaluation_task": "disease"
+            })
+
+        import argparse
+        args_formal = argparse.Namespace(
+            manifest=p, dataset_root=self.temp_dir, output_dir=self.out_dir,
+            model_path=Path("mock.keras"), gate_path=Path("mock_gate.keras"),
+            split=None, audit_only=True, eval_gate=False, exclude_unverified=True,
+            baseline_comparison=None, allow_exploratory_subset=False,
+        )
+        self.assertEqual(run_field_validation(args_formal), 1)
+
+        args_exploratory = argparse.Namespace(
+            manifest=p, dataset_root=self.temp_dir, output_dir=self.out_dir,
+            model_path=Path("mock.keras"), gate_path=Path("mock_gate.keras"),
+            split=None, audit_only=True, eval_gate=False, exclude_unverified=True,
+            baseline_comparison=None, allow_exploratory_subset=True,
+        )
+        self.assertEqual(run_field_validation(args_exploratory), 1)
+
+        # Confirm no evaluation JSON artifact created
+        json_artifacts = list(self.out_dir.glob("field_disease_eval_*.json"))
+        self.assertEqual(len(json_artifacts), 0)
+
+    def test_exploratory_mode_cannot_bypass_controlled_dataset_leakage(self):
+        img1 = self.img_dir / "leaf_ctrl.jpg"
+        np_img = np.random.randint(30, 200, size=(224, 224, 3), dtype=np.uint8)
+        Image.fromarray(np_img).save(img1, format="JPEG")
+        img_sha = hashlib.sha256(img1.read_bytes()).hexdigest()
+
+        # Write controlled manifest
+        ctrl_p = self.temp_dir / "controlled_manifest.csv"
+        with ctrl_p.open("w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=["image_id", "sha256"])
+            w.writeheader()
+            w.writerow({"image_id": "CTRL_001", "sha256": img_sha})
+
+        p = self.temp_dir / "manifest_ctrl_leak.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id", "file_path", "crop", "ground_truth_class",
+                    "collection_source", "split", "evaluation_task"
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "C_LEAK", "file_path": "images/leaf_ctrl.jpg", "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy", "collection_source": "pilot",
+                "split": "field_test", "evaluation_task": "disease"
+            })
+
+        auditor = DataQualityAuditor(manifest_path=p, dataset_root=self.temp_dir, controlled_manifest_path=ctrl_p)
+        rep = auditor.audit_all()
+        self.assertEqual(len(rep.controlled_dataset_leaks), 1)
+
+        import argparse
+        args_formal = argparse.Namespace(
+            manifest=p, dataset_root=self.temp_dir, output_dir=self.out_dir,
+            model_path=Path("mock.keras"), gate_path=Path("mock_gate.keras"),
+            split=None, audit_only=True, eval_gate=False, exclude_unverified=True,
+            baseline_comparison=None, allow_exploratory_subset=False,
+            controlled_manifest=ctrl_p,
+        )
+        self.assertEqual(run_field_validation(args_formal), 1)
+
+        args_exploratory = argparse.Namespace(
+            manifest=p, dataset_root=self.temp_dir, output_dir=self.out_dir,
+            model_path=Path("mock.keras"), gate_path=Path("mock_gate.keras"),
+            split=None, audit_only=True, eval_gate=False, exclude_unverified=True,
+            baseline_comparison=None, allow_exploratory_subset=True,
+            controlled_manifest=ctrl_p,
+        )
+        self.assertEqual(run_field_validation(args_exploratory), 1)
+
+        json_artifacts = list(self.out_dir.glob("field_disease_eval_*.json"))
+        self.assertEqual(len(json_artifacts), 0)
+
+    def test_exploratory_mode_cannot_bypass_duplicate_image_id(self):
+        img1 = self.img_dir / "leaf_dup.jpg"
+        Image.fromarray(np.random.randint(30, 200, size=(224, 224, 3), dtype=np.uint8)).save(img1, format="JPEG")
+
+        p = self.temp_dir / "manifest_dup_id.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id", "file_path", "crop", "ground_truth_class",
+                    "collection_source", "split", "evaluation_task"
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "DUP_ID_1", "file_path": "images/leaf_dup.jpg", "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy", "collection_source": "pilot",
+                "split": "field_test", "evaluation_task": "disease"
+            })
+            writer.writerow({
+                "image_id": "DUP_ID_1", "file_path": "images/leaf_dup.jpg", "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy", "collection_source": "pilot",
+                "split": "field_test", "evaluation_task": "disease"
+            })
+
+        import argparse
+        args_formal = argparse.Namespace(
+            manifest=p, dataset_root=self.temp_dir, output_dir=self.out_dir,
+            model_path=Path("mock.keras"), gate_path=Path("mock_gate.keras"),
+            split=None, audit_only=True, eval_gate=False, exclude_unverified=True,
+            baseline_comparison=None, allow_exploratory_subset=False,
+        )
+        self.assertEqual(run_field_validation(args_formal), 1)
+
+        args_exploratory = argparse.Namespace(
+            manifest=p, dataset_root=self.temp_dir, output_dir=self.out_dir,
+            model_path=Path("mock.keras"), gate_path=Path("mock_gate.keras"),
+            split=None, audit_only=True, eval_gate=False, exclude_unverified=True,
+            baseline_comparison=None, allow_exploratory_subset=True,
+        )
+        self.assertEqual(run_field_validation(args_exploratory), 1)
+
+        json_artifacts = list(self.out_dir.glob("field_disease_eval_*.json"))
+        self.assertEqual(len(json_artifacts), 0)
+
+    def test_exploratory_mode_cannot_bypass_duplicate_group_metadata_conflict(self):
+        img1 = self.img_dir / "leaf_c1.jpg"
+        img2 = self.img_dir / "leaf_c2.jpg"
+        Image.fromarray(np.random.randint(30, 200, size=(224, 224, 3), dtype=np.uint8)).save(img1, format="JPEG")
+        Image.fromarray(np.random.randint(30, 200, size=(224, 224, 3), dtype=np.uint8)).save(img2, format="JPEG")
+
+        p = self.temp_dir / "manifest_grp_conflict.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id", "file_path", "crop", "ground_truth_class",
+                    "collection_source", "split", "duplicate_group_id", "evaluation_task"
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "C1", "file_path": "images/leaf_c1.jpg", "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy", "collection_source": "pilot",
+                "split": "field_test", "duplicate_group_id": "GRP_CONFLICT", "evaluation_task": "disease"
+            })
+            writer.writerow({
+                "image_id": "C2", "file_path": "images/leaf_c2.jpg", "crop": "Potato",
+                "ground_truth_class": "Potato___healthy", "collection_source": "pilot",
+                "split": "field_test", "duplicate_group_id": "GRP_CONFLICT", "evaluation_task": "disease"
+            })
+
+        import argparse
+        args_formal = argparse.Namespace(
+            manifest=p, dataset_root=self.temp_dir, output_dir=self.out_dir,
+            model_path=Path("mock.keras"), gate_path=Path("mock_gate.keras"),
+            split=None, audit_only=True, eval_gate=False, exclude_unverified=True,
+            baseline_comparison=None, allow_exploratory_subset=False,
+        )
+        self.assertEqual(run_field_validation(args_formal), 1)
+
+        args_exploratory = argparse.Namespace(
+            manifest=p, dataset_root=self.temp_dir, output_dir=self.out_dir,
+            model_path=Path("mock.keras"), gate_path=Path("mock_gate.keras"),
+            split=None, audit_only=True, eval_gate=False, exclude_unverified=True,
+            baseline_comparison=None, allow_exploratory_subset=True,
+        )
+        self.assertEqual(run_field_validation(args_exploratory), 1)
+
+        json_artifacts = list(self.out_dir.glob("field_disease_eval_*.json"))
+        self.assertEqual(len(json_artifacts), 0)
+
+    def test_wording_independent_security_enforcement(self):
+        # Error text contains NEITHER 'traversal', 'containment', NOR '..'
+        custom_sec_error = ManifestSchemaError(
+            "Row 2: Restricted operational security boundary failure - perimeter breach detected.",
+            category="security",
+            row=2,
+            field_name="file_path",
+        )
+        self.assertEqual(custom_sec_error.category, "security")
+        self.assertNotIn("traversal", str(custom_sec_error).lower())
+        self.assertNotIn("containment", str(custom_sec_error).lower())
+        self.assertNotIn("..", str(custom_sec_error))
+
+        # Test auditor properly marks path_traversal_errors via structured category
+        auditor = DataQualityAuditor(dataset_root=self.temp_dir)
+        report = auditor.audit(records=[], schema_errors=[custom_sec_error])
+        self.assertGreaterEqual(len(report.path_traversal_errors), 1)
+        self.assertFalse(report.is_clean)
 
 
 class TestGateFailureAccounting(unittest.TestCase):

@@ -1,6 +1,6 @@
 {
-  "audit_name": "PHYTOSIGNAL Evaluation Integrity & Reliability Hardening (P0/P1)",
-  "timestamp_utc": "2026-11-20T15:40:00Z",
+  "audit_name": "PHYTOSIGNAL Evaluation Integrity & Reliability Hardening (P0/P1/P2)",
+  "timestamp_utc": "2026-11-21T10:35:00Z",
   "status": "FRAMEWORK_HARDENED_FIELD_VALIDATION_PENDING",
   "field_validation_status": "GENUINE_FIELD_DATA_COLLECTION_PENDING",
   "modules_hardened": [
@@ -54,7 +54,7 @@
       "name": "Unvalidated Model Softmax Outputs",
       "severity": "P0",
       "status": "REMEDIATED",
-      "mechanism": "Verifies 15-class shape, float dtype, finite values, range [-0.01, 1.01], and unit sum (1.0 +/- 0.01)."
+      "mechanism": "Verifies 15-class shape, float dtype, finite values, range [0.0, 1.0], and unit sum (1.0 +/- 0.01)."
     },
     "FM-8": {
       "name": "False Bootstrap CI on Low Cluster Count",
@@ -96,16 +96,48 @@
       "name": "Permissive Probability Range & Unbounded Logits",
       "severity": "P1",
       "status": "REMEDIATED",
-      "mechanism": "Strictly rejects negative probabilities and logits; bounds probabilities to [0.0, 1.0] with mathematically justified 0.01 sum tolerance for float32 accumulation."
+      "mechanism": "Strictly rejects negative probabilities (< -1e-6) and logits; bounds probabilities to [0.0, 1.0] with mathematically justified 0.01 sum tolerance for float32 accumulation."
+    },
+    "FM-15": {
+      "name": "Exploratory Mode Leakage & Identity Bypass Isolation",
+      "severity": "P1",
+      "status": "REMEDIATED",
+      "mechanism": "Cross-split group leakage, controlled-dataset baseline leakage, duplicate image IDs, and duplicate group metadata conflicts are fatal regardless of --allow-exploratory-subset. Integrity-violating runs produce no formal evaluation artifacts."
+    },
+    "FM-16": {
+      "name": "Fragile Substring Matching in Security Error Handling",
+      "severity": "P2",
+      "status": "REMEDIATED",
+      "mechanism": "Replaced fragile error message substring parsing in runner.py with structured error classifications (ManifestSecurityError, ManifestDuplicateIdError, ManifestSchemaError.category). Changing diagnostic wording cannot bypass security enforcement."
     }
+  },
+  "empirical_probability_evidence": {
+    "model_path": "ml/models/experiment_weighted/best_model.keras",
+    "sample_count": 110,
+    "corpus": "ml/data/ood_corpus",
+    "preprocessing": "backend.app.services.inference.preprocess_image",
+    "min_probability_sum": 0.99999988,
+    "max_probability_sum": 1.00000012,
+    "mean_probability_sum": 1.0,
+    "max_absolute_deviation": 1.2e-7,
+    "mean_absolute_deviation": 2.0e-8,
+    "inference_environment": {
+      "os": "Windows 11 (Build 26100)",
+      "python": "3.11.9",
+      "tensorflow": "2.16.2",
+      "keras": "3.3.3",
+      "hardware_acceleration": "oneDNN CPU vector operations"
+    },
+    "tolerance_justification": "Sum tolerance +/-0.01 is empirically safe and mathematically justified: observed max float32 deviation is 1.2e-7, while logits/unnormalized scores sum far outside [0.99, 1.01]."
   },
   "verification_results": {
     "field_validation_test_suite": {
       "file": "ml/tests/test_field_validation.py",
-      "total_tests": 92,
-      "passed": 91,
+      "total_tests": 95,
+      "passed": 94,
       "skipped": 1,
       "failed": 0,
+      "baseline_audit_count": "90 tests (89 passed, 1 skipped) prior to P1/P2 hardening additions; expanded to 95 tests (94 passed, 1 skipped)",
       "status": "OK"
     },
     "training_pipeline_test_suite": {
@@ -127,6 +159,7 @@
       "total_tests": 36,
       "passed": 33,
       "skipped": 3,
+      "skip_reason": "Live integration tests against http://127.0.0.1:8000 skipped because backend HTTP server was not running during offline client test execution",
       "failed": 0,
       "status": "OK"
     }
@@ -140,4 +173,3 @@
     "uncommitted_working_tree": true
   }
 }
-

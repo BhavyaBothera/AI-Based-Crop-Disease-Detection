@@ -288,7 +288,40 @@ def map_ground_truth_to_gate_category(
 
 class ManifestValidationError(ValueError):
     """Raised when a field manifest entry fails validation."""
-    pass
+    category: str = "schema"
+
+
+class ManifestSecurityError(ManifestValidationError):
+    """Raised when a manifest entry violates security or path containment boundaries."""
+    category: str = "security"
+
+
+class ManifestDuplicateIdError(ManifestValidationError):
+    """Raised when duplicate image_id is detected in manifest."""
+    category: str = "duplicate_identity"
+
+
+class ManifestSchemaError(str):
+    """
+    Structured manifest error that behaves as a string for backward compatibility
+    while exposing structured error categories and metadata.
+    """
+    category: str
+    row: Optional[int]
+    field_name: Optional[str]
+
+    def __new__(
+        cls,
+        message: str,
+        category: str = "schema",
+        row: Optional[int] = None,
+        field_name: Optional[str] = None,
+    ):
+        obj = super().__new__(cls, message)
+        obj.category = category
+        obj.row = row
+        obj.field_name = field_name
+        return obj
 
 
 @dataclass
@@ -330,7 +363,7 @@ class FieldSampleRecord:
         # Safe relative path resolution check: prohibit directory traversal escapes (Bug 6)
         path_parts = Path(self.file_path.strip()).parts
         if ".." in path_parts:
-            raise ManifestValidationError(
+            raise ManifestSecurityError(
                 f"Path traversal detected in file_path '{self.file_path}'. "
                 f"Parent directory traversal ('..') is prohibited."
             )
@@ -511,15 +544,27 @@ def load_and_validate_manifest(
                 try:
                     rec = FieldSampleRecord.from_dict(item, row_idx=idx)
                     if rec.image_id in seen_image_ids:
-                        errors.append(f"Row {idx}: Duplicate image_id '{rec.image_id}' found in manifest.")
+                        err_msg = f"Row {idx}: Duplicate image_id '{rec.image_id}' found in manifest."
+                        errors.append(ManifestSchemaError(err_msg, category="duplicate_identity", row=idx, field_name="image_id"))
                         continue
                     seen_image_ids.add(rec.image_id)
                     records.append(rec)
+                except ManifestSecurityError as sec_exc:
+                    err_str = str(sec_exc)
+                    if not err_str.startswith(f"Row {idx}:"):
+                        err_str = f"Row {idx}: {err_str}"
+                    errors.append(ManifestSchemaError(err_str, category="security", row=idx, field_name="file_path"))
+                except ManifestDuplicateIdError as dup_exc:
+                    err_str = str(dup_exc)
+                    if not err_str.startswith(f"Row {idx}:"):
+                        err_str = f"Row {idx}: {err_str}"
+                    errors.append(ManifestSchemaError(err_str, category="duplicate_identity", row=idx, field_name="image_id"))
                 except Exception as exc:
                     err_str = str(exc)
                     if not err_str.startswith(f"Row {idx}:"):
                         err_str = f"Row {idx}: {err_str}"
-                    errors.append(err_str)
+                    cat = getattr(exc, "category", "schema")
+                    errors.append(ManifestSchemaError(err_str, category=cat, row=idx))
     else:
         with path.open("r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -527,14 +572,26 @@ def load_and_validate_manifest(
                 try:
                     rec = FieldSampleRecord.from_dict(row, row_idx=idx)
                     if rec.image_id in seen_image_ids:
-                        errors.append(f"Row {idx}: Duplicate image_id '{rec.image_id}' found in manifest.")
+                        err_msg = f"Row {idx}: Duplicate image_id '{rec.image_id}' found in manifest."
+                        errors.append(ManifestSchemaError(err_msg, category="duplicate_identity", row=idx, field_name="image_id"))
                         continue
                     seen_image_ids.add(rec.image_id)
                     records.append(rec)
+                except ManifestSecurityError as sec_exc:
+                    err_str = str(sec_exc)
+                    if not err_str.startswith(f"Row {idx}:"):
+                        err_str = f"Row {idx}: {err_str}"
+                    errors.append(ManifestSchemaError(err_str, category="security", row=idx, field_name="file_path"))
+                except ManifestDuplicateIdError as dup_exc:
+                    err_str = str(dup_exc)
+                    if not err_str.startswith(f"Row {idx}:"):
+                        err_str = f"Row {idx}: {err_str}"
+                    errors.append(ManifestSchemaError(err_str, category="duplicate_identity", row=idx, field_name="image_id"))
                 except Exception as exc:
                     err_str = str(exc)
                     if not err_str.startswith(f"Row {idx}:"):
                         err_str = f"Row {idx}: {err_str}"
-                    errors.append(err_str)
+                    cat = getattr(exc, "category", "schema")
+                    errors.append(ManifestSchemaError(err_str, category=cat, row=idx))
 
     return records, errors

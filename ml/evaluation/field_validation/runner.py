@@ -115,6 +115,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Path to controlled baseline evaluation report or metrics JSON to compare with.",
     )
     parser.add_argument(
+        "--controlled-manifest",
+        type=Path,
+        default=None,
+        help="Path to controlled baseline dataset manifest (CSV) to audit for data leakage.",
+    )
+    parser.add_argument(
         "--allow-exploratory-subset",
         action="store_true",
         default=False,
@@ -140,6 +146,7 @@ def run_field_validation(args: argparse.Namespace) -> int:
     auditor = DataQualityAuditor(
         manifest_path=manifest_path,
         dataset_root=dataset_root,
+        controlled_manifest_path=getattr(args, "controlled_manifest", None),
     )
     audit_report = auditor.audit_all()
     audit_summary = auditor.generate_markdown_report(audit_report)
@@ -154,55 +161,91 @@ def run_field_validation(args: argparse.Namespace) -> int:
 
     logger.info("Data audit saved to %s and %s", audit_json_path.name, audit_md_path.name)
 
-    # Security & Path Traversal Check (Phase 1):
-    # Traversal, symlink escapes, and containment violations MUST NEVER be bypassed, even with --allow-exploratory-subset!
-    has_traversal_in_schema = any(
-        ("traversal" in str(err).lower() or "containment" in str(err).lower() or ".." in str(err))
-        for err in audit_report.schema_errors
+    # 1. Critical Security Violations (Path Traversal, Symlink Escape, Containment)
+    # MUST NEVER BE BYPASSED, EVEN WITH --allow-exploratory-subset! (Phase 1 & 2)
+    # Uses structured categories / typed exceptions, NOT human-readable message text.
+    has_security_errors = bool(
+        audit_report.path_traversal_errors
+        or any(getattr(err, "category", None) == "security" for err in audit_report.schema_errors)
     )
-    if audit_report.path_traversal_errors or has_traversal_in_schema:
+    if has_security_errors:
         logger.critical(
-            "CRITICAL SECURITY VIOLATION: Path traversal or containment violation detected in manifest. "
+            "CRITICAL SECURITY VIOLATION: Path traversal, symlink escape, or containment violation detected in manifest. "
             "Security violations cannot be bypassed in exploratory mode. Aborting execution immediately."
         )
         print("\n" + audit_summary)
         return 1
 
-    # Fail closed on schema errors in formal evaluation (Phase 1.3)
-    if audit_report.schema_errors:
+    # 2. Critical Identity Violations (Duplicate image_id)
+    # MUST NEVER BE BYPASSED, EVEN WITH --allow-exploratory-subset! (Phase 1 P1)
+    has_duplicate_id_errors = bool(
+        getattr(audit_report, "duplicate_identity_errors", [])
+        or any(getattr(err, "category", None) == "duplicate_identity" for err in audit_report.schema_errors)
+    )
+    if has_duplicate_id_errors:
+        logger.critical(
+            "CRITICAL INTEGRITY VIOLATION: Duplicate image_id detected in manifest. "
+            "Identity violations cannot be bypassed in exploratory mode. Aborting execution immediately."
+        )
+        print("\n" + audit_summary)
+        return 1
+
+    # 3. Critical Dataset Leakage Violations (Cross-split group leaks, controlled dataset overlap)
+    # MUST NEVER BE BYPASSED, EVEN WITH --allow-exploratory-subset! (Phase 1 P1)
+    if audit_report.group_leaks or audit_report.controlled_dataset_leaks:
+        logger.critical(
+            "CRITICAL INTEGRITY VIOLATION: Dataset leakage detected (%d cross-split group leaks, %d controlled baseline leaks). "
+            "Data leakage violations cannot be bypassed in exploratory mode. Aborting execution immediately.",
+            len(audit_report.group_leaks),
+            len(audit_report.controlled_dataset_leaks),
+        )
+        print("\n" + audit_summary)
+        return 1
+
+    # 4. Critical Metadata Inconsistencies (Duplicate groups with conflicting classes or crops)
+    # MUST NEVER BE BYPASSED, EVEN WITH --allow-exploratory-subset! (Phase 1 P1)
+    if audit_report.duplicate_group_inconsistencies:
+        logger.critical(
+            "CRITICAL INTEGRITY VIOLATION: Conflicting ground truth metadata across repeated captures in group(s): %s. "
+            "Identity metadata conflicts cannot be bypassed in exploratory mode. Aborting execution immediately.",
+            [d["group_id"] for d in audit_report.duplicate_group_inconsistencies[:5]],
+        )
+        print("\n" + audit_summary)
+        return 1
+
+    # 5. Non-Security Schema Errors (Relaxed ONLY if --allow-exploratory-subset is explicitly passed)
+    remaining_schema_errors = [
+        err for err in audit_report.schema_errors
+        if getattr(err, "category", None) not in ("security", "duplicate_identity")
+    ]
+    if remaining_schema_errors:
         manifest_err_file = output_dir / f"manifest_errors_{timestamp_str}.json"
         with manifest_err_file.open("w", encoding="utf-8") as f:
             json.dump({
                 "manifest_path": str(manifest_path),
-                "error_count": len(audit_report.schema_errors),
-                "schema_errors": audit_report.schema_errors,
+                "error_count": len(remaining_schema_errors),
+                "schema_errors": [str(e) for e in remaining_schema_errors],
             }, f, indent=2)
         if not args.allow_exploratory_subset:
             logger.critical(
                 "Manifest validation failed with %d error(s). Refusing formal evaluation. "
                 "Pass --allow-exploratory-subset to permit exploratory evaluation of valid records.",
-                len(audit_report.schema_errors),
+                len(remaining_schema_errors),
             )
             print("\n" + audit_summary)
             return 1
         logger.warning(
-            "Manifest validation had %d error(s), but --allow-exploratory-subset is active. Proceeding with exploratory run.",
-            len(audit_report.schema_errors),
+            "Manifest validation had %d non-security error(s), but --allow-exploratory-subset is active. Proceeding with exploratory run.",
+            len(remaining_schema_errors),
         )
 
     if not audit_report.is_clean:
         logger.warning(
-            "Data audit identified issues: %d schema errors, %d corruptions, %d format errors, %d cross-split leaks, %d controlled leaks.",
+            "Data audit identified non-fatal issues: %d schema errors, %d corruptions, %d format errors.",
             len(audit_report.schema_errors),
             len(audit_report.corrupt_images),
             len(audit_report.unsupported_format_images),
-            len(audit_report.group_leaks),
-            len(audit_report.controlled_dataset_leaks),
         )
-        if not args.allow_exploratory_subset and (audit_report.group_leaks or audit_report.controlled_dataset_leaks):
-            logger.critical("Data audit identified critical dataset leakage violations. Refusing formal evaluation.")
-            print("\n" + audit_summary)
-            return 1
 
     if args.audit_only:
         print("\n" + audit_summary)

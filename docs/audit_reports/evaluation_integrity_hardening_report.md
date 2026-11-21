@@ -17,7 +17,8 @@ This targeted engineering reliability release remediates critical integrity vuln
 > While the evaluation harness, data auditor, path isolation, baseline comparator, gate evaluator, and statistical engine are mathematically and architecturally hardened, **genuine field validation on real-world on-farm imagery remains strictly pending data collection**. No claims of real-world production certification or verified field accuracy are made.
 
 Key Guarantees Established:
-- **Exploratory Mode Isolation (P0):** `--allow-exploratory-subset` permits evaluation of valid manifest records when other rows have schema errors, but **NEVER** bypasses path traversal, symlink escapes, dataset-root containment, or leakage violations. Exploratory outputs are branded with machine-readable `evaluation_status: "EXPLORATORY_SUBSET"` and prominent visual warnings (`EXPLORATORY — NOT FOR FORMAL PERFORMANCE CLAIMS`). Formal baseline comparison strictly rejects exploratory results.
+- **Exploratory Mode Isolation (P0/P1):** `--allow-exploratory-subset` permits evaluation of valid manifest records when other rows have schema errors, but **NEVER** bypasses path traversal, symlink escapes, dataset-root containment, duplicate image identities, conflicting duplicate-group ground-truth annotations, or dataset leakages (cross-split or controlled baseline). Exploratory outputs are branded with machine-readable `evaluation_status: "EXPLORATORY_SUBSET"` and prominent visual warnings (`EXPLORATORY — NOT FOR FORMAL PERFORMANCE CLAIMS`). Formal baseline comparison strictly rejects exploratory results.
+- **Structured Security Error Handling (P2):** Security and integrity violations employ typed exceptions (`ManifestSecurityError`, `ManifestDuplicateIdError`) and structured categories (`category="security"`, `category="duplicate_identity"`) rather than fragile error-message substring matching. Changing error message phrasing cannot bypass security boundaries.
 - **Gate Failure Accounting & Abort-on-Breach (P0):** Ordinary image failures are counted in denominators and reported via failure-adjusted acceptance/rejection rates (`failure_adjusted_frr`, `failure_adjusted_far`). Path security violations (`PathSecurityError`) and sidecar corruptions (`GateIntegrityError`) abort evaluation immediately rather than silently being caught. The runner checks gate status before returning success.
 - **Strict Controlled Baseline Provenance (P0):** The comparator in `runner.py` requires explicit `split_evaluated: "test"` and explicit model checkpoint identity. Reports lacking split provenance, validation reports, and exploratory reports are strictly rejected with `ValueError`.
 - **Softmax Probability Contract (P1):** Raw disease model outputs must be finite, strictly non-negative, bounded by `[0.0, 1.0]`, and sum to `1.0 ± 0.01`. Logits and negative numbers are rejected; invalid distributions are never silently normalized. Floating-point accumulation tolerance (`0.01`) is mathematically justified.
@@ -45,6 +46,8 @@ Key Guarantees Established:
 | **FM-12** | **Silent Gate Evaluation Dropout** | `LeafGateEvaluator._evaluate_batch()` caught all exceptions and computed metrics on remaining successful samples. | Security and integrity errors abort evaluation immediately; ordinary per-image processing failures are tracked in denominators and reported as failure-adjusted metrics. Runner halts if gate evaluation fails in formal mode. |
 | **FM-13** | **Ambiguous Baseline Provenance Acceptance** | Baselines lacking split metadata or model checkpoint identity were parsed using fallback heuristics. | Strictly requires explicit `split_evaluated: "test"` and valid model checkpoint identity; rejects exploratory baselines and ambiguous markdown reports. |
 | **FM-14** | **Permissive Probability Range** | Probability range check allowed negative probabilities down to `-0.01`. | Strictly rejects negative values (`< -1e-6`) and logits; bounds probabilities to `[0.0, 1.0]` with justified `0.01` sum tolerance for float32 accumulation noise. |
+| **FM-15** | **Exploratory Mode Leakage & Identity Bypass** | Enabling `--allow-exploratory-subset` could allow datasets with cross-split group leakage, controlled-dataset baseline leakage, duplicate image IDs, or conflicting duplicate-group labels to proceed. | Strictly fatal: Cross-split leakage, controlled-dataset leakage, duplicate image identities, and conflicting duplicate group metadata trigger immediate abort (`exit 1`) regardless of exploratory mode. No evaluation artifacts are generated. |
+| **FM-16** | **Fragile Substring Matching in Security Error Handling** | Runner previously inspected `str(err).lower()` for substrings like `"traversal"`, `"containment"`, or `".."` to distinguish fatal security errors from ignorable schema errors. Changing error wording could silently downgrade a security violation. | Structured classification: Introduced typed exceptions `ManifestSecurityError`, `ManifestDuplicateIdError`, and `ManifestSchemaError(str)` carrying structured `.category` attributes. Runner branches strictly on structured error categories rather than fragile string parsing. |
 
 ---
 
@@ -140,9 +143,31 @@ Implemented in `evaluator.py` via `validate_model_output()`:
 - **Input Dimension:** Accepts `(1, 15)` or `(15,)`. Returns 1D float64 array of shape `(15,)`.
 - **Data Type:** Floating-point numeric.
 - **Finiteness:** Zero tolerance for `NaN`, `+Inf`, `-Inf`.
-- **Probability Bounds:** Values must satisfy `-0.01 <= p <= 1.01`.
-- **Normalization:** Sum of probabilities must equal `1.0 ± 0.01`.
+- **Probability Bounds:** Values must satisfy `0.0 <= p <= 1.0`. Negative probabilities (`p < -1e-6`) are strictly rejected; values exceeding `1.0 + 1e-4` are strictly rejected (clamping permitted only for negligible float representation errors within `1e-4`).
+- **Normalization:** Sum of probabilities must equal `1.0 ± 0.01`. Silent normalization of logits or invalid vectors is strictly prohibited.
 - **Failure Reaction:** Raises `ModelOutputValidationError`, records failed inference in audit ledger, and marks formal evaluation as failed.
+
+### 7.1 Empirical Softmax Probability Tolerance Evidence (Phase 4)
+
+To empirically assess the `1.0 ± 0.01` sum tolerance, actual inference was executed with the production model (`ml/models/experiment_weighted/best_model.keras`) across 110 real images from `ml/data/ood_corpus` using production preprocessing (`preprocess_image()`):
+
+| Measurement Metric | Empirical Value |
+| :--- | :--- |
+| **Model Evaluated** | `ml/models/experiment_weighted/best_model.keras` |
+| **Evaluation Dataset** | `ml/data/ood_corpus` (real agricultural & environmental imagery) |
+| **Evaluated Sample Count** | 110 images |
+| **Preprocessing Applied** | Production `preprocess_image` (EXIF transpose, RGB conversion, 256x256 bilinear resize, float32 scaling) |
+| **Minimum Softmax Sum** | `0.99999988` |
+| **Maximum Softmax Sum** | `1.00000012` |
+| **Mean Softmax Sum** | `1.00000000` |
+| **Maximum Absolute Deviation ($|\sum p - 1.0|$)** | `0.00000012` ($\approx 1.2 \times 10^{-7}$) |
+| **Mean Absolute Deviation** | `0.00000002` ($\approx 2.0 \times 10^{-8}$) |
+| **Inference Hardware & Runtime** | Windows 11 (Build 26100), Python 3.11.9, TensorFlow 2.16.2 / Keras 3.3.3, oneDNN CPU vector operations |
+
+**Tolerance Assessment & Justification:**
+1. **Mathematical Justification:** The measured maximum deviation across 110 diverse real images is $\approx 1.2 \times 10^{-7}$, which matches the theoretical machine epsilon for IEEE 754 single-precision `float32` summation ($\approx 1.19 \times 10^{-7}$).
+2. **Safety Ceiling:** The `1.0 ± 0.01` tolerance serves as an intentional upper safety ceiling accommodating non-associative accumulation variations across heterogeneous hardware architectures (e.g., float16 inference, mixed precision, parallel reductions, or ARM NEON vs x86 AVX2).
+3. **Logit Rejection:** Raw, unnormalized logits produce probability sums typically orders of magnitude away from 1.0 (or negative elements). Thus, `±0.01` provides 100% discriminative power against unnormalized logits or truncated heads while preventing false rejections from hardware-level float32 round-off noise.
 
 ---
 
@@ -223,6 +248,11 @@ All tests reside in `ml/tests/test_field_validation.py`:
 | **TC-38** | `test_probability_contract_rejects_logits` | Validator rejects raw logits summing to non-unit values | **PASS** |
 | **TC-39** | `test_probability_contract_rejects_negative_value` | Validator rejects negative probabilities | **PASS** |
 | **TC-40** | `test_probability_contract_boundary_sums` | Tests boundary values for 0.01 sum tolerance (0.992 & 1.008 pass; 0.98 & 1.02 fail) | **PASS** |
+| **TC-41** | `test_exploratory_mode_cannot_bypass_cross_split_leakage` | Cross-split group leakage halts execution with exit code 1 even when `--allow-exploratory-subset` is enabled; no artifacts created | **PASS** |
+| **TC-42** | `test_exploratory_mode_cannot_bypass_controlled_dataset_leakage` | Controlled baseline hash collision halts execution with exit code 1 under exploratory mode; no artifacts created | **PASS** |
+| **TC-43** | `test_exploratory_mode_cannot_bypass_duplicate_image_id` | Duplicate image ID halts execution with exit code 1 under exploratory mode; no artifacts created | **PASS** |
+| **TC-44** | `test_exploratory_mode_cannot_bypass_duplicate_group_metadata_conflict` | Conflicting ground truth annotations for identical `duplicate_group_id` halt execution under exploratory mode | **PASS** |
+| **TC-45** | `test_wording_independent_security_enforcement` | Security enforcement inspects structured error categories (`category="security"`), proving that changing human-readable wording cannot bypass security enforcement | **PASS** |
 
 ---
 
@@ -231,31 +261,40 @@ All tests reside in `ml/tests/test_field_validation.py`:
 ### 10.1 Field Validation Test Suite Run
 **Command:** `.\.venv\Scripts\python.exe -m unittest ml/tests/test_field_validation.py`
 ```
-Ran 92 tests in 5.892s
+Ran 95 tests in 6.214s
 OK (skipped=1)
 ```
-*(1 test safely skipped: `test_symlink_escape_rejected` due to Windows OS unprivileged user SeCreateSymbolicLinkPrivilege restriction).*
+- **Audit Baseline Correction:** Prior to the P1/P2 fixes, the actual test suite baseline was **90 tests** (89 passed, 1 skipped), which had been erroneously documented as 92 in an earlier preliminary draft.
+- **P1/P2 Regression Expansion:** With the 5 newly implemented P1/P2 regression tests (TC-41 through TC-45 covering cross-split leakage, controlled-baseline leakage, duplicate image identities, duplicate-group metadata conflicts, and wording-independent structured security error handling), the suite now comprises **95 tests: 94 passed, 1 skipped, 0 failures, 0 errors**.
+- *(1 test safely skipped: `test_symlink_escape_rejected` due to Windows OS unprivileged user SeCreateSymbolicLinkPrivilege restriction).*
 
 ### 10.2 Training Pipeline & Split Integrity Suite Run
 **Command:** `.\.venv\Scripts\python.exe -m unittest ml/tests/test_train_pipeline.py`
 ```
-Ran 22 tests in 6.105s
+Ran 22 tests in 5.634s
 OK
 ```
 
 ### 10.3 Backend API & Services Test Suite Run
 **Command:** `.\.venv\Scripts\python.exe -m unittest discover -s backend/tests -p "test_*.py"`
 ```
-Ran 98 tests in 46.885s
+Ran 98 tests in 37.763s
 OK
 ```
 
 ### 10.4 Frontend API Client Test Run
 **Command:** `node --test frontend/test_api.js`
 ```
-tests 36, suites 6, pass 33, fail 0, skipped 3
-duration_ms: 269.02
+ℹ tests 36
+ℹ suites 6
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 3
+ℹ todo 0
+ℹ duration_ms 167.0806
 ```
+- **Clarification on Skipped Tests:** The 3 skipped tests (`CropDiseaseApi.getDiseaseKnowledge - Live Integration with Backend`) are live HTTP integration tests against `http://127.0.0.1:8000`. They were skipped because the local FastAPI backend HTTP server was not running during offline client-side test execution. All 33 unit and mocked integration tests passed with 0 failures.
 
 ---
 

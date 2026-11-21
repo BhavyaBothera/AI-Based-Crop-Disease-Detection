@@ -174,6 +174,7 @@ class AuditReport:
     corrupt_images: List[Dict[str, str]] = field(default_factory=list)
     unsupported_format_images: List[Dict[str, str]] = field(default_factory=list)
     path_traversal_errors: List[Dict[str, str]] = field(default_factory=list)
+    duplicate_identity_errors: List[Dict[str, str]] = field(default_factory=list)
     exact_duplicates: List[Dict[str, Any]] = field(default_factory=list)
     near_duplicates: List[Dict[str, Any]] = field(default_factory=list)
     group_leaks: List[Dict[str, Any]] = field(default_factory=list)
@@ -196,6 +197,7 @@ class AuditReport:
             and len(self.corrupt_images) == 0
             and len(self.unsupported_format_images) == 0
             and len(self.path_traversal_errors) == 0
+            and len(self.duplicate_identity_errors) == 0
             and len(self.group_leaks) == 0
             and len(self.controlled_dataset_leaks) == 0
             and len(self.duplicate_group_inconsistencies) == 0
@@ -290,6 +292,21 @@ class DataQualityAuditor:
             schema_errors=errs,
             invalid_records=len(errs),
         )
+
+        for err in errs:
+            cat = getattr(err, "category", "schema")
+            if cat == "security":
+                report.path_traversal_errors.append({
+                    "image_id": "MANIFEST_ROW",
+                    "file_path": getattr(err, "field_name", "file_path") or "file_path",
+                    "error": str(err),
+                })
+            elif cat == "duplicate_identity":
+                report.duplicate_identity_errors.append({
+                    "image_id": "MANIFEST_ROW",
+                    "file_path": getattr(err, "field_name", "image_id") or "image_id",
+                    "error": str(err),
+                })
 
         sha_to_records: Dict[str, List[FieldSampleRecord]] = {}
         dhash_to_records: Dict[str, List[FieldSampleRecord]] = {}
@@ -484,6 +501,7 @@ class DataQualityAuditor:
         md.append("## Integrity Issues Ledger")
         md.append(f"- **Manifest Schema / Parsing Errors:** {len(report.schema_errors)}")
         md.append(f"- **Path Traversal / Containment Violations:** {len(report.path_traversal_errors)}")
+        md.append(f"- **Duplicate Identity Violations:** {len(report.duplicate_identity_errors)}")
         md.append(f"- **Missing Image Files:** {len(report.missing_files)}")
         md.append(f"- **Corrupted / Unreadable Images:** {len(report.corrupt_images)}")
         md.append(f"- **Unsupported Format Images:** {len(report.unsupported_format_images)}")
