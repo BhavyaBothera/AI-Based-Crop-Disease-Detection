@@ -41,7 +41,7 @@
           <span id="connection-status-text">Model Ready</span>
         </div>
 
-        <button type="button" id="mobile-menu-toggle" class="mobile-menu-btn" aria-label="Open navigation menu">
+        <button type="button" id="mobile-menu-toggle" class="mobile-menu-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-menu">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
       </div>
@@ -50,7 +50,7 @@
 
   <!-- Mobile Navigation Drawer -->
   <div id="mobile-menu-backdrop" class="mobile-nav-backdrop"></div>
-  <aside id="mobile-menu" class="mobile-nav-menu" aria-label="Mobile Navigation Drawer">
+  <aside id="mobile-menu" class="mobile-nav-menu" aria-label="Mobile Navigation Drawer" aria-hidden="true">
     <div class="mobile-nav-header">
       <span class="brand-name"><span class="phyto">PHYTO</span><span class="signal">SIGNAL</span></span>
       <button type="button" id="mobile-menu-close" class="btn btn-secondary btn-sm" aria-label="Close menu">&times;</button>
@@ -202,7 +202,7 @@
           </p>
         </div>
         <div>
-          <h4 class="footer-col-title">Navigation</h4>
+          <h3 class="footer-col-title">Navigation</h3>
           <ul class="footer-links">
             <li><a href="index.html">Home Overview</a></li>
             <li><a href="analyze.html">Analyze Workspace</a></li>
@@ -211,15 +211,15 @@
           </ul>
         </div>
         <div>
-          <h4 class="footer-col-title">Pathology Taxa</h4>
+          <h3 class="footer-col-title">Pathology Taxa</h3>
           <ul class="footer-links">
             <li><a href="field-guide.html?crop=tomato">Tomato Diseases (10)</a></li>
             <li><a href="field-guide.html?crop=potato">Potato Diseases (3)</a></li>
-            <li><a href="field-guide.html?crop=pepper">Bell Pepper Diseases (2)</a></li>
+            <li><a href="field-guide.html?crop=bell_pepper">Bell Pepper Diseases (2)</a></li>
           </ul>
         </div>
         <div>
-          <h4 class="footer-col-title">Safety & Governance</h4>
+          <h3 class="footer-col-title">Safety & Governance</h3>
           <ul class="footer-links">
             <li><a href="about.html#safety">Two-Tier Gate Audit</a></li>
             <li><a href="about.html#responsible-ai">Responsible Use</a></li>

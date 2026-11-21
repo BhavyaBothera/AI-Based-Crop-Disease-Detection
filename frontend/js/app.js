@@ -557,8 +557,8 @@
     if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.remove('hidden');
     if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.remove('hidden');
 
-    // Smooth scroll to results on mobile devices
-    if (window.innerWidth < 900) {
+    // Smooth scroll to results on mobile and tablet devices
+    if (window.innerWidth <= 1024) {
       elements.resultsContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
@@ -1542,10 +1542,53 @@
     }
   }
 
+  /**
+   * Generates a compact base64 JPEG thumbnail (~1.5 KB) from an HTMLImageElement
+   * using an offscreen canvas to prevent localStorage quota exhaustion.
+   */
+  function generateThumbnailDataUrl(imgElement, size = 64) {
+    try {
+      if (!imgElement || !imgElement.naturalWidth || !imgElement.naturalHeight) {
+        return null;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+
+      const nw = imgElement.naturalWidth;
+      const nh = imgElement.naturalHeight;
+      const minDim = Math.min(nw, nh);
+      const sx = (nw - minDim) / 2;
+      const sy = (nh - minDim) / 2;
+
+      ctx.drawImage(imgElement, sx, sy, minDim, minDim, 0, 0, size, size);
+      return canvas.toDataURL('image/jpeg', 0.6);
+    } catch {
+      return null;
+    }
+  }
+
   function saveToRecentScans(data, imageSrc) {
     if (!data || typeof data.predicted_class_id !== 'number') return;
     try {
       const scans = getRecentScans();
+
+      // Generate compact persistent thumbnail via canvas, avoiding broken blob: URLs
+      let thumbDataUrl = null;
+      if (elements.imagePreview && elements.imagePreview.naturalWidth > 0) {
+        thumbDataUrl = generateThumbnailDataUrl(elements.imagePreview, 64);
+      } else if (
+        imageSrc &&
+        typeof imageSrc === 'string' &&
+        (imageSrc.startsWith('data:image/') || imageSrc.startsWith('http://') || imageSrc.startsWith('https://')) &&
+        !imageSrc.startsWith('blob:') &&
+        imageSrc.length < 50000
+      ) {
+        thumbDataUrl = imageSrc;
+      }
+
       const newScan = {
         id: Date.now(),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1554,8 +1597,8 @@
         health: data.health || 'Healthy',
         score: data.score,
         class_id: data.predicted_class_id,
-        // Only store compact thumbnails (presets or small images) to prevent quota issues
-        thumb: (imageSrc && imageSrc.length < 300000) ? imageSrc : null,
+        thumb: thumbDataUrl,
+        top_predictions: Array.isArray(data.top_predictions) ? data.top_predictions : [],
       };
 
       const filtered = scans.filter((s) => !(s.crop === newScan.crop && s.condition === newScan.condition));
@@ -1586,10 +1629,24 @@
       card.setAttribute('tabindex', '0');
       card.setAttribute('aria-label', `Review recent scan: ${scan.crop} ${scan.condition}`);
 
-      const thumb = document.createElement('img');
-      thumb.className = 'recent-scan-thumb';
-      thumb.alt = scan.condition;
-      thumb.src = scan.thumb || 'samples/hero_specimen.jpg';
+      const hasValidThumb =
+        scan.thumb &&
+        typeof scan.thumb === 'string' &&
+        (scan.thumb.startsWith('data:image/') || scan.thumb.startsWith('http://') || scan.thumb.startsWith('https://')) &&
+        !scan.thumb.startsWith('blob:');
+
+      let thumb;
+      if (hasValidThumb) {
+        thumb = document.createElement('img');
+        thumb.className = 'recent-scan-thumb';
+        thumb.alt = scan.condition;
+        thumb.src = scan.thumb;
+      } else {
+        thumb = document.createElement('div');
+        thumb.className = 'recent-scan-thumb recent-scan-thumb-placeholder';
+        thumb.setAttribute('aria-hidden', 'true');
+        thumb.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22C12 22 20 18 20 10C20 5 16 2 12 2C8 2 4 5 4 10C4 18 12 22 12 22Z"/><path d="M12 22V8"/><path d="M12 13L16 10"/><path d="M12 16L8 13"/></svg>`;
+      }
 
       const title = document.createElement('span');
       title.className = 'recent-scan-title';
@@ -1605,6 +1662,76 @@
       card.appendChild(meta);
 
       const handleScanClick = () => {
+        // 1. Restore Primary Diagnosis Details
+        elements.resultCrop.textContent = scan.crop || 'Unknown Crop';
+        elements.resultCondition.textContent = scan.condition || 'Unknown Condition';
+
+        const isHealthy = (scan.health || '').toLowerCase() === 'healthy';
+        elements.resultHealthBadge.textContent = isHealthy ? '\u2713 Healthy' : '\u26A0 Diseased';
+        elements.resultHealthBadge.className = 'badge ' + (isHealthy ? 'badge-healthy' : 'badge-diseased');
+
+        const scorePercent = typeof scan.score === 'number' ? (scan.score * 100).toFixed(2) : '--';
+        elements.resultScore.textContent = `${scorePercent}%`;
+
+        // 2. Restore Confidence Band
+        const scoreVal = typeof scan.score === 'number' ? scan.score : 0;
+        if (elements.confidenceBandBadge) {
+          if (scoreVal >= 0.90) {
+            elements.confidenceBandBadge.textContent = 'High Confidence';
+            elements.confidenceBandBadge.className = 'badge badge-confidence-high';
+            if (elements.confidenceGuidanceText) {
+              elements.confidenceGuidanceText.textContent = 'Strong neural convergence on characteristic foliar lesions';
+            }
+          } else if (scoreVal >= 0.70) {
+            elements.confidenceBandBadge.textContent = 'Moderate Confidence';
+            elements.confidenceBandBadge.className = 'badge badge-confidence-moderate';
+            if (elements.confidenceGuidanceText) {
+              elements.confidenceGuidanceText.textContent = 'Review differential candidate classes below before action';
+            }
+          } else {
+            elements.confidenceBandBadge.textContent = 'Low Confidence';
+            elements.confidenceBandBadge.className = 'badge badge-confidence-low';
+            if (elements.confidenceGuidanceText) {
+              elements.confidenceGuidanceText.textContent = 'Atypical symptoms or look-alike presentation; inspect candidate monographs';
+            }
+          }
+        }
+
+        // 3. Restore Specimen Thumbnail in Header
+        const resultThumb = document.getElementById('result-specimen-thumb');
+        const wrap = resultThumb ? resultThumb.closest('.diagnosis-thumb-wrapper') : null;
+        if (resultThumb && hasValidThumb) {
+          resultThumb.src = scan.thumb;
+          if (wrap) wrap.classList.remove('hidden');
+        } else if (wrap) {
+          wrap.classList.add('hidden');
+        }
+
+        // 4. Restore Candidates List
+        if (Array.isArray(scan.top_predictions) && scan.top_predictions.length > 0) {
+          currentCandidates = scan.top_predictions;
+        } else {
+          currentCandidates = [{
+            class_id: scan.class_id,
+            crop: scan.crop,
+            condition: scan.condition,
+            score: scan.score,
+            health: scan.health,
+            rank: 1,
+          }];
+        }
+        renderCandidatesList();
+
+        // 5. Restore View State
+        elements.loadingContainer.classList.add('hidden');
+        elements.resultsRejected.classList.add('hidden');
+        elements.resultsEmpty.classList.add('hidden');
+        elements.resultsContent.classList.remove('hidden');
+        elements.newScanBtn.classList.remove('hidden');
+        if (elements.printAdvisoryBtn) elements.printAdvisoryBtn.classList.remove('hidden');
+        if (elements.copyGuidanceBtn) elements.copyGuidanceBtn.classList.remove('hidden');
+
+        // 6. Fetch Monograph and notify
         activeCandidateClassId = scan.class_id;
         activeCandidateMeta = {
           isPrimary: true,
@@ -1614,7 +1741,12 @@
           score: scan.score,
         };
         fetchAndRenderKnowledge(scan.class_id, activeCandidateMeta);
-        showToast(`Loaded monograph for ${scan.crop} — ${scan.condition}`, '📖');
+        showToast(`Loaded recent scan: ${scan.crop} — ${scan.condition}`, '📖');
+
+        // 7. Smooth Scroll on Mobile/Tablet
+        if (window.innerWidth <= 1024) {
+          elements.resultsContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       };
 
       card.addEventListener('click', handleScanClick);

@@ -41,21 +41,66 @@
     const mobileMenu = document.getElementById('mobile-menu');
     const mobileBackdrop = document.getElementById('mobile-menu-backdrop');
     const mobileClose = document.getElementById('mobile-menu-close');
+    const mobileLinks = document.querySelectorAll('.mobile-nav-links a');
+
+    function handleMobileMenuKeyDown(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMobileMenu();
+        return;
+      }
+      if (e.key === 'Tab') {
+        if (!mobileMenu) return;
+        const focusables = mobileMenu.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusables || focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
 
     function openMobileMenu() {
+      if (mobileToggle) {
+        mobileToggle.setAttribute('aria-expanded', 'true');
+      }
       if (mobileMenu) {
         mobileMenu.classList.add('open');
+        mobileMenu.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
       }
-      if (mobileBackdrop) mobileBackdrop.classList.add('visible');
+      if (mobileBackdrop) {
+        mobileBackdrop.classList.add('visible');
+      }
+      document.addEventListener('keydown', handleMobileMenuKeyDown);
+      if (mobileClose) {
+        setTimeout(() => mobileClose.focus(), 60);
+      }
     }
 
     function closeMobileMenu() {
+      if (mobileToggle) {
+        mobileToggle.setAttribute('aria-expanded', 'false');
+      }
       if (mobileMenu) {
         mobileMenu.classList.remove('open');
+        mobileMenu.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
       }
-      if (mobileBackdrop) mobileBackdrop.classList.remove('visible');
+      if (mobileBackdrop) {
+        mobileBackdrop.classList.remove('visible');
+      }
+      document.removeEventListener('keydown', handleMobileMenuKeyDown);
+      if (mobileToggle && typeof mobileToggle.focus === 'function') {
+        mobileToggle.focus();
+      }
     }
 
     if (mobileToggle) {
@@ -67,6 +112,9 @@
     if (mobileBackdrop) {
       mobileBackdrop.addEventListener('click', closeMobileMenu);
     }
+    mobileLinks.forEach((link) => {
+      link.addEventListener('click', closeMobileMenu);
+    });
 
     // Polling System Readiness Probe
     pollReadiness();

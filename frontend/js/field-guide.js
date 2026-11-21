@@ -10,6 +10,7 @@
   let currentHealthFilter = 'all';
   let currentSearchQuery = '';
   let activeMonographRecord = null;
+  let lastActiveElement = null;
 
   const elements = {
     searchInput: document.getElementById('field-guide-search'),
@@ -81,25 +82,22 @@
       elements.drawerBackdrop.addEventListener('click', closeMonographDrawer);
     }
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && elements.drawer && elements.drawer.classList.contains('open')) {
-        closeMonographDrawer();
-      }
-    });
-
-    // Check URL parameters for direct deep-linking e.g. ?classId=2 or ?crop=tomato
+    // Check URL parameters for direct deep-linking e.g. ?classId=2, ?crop=pepper, or ?crop=bell_pepper
     const urlParams = new URLSearchParams(window.location.search);
     const deepCrop = urlParams.get('crop');
     const deepClass = urlParams.get('classId');
 
     if (deepCrop) {
-      const matchBtn = Array.from(elements.cropFilters).find(
-        (b) => (b.getAttribute('data-crop') || '').toLowerCase() === deepCrop.toLowerCase()
-      );
+      let normalizedCrop = deepCrop.toLowerCase();
+      if (normalizedCrop === 'pepper') normalizedCrop = 'bell_pepper';
+      const matchBtn = Array.from(elements.cropFilters).find((b) => {
+        const cropAttr = (b.getAttribute('data-crop') || '').toLowerCase();
+        return cropAttr === normalizedCrop || (cropAttr === 'bell_pepper' && normalizedCrop === 'pepper');
+      });
       if (matchBtn) {
         elements.cropFilters.forEach((b) => b.classList.remove('active'));
         matchBtn.classList.add('active');
-        currentCropFilter = deepCrop.toLowerCase();
+        currentCropFilter = matchBtn.getAttribute('data-crop') || normalizedCrop;
       }
     }
 
@@ -256,11 +254,36 @@
     return card;
   }
 
+  function handleDrawerKeyDown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeMonographDrawer();
+      return;
+    }
+    if (e.key === 'Tab') {
+      if (!elements.drawer) return;
+      const focusables = elements.drawer.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables || focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+
   function openMonographDrawer(classId) {
     const records = getKnowledgeRecords();
     const rec = records.find((r) => r.class_id === classId);
     if (!rec) return;
 
+    lastActiveElement = document.activeElement;
     activeMonographRecord = rec;
     const isHealthy = (rec.health_status || '').toLowerCase() === 'healthy';
 
@@ -278,15 +301,43 @@
 
     if (elements.drawerContent) {
       elements.drawerContent.innerHTML = buildMonographHtml(rec);
+
+      // Attach programmatic click listeners to expand/collapse buttons
+      const expandBtn = document.getElementById('monograph-expand-all');
+      const collapseBtn = document.getElementById('monograph-collapse-all');
+      if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+          elements.drawerContent.querySelectorAll('details.monograph-accordion').forEach((d) => {
+            d.open = true;
+          });
+        });
+      }
+      if (collapseBtn) {
+        collapseBtn.addEventListener('click', () => {
+          elements.drawerContent.querySelectorAll('details.monograph-accordion').forEach((d) => {
+            d.open = false;
+          });
+        });
+      }
     }
 
     if (elements.drawer) {
       elements.drawer.classList.add('open');
       document.body.style.overflow = 'hidden';
       elements.drawer.setAttribute('aria-hidden', 'false');
+      document.addEventListener('keydown', handleDrawerKeyDown);
+
+      // Hide background content from assistive tech
+      const bgElements = document.querySelectorAll('main, .site-header, .site-footer');
+      bgElements.forEach((el) => el.setAttribute('aria-hidden', 'true'));
     }
     if (elements.drawerBackdrop) {
       elements.drawerBackdrop.classList.add('visible');
+    }
+
+    // Move focus to drawer close button for immediate keyboard accessibility
+    if (elements.drawerCloseBtn) {
+      setTimeout(() => elements.drawerCloseBtn.focus(), 60);
     }
   }
 
@@ -295,11 +346,21 @@
       elements.drawer.classList.remove('open');
       elements.drawer.setAttribute('aria-hidden', 'true');
       document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleDrawerKeyDown);
+
+      // Restore background visibility for assistive tech
+      const bgElements = document.querySelectorAll('main, .site-header, .site-footer');
+      bgElements.forEach((el) => el.removeAttribute('aria-hidden'));
     }
     if (elements.drawerBackdrop) {
       elements.drawerBackdrop.classList.remove('visible');
     }
     activeMonographRecord = null;
+
+    // Restore focus to element that triggered drawer
+    if (lastActiveElement && typeof lastActiveElement.focus === 'function') {
+      lastActiveElement.focus();
+    }
   }
 
   function buildMonographHtml(rec) {
@@ -310,8 +371,8 @@
     html += `<div class="monograph-controls-bar">
       <div class="monograph-context-pill">★ Botanical Pathology Monograph (${escapeHtml(rec.crop)} \u2014 ${escapeHtml(rec.condition)})</div>
       <div class="monograph-toggle-group">
-        <button type="button" class="btn btn-secondary btn-xs" onclick="this.closest('.drawer-body').querySelectorAll('details.monograph-accordion').forEach(d => d.open = true)">Expand All</button>
-        <button type="button" class="btn btn-secondary btn-xs" onclick="this.closest('.drawer-body').querySelectorAll('details.monograph-accordion').forEach(d => d.open = false)">Collapse All</button>
+        <button type="button" id="monograph-expand-all" class="btn btn-secondary btn-xs">Expand All</button>
+        <button type="button" id="monograph-collapse-all" class="btn btn-secondary btn-xs">Collapse All</button>
       </div>
     </div>`;
 
