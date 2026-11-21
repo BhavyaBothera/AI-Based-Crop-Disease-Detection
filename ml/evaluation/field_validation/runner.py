@@ -154,6 +154,20 @@ def run_field_validation(args: argparse.Namespace) -> int:
 
     logger.info("Data audit saved to %s and %s", audit_json_path.name, audit_md_path.name)
 
+    # Security & Path Traversal Check (Phase 1):
+    # Traversal, symlink escapes, and containment violations MUST NEVER be bypassed, even with --allow-exploratory-subset!
+    has_traversal_in_schema = any(
+        ("traversal" in str(err).lower() or "containment" in str(err).lower() or ".." in str(err))
+        for err in audit_report.schema_errors
+    )
+    if audit_report.path_traversal_errors or has_traversal_in_schema:
+        logger.critical(
+            "CRITICAL SECURITY VIOLATION: Path traversal or containment violation detected in manifest. "
+            "Security violations cannot be bypassed in exploratory mode. Aborting execution immediately."
+        )
+        print("\n" + audit_summary)
+        return 1
+
     # Fail closed on schema errors in formal evaluation (Phase 1.3)
     if audit_report.schema_errors:
         manifest_err_file = output_dir / f"manifest_errors_{timestamp_str}.json"
@@ -185,8 +199,8 @@ def run_field_validation(args: argparse.Namespace) -> int:
             len(audit_report.group_leaks),
             len(audit_report.controlled_dataset_leaks),
         )
-        if not args.allow_exploratory_subset and (audit_report.path_traversal_errors or audit_report.group_leaks or audit_report.controlled_dataset_leaks):
-            logger.critical("Data audit identified critical security or leakage violations. Refusing formal evaluation.")
+        if not args.allow_exploratory_subset and (audit_report.group_leaks or audit_report.controlled_dataset_leaks):
+            logger.critical("Data audit identified critical dataset leakage violations. Refusing formal evaluation.")
             print("\n" + audit_summary)
             return 1
 
@@ -207,6 +221,7 @@ def run_field_validation(args: argparse.Namespace) -> int:
         dataset_root=dataset_root,
         split_filter=args.split,
         exclude_unverified_from_primary=args.exclude_unverified,
+        allow_exploratory_subset=args.allow_exploratory_subset,
     )
 
     eval_json, eval_md = evaluator.save_results(
@@ -215,14 +230,18 @@ def run_field_validation(args: argparse.Namespace) -> int:
         prefix="field_disease_eval",
     )
 
-    # Fail closed if formal disease evaluation failed (Phase 2 & 5)
-    if not eval_results.get("metadata", {}).get("formal_evaluation_passed", True):
+    # Fail closed if formal disease evaluation failed (Phase 1 & 2)
+    is_formal_disease = eval_results.get("metadata", {}).get("is_formal_evaluation", True)
+    if not is_formal_disease and not args.allow_exploratory_subset:
         failed_cnt = eval_results.get("metadata", {}).get("failed_inferences", 0)
-        logger.warning("Disease evaluation recorded %d inference error(s).", failed_cnt)
-        if not args.allow_exploratory_subset:
-            logger.critical("Formal evaluation failed integrity checks (%d error records). Refusing formal evaluation report.", failed_cnt)
-            print("\n" + evaluator.generate_markdown_summary(eval_results))
-            return 1
+        eval_status = eval_results.get("metadata", {}).get("evaluation_status", "FAILED_INTEGRITY_VIOLATION")
+        logger.critical(
+            "Formal disease evaluation failed integrity checks (status: %s, %d error records). Refusing formal evaluation report.",
+            eval_status,
+            failed_cnt,
+        )
+        print("\n" + evaluator.generate_markdown_summary(eval_results))
+        return 1
 
     # Step 3: Leaf Gate Evaluation (if requested)
     gate_results = None
@@ -271,6 +290,7 @@ def run_field_validation(args: argparse.Namespace) -> int:
             gate_samples,
             dataset_root=dataset_root,
             exclude_unverified=args.exclude_unverified,
+            allow_exploratory_subset=args.allow_exploratory_subset,
         )
         if unmapped_gate_records:
             gate_results["metadata"]["unmapped_gate_records"] = unmapped_gate_records
@@ -281,6 +301,19 @@ def run_field_validation(args: argparse.Namespace) -> int:
             prefix="field_gate_eval",
         )
         logger.info("Gate evaluation saved to %s", gate_json.name)
+
+        # Check gate evaluation status before returning success (Phase 2 P0 requirement)
+        formal_gate_passed = gate_results.get("metadata", {}).get("formal_gate_evaluation_passed", True)
+        if not formal_gate_passed and not args.allow_exploratory_subset:
+            failed_gate_cnt = gate_results.get("metadata", {}).get("failed_samples", 0)
+            gate_status = gate_results.get("metadata", {}).get("gate_evaluation_status", "FAILED_INTEGRITY_VIOLATION")
+            logger.critical(
+                "Formal gate evaluation failed integrity checks (status: %s, %d error records). Refusing formal evaluation report.",
+                gate_status,
+                failed_gate_cnt,
+            )
+            print("\n" + gate_eval.generate_markdown_summary(gate_results))
+            return 1
 
     # Step 4: Comparative Report Generation (if baseline specified)
     if args.baseline_comparison:
@@ -335,20 +368,52 @@ def parse_controlled_baseline(controlled_report_path: Union[Path, str]) -> Dict[
         if not isinstance(data, dict):
             raise ValueError(f"Baseline JSON at {p} must be a dictionary.")
 
-        # Check split metadata (Phase 4): Reject validation/dev splits
+        # Reject validation metrics substitution immediately (Phase 3)
+        metrics = data.get("metrics") if isinstance(data.get("metrics"), dict) else data
+        if not isinstance(metrics, dict):
+            metrics = data
+
+        if "val_accuracy" in metrics and "test_accuracy" not in metrics and "accuracy" not in metrics:
+            raise ValueError(
+                f"Baseline report at {p} contains only validation metrics ('val_accuracy'). "
+                f"Validation metrics cannot be substituted for test split metrics."
+            )
+        if "val_macro_f1" in metrics and "test_macro_f1" not in metrics and "macro_f1" not in metrics:
+            raise ValueError(
+                f"Baseline report at {p} contains only validation Macro-F1 ('val_macro_f1'). "
+                f"Validation metrics cannot be substituted for test split metrics."
+            )
+
+        # Check exploratory baseline status (Phase 1 & 3)
+        if data.get("evaluation_status") == "EXPLORATORY_SUBSET" or data.get("is_formal_evaluation") is False:
+            raise ValueError(
+                f"Controlled baseline report at {p} is marked as exploratory ('{data.get('evaluation_status')}'). "
+                f"Exploratory results are strictly prohibited as controlled baselines."
+            )
+
+        # Check split metadata (Phase 3): Require explicit held-out 'test' split
         split_val = (
             data.get("split_evaluated")
             or data.get("split")
             or data.get("dataset_split")
             or data.get("evaluation_split")
         )
-        if split_val and str(split_val).strip().lower() in ("val", "validation", "dev", "train"):
+        if not split_val:
+            raise ValueError(
+                f"Controlled baseline report at {p} lacks explicit test split provenance. "
+                f"Explicit 'split_evaluated': 'test' is required."
+            )
+        split_str = str(split_val).strip().lower()
+        if split_str in ("val", "validation", "dev", "train"):
             raise ValueError(
                 f"Controlled baseline report at {p} evaluated split '{split_val}'. "
                 f"Validation/dev splits are strictly prohibited as controlled baselines; held-out 'test' split required."
             )
-
-        metrics = data.get("metrics") if isinstance(data.get("metrics"), dict) else data
+        if split_str != "test":
+            raise ValueError(
+                f"Controlled baseline report at {p} evaluated split '{split_val}'. "
+                f"Held-out 'test' split is strictly required for controlled baselines."
+            )
 
         # Test Accuracy
         if "test_accuracy" in metrics and metrics["test_accuracy"] is not None:
@@ -357,20 +422,10 @@ def parse_controlled_baseline(controlled_report_path: Union[Path, str]) -> Dict[
             except (ValueError, TypeError):
                 pass
         elif "accuracy" in metrics and metrics["accuracy"] is not None:
-            if "val_accuracy" in metrics and "test_accuracy" not in metrics:
-                raise ValueError(
-                    f"Baseline report at {p} contains only validation metrics ('val_accuracy'). "
-                    f"Validation metrics cannot be substituted for test split metrics."
-                )
             try:
                 acc = float(metrics["accuracy"])
             except (ValueError, TypeError):
                 pass
-        elif "val_accuracy" in metrics:
-            raise ValueError(
-                f"Baseline report at {p} contains only validation metrics ('val_accuracy'). "
-                f"Validation metrics cannot be substituted for test split metrics."
-            )
 
         # Test Macro-F1
         if "test_macro_f1" in metrics and metrics["test_macro_f1"] is not None:
@@ -379,20 +434,32 @@ def parse_controlled_baseline(controlled_report_path: Union[Path, str]) -> Dict[
             except (ValueError, TypeError):
                 pass
         elif "macro_f1" in metrics and metrics["macro_f1"] is not None:
-            if "val_macro_f1" in metrics and "test_macro_f1" not in metrics:
-                raise ValueError(
-                    f"Baseline report at {p} contains only validation Macro-F1 ('val_macro_f1'). "
-                    f"Validation metrics cannot be substituted for test split metrics."
-                )
             try:
                 f1 = float(metrics["macro_f1"])
             except (ValueError, TypeError):
                 pass
-        elif "val_macro_f1" in metrics:
+
+        if acc is not None and not (0.0 <= acc <= 1.0):
             raise ValueError(
-                f"Baseline report at {p} contains only validation Macro-F1 ('val_macro_f1'). "
-                f"Validation metrics cannot be substituted for test split metrics."
+                f"Parsed baseline metrics outside valid range [0.0, 1.0]: accuracy={acc} in {p}."
             )
+        if f1 is not None and not (0.0 <= f1 <= 1.0):
+            raise ValueError(
+                f"Parsed baseline metrics outside valid range [0.0, 1.0]: macro_f1={f1} in {p}."
+            )
+
+        # Check model identity / provenance (Phase 3)
+        prov_val = (
+            data.get("model_checkpoint")
+            or data.get("model_path")
+            or data.get("model_name")
+        )
+        if not prov_val or str(prov_val).strip() in ("", "Unknown", "None"):
+            raise ValueError(
+                f"Controlled baseline report at {p} lacks explicit model/checkpoint identity. "
+                f"A valid model checkpoint provenance is required."
+            )
+        provenance = str(prov_val).strip()
 
         # Test Top-3 Accuracy
         if "test_top_3_accuracy" in metrics and metrics["test_top_3_accuracy"] is not None:
@@ -407,18 +474,35 @@ def parse_controlled_baseline(controlled_report_path: Union[Path, str]) -> Dict[
                 pass
 
         timestamp = str(data.get("timestamp_utc") or data.get("evaluation_date") or data.get("timestamp") or "Unknown")
-        provenance = str(data.get("model_checkpoint") or data.get("model_path") or data.get("model_name") or "Unknown")
 
     else:
         import re
 
-        # Reject validation-only markdown reports (Phase 4)
-        has_val_header = bool(re.search(r"#+\s*(?:Validation|Dev)\s+(?:Report|Evaluation|Metrics)", content, re.IGNORECASE))
-        has_test_marker = bool(re.search(r"Test[- ]Set|split\s*==\s*['\"]test['\"]|test\s+metrics|Test Set Result", content, re.IGNORECASE))
-        if has_val_header and not has_test_marker:
+        # Require explicit test split provenance in Markdown (Phase 3)
+        has_test_split_marker = bool(
+            re.search(r"\*\*(?:Evaluation\s+Split|Dataset\s+Split|Dataset\s+Evaluated|Split)\*\*:\s*.*?['\"]?test['\"]?", content, re.IGNORECASE)
+            or re.search(r"#+\s*(?:Final\s+|Held-Out\s+)?Test[- ]Set\s+(?:Evaluation|Benchmark|Report|Result)", content, re.IGNORECASE)
+            or re.search(r"split\s*==\s*['\"]test['\"]", content, re.IGNORECASE)
+        )
+        has_val_header = bool(
+            re.search(r"#+\s*(?:Validation|Dev)\s+(?:Report|Evaluation|Metrics)", content, re.IGNORECASE)
+            or re.search(r"\*\*(?:Evaluation\s+Split|Dataset\s+Split|Split)\*\*:\s*`?(?:val|validation|dev)`?", content, re.IGNORECASE)
+        )
+        if has_val_header or not has_test_split_marker:
             raise ValueError(
-                f"Baseline report at {p} appears to be a validation report. Held-out test set required."
+                f"Controlled baseline report at {p} lacks explicit test split provenance. "
+                f"Held-out 'test' split header or metadata required."
             )
+
+        model_m = re.search(r"\*\*(?:Selected\s+Model|Model\s+Checkpoint)\*\*:\s*(?:\[`?([^`\]\r\n]+)`?\]|`?([^`\r\n]+)`?)", content, re.IGNORECASE)
+        if model_m:
+            prov_cand = (model_m.group(1) or model_m.group(2) or "").strip()
+            if prov_cand and prov_cand not in ("Unknown", "None"):
+                provenance = prov_cand
+            else:
+                raise ValueError(f"Baseline report at {p} lacks explicit model/checkpoint identity.")
+        else:
+            raise ValueError(f"Baseline report at {p} lacks explicit model/checkpoint identity.")
 
         f1_m = re.search(r"\|\s*\*\*Macro-F1(?:\s*\(Primary\))?\*\*\s*\|\s*(?:\*\*)?`?([0-9.]+)`?", content, re.IGNORECASE)
         if f1_m:
@@ -444,10 +528,6 @@ def parse_controlled_baseline(controlled_report_path: Union[Path, str]) -> Dict[
         date_m = re.search(r"\*\*(?:Evaluation\s+Date|Timestamp)\*\*:\s*`?([^`\r\n]+)`?", content, re.IGNORECASE)
         if date_m:
             timestamp = date_m.group(1).strip()
-
-        model_m = re.search(r"\*\*(?:Selected\s+Model|Model\s+Checkpoint)\*\*:\s*(?:\[`?([^`\]\r\n]+)`?\]|`?([^`\r\n]+)`?)", content, re.IGNORECASE)
-        if model_m:
-            provenance = (model_m.group(1) or model_m.group(2) or "Unknown").strip()
 
     if acc is None or f1 is None:
         raise ValueError(
@@ -477,7 +557,18 @@ def generate_baseline_comparison(
     controlled_report_path: Union[Path, str],
     field_results: Dict[str, Any],
 ) -> str:
-    """Generates comparison between parsed controlled baseline and field results."""
+    """
+    Generates comparison between parsed controlled baseline and field results.
+    Phase 1 requirement: Strictly rejects exploratory evaluation results.
+    """
+    is_formal = field_results.get("metadata", {}).get("is_formal_evaluation", True)
+    eval_status = field_results.get("metadata", {}).get("evaluation_status")
+    if not is_formal or eval_status == "EXPLORATORY_SUBSET":
+        raise ValueError(
+            "Formal baseline comparison cannot be performed on exploratory evaluation results. "
+            "Exploratory runs are explicitly not for formal performance claims."
+        )
+
     baseline = parse_controlled_baseline(controlled_report_path)
 
     field_m = field_results["metrics"]

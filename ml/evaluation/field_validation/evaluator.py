@@ -46,6 +46,7 @@ from backend.app.services.inference import (
 from .manifest_schema import (
     NAME_TO_CLASS_ID,
     TARGET_CLASS_MAPPING,
+    UNVERIFIED_TIERS,
     load_and_validate_manifest,
 )
 from .metrics import calculate_field_metrics
@@ -68,17 +69,32 @@ class ModelOutputValidationError(ValueError):
 def validate_model_output(
     scores: Any,
     expected_classes: int = 15,
-    tolerance: float = 0.01,
+    sum_tolerance: float = 0.01,
+    prob_tolerance: float = 1e-4,
 ) -> np.ndarray:
     """
-    Validates that raw disease model output is a valid probability distribution (Phase 5).
+    Validates that raw disease model output is a mathematically valid probability distribution (Phase 4).
+
     Requirements:
-    - 1D shape (expected_classes,) or 2D (1, expected_classes)
-    - Numeric floating-point dtype
-    - Finite values (no NaN, +Inf, -Inf)
-    - Valid probability values in [-tolerance, 1.0 + tolerance]
-    - Sum is approximately 1.0 within tolerance (1e-2)
-    Raises ModelOutputValidationError on failure.
+    - 1D shape (expected_classes,) or 2D (1, expected_classes).
+    - Numeric floating-point or integer dtype.
+    - Finite values: strictly zero tolerance for NaN, +Inf, -Inf.
+    - Probability bounds: Each probability must be in [0.0, 1.0]. Negative values are strictly
+      rejected; values slightly exceeding 1.0 due to float32 representation (<= 1.0 + prob_tolerance)
+      are clamped, but any value > 1.0 + prob_tolerance is rejected.
+    - Normalization: Probabilities must sum to 1.0 within sum_tolerance (0.01 / 1%).
+    - Silent normalization of invalid logits or out-of-distribution vectors is strictly prohibited.
+
+    Mathematical Justification of Tolerances:
+    - In IEEE 754 float32 single-precision arithmetic across diverse BLAS and SIMD execution units
+      (x86 AVX2, ARM NEON, GPU FP32), accumulating 15 softmax probabilities exhibits floating-point
+      roundoff noise up to ~1e-4. A sum tolerance of 0.01 safely accommodates this accumulation noise
+      while strictly rejecting logits (which typically sum to large arbitrary values) and truncated outputs.
+    - Probabilities cannot be negative. A threshold of -1e-6 allows only negligible float underflow,
+      while rejecting negative scores.
+
+    Raises:
+        ModelOutputValidationError on failure.
     """
     if scores is None:
         raise ModelOutputValidationError("Model output is None.")
@@ -118,19 +134,28 @@ def validate_model_output(
             f"Model output contains non-finite values (NaN: {nan_count}, Inf: {inf_count})."
         )
 
-    # Check probability range [-tolerance, 1.0 + tolerance]
-    if np.any(arr < -tolerance) or np.any(arr > 1.0 + tolerance):
-        min_val = float(np.min(arr))
-        max_val = float(np.max(arr))
+    # Reject logits and negative probabilities (Phase 4)
+    min_val = float(np.min(arr))
+    if min_val < -1e-6:
         raise ModelOutputValidationError(
-            f"Model output probabilities out of bounds [0.0, 1.0]: min={min_val}, max={max_val}."
+            f"Model output probabilities out of bounds [0.0, 1.0]: negative probabilities (min={min_val}). Logits and negative values are strictly rejected."
         )
+    # Clamp tiny float32 underflow
+    arr = np.maximum(arr, 0.0)
+
+    # Check upper bound
+    max_val = float(np.max(arr))
+    if max_val > 1.0 + prob_tolerance:
+        raise ModelOutputValidationError(
+            f"Model output probabilities exceed 1.0 (max={max_val}). Unnormalized outputs are strictly rejected."
+        )
+    arr = np.minimum(arr, 1.0)
 
     # Check sum
     prob_sum = float(np.sum(arr))
-    if abs(prob_sum - 1.0) > tolerance:
+    if abs(prob_sum - 1.0) > sum_tolerance:
         raise ModelOutputValidationError(
-            f"Model output probabilities must sum to 1.0 within tolerance {tolerance}: sum={prob_sum}."
+            f"Model output probabilities must sum to 1.0 within tolerance {sum_tolerance}: sum={prob_sum}."
         )
 
     return arr
@@ -357,13 +382,15 @@ class FieldEvaluator:
         split_filter: Optional[str] = None,
         enforce_level_a: bool = True,
         exclude_unverified_from_primary: bool = True,
+        allow_exploratory_subset: bool = False,
     ) -> Dict[str, Any]:
         """
         Executes end-to-end evaluation on the records within a field manifest.
         Separates disease classification from gate-only tasks (Bug 5).
         Excludes visually suspected / ambiguous samples from primary metrics by default (Bug 4).
-        Enforces safe image path resolution (Phase 2) and model output validation (Phase 5).
-        Tracks full failed inference accounting (Phase 6.4).
+        Enforces safe image path resolution (Phase 2) and model output validation (Phase 4).
+        Tracks full failed inference accounting (Phase 2 & Phase 6.4).
+        Fails closed on security violations and schema errors unless allow_exploratory_subset is enabled (Phase 1).
         """
         manifest_path = Path(manifest_path).resolve()
         if dataset_root is None:
@@ -372,11 +399,17 @@ class FieldEvaluator:
             dataset_root = Path(dataset_root).resolve()
 
         records, validation_errors = load_and_validate_manifest(manifest_path)
+        submitted_manifest_records = len(records) + len(validation_errors)
+        valid_records_count = len(records)
+        rejected_records_count = len(validation_errors)
+
         if validation_errors:
             logger.warning("Manifest schema validation returned %d issues.", len(validation_errors))
 
         # Filter by split if requested
+        split_excluded_count = 0
         if split_filter:
+            split_excluded_count = sum(1 for r in records if r.split != split_filter)
             records = [r for r in records if r.split == split_filter]
 
         # Separate disease-classification tasks from gate-only tasks (Bug 5)
@@ -395,9 +428,12 @@ class FieldEvaluator:
         timestamp = datetime.now(timezone.utc).isoformat()
 
         for idx, rec in enumerate(disease_records, start=1):
-            # Resolve image file path safely with directory traversal protection (Phase 2)
+            # Resolve image file path safely with directory traversal protection (Phase 1 & 2)
             try:
                 img_path = resolve_safe_image_path(rec.file_path, dataset_root=dataset_root)
+            except PathSecurityError as sec_exc:
+                logger.critical("Security violation on record '%s': %s", rec.image_id, sec_exc)
+                raise
             except Exception as exc:
                 logger.error("Path resolution failed for image_id %s: %s", rec.image_id, exc)
                 error_records.append(
@@ -453,7 +489,6 @@ class FieldEvaluator:
                     )
                 )
 
-        total_manifest_records = len(records)
         disease_task_records = len(disease_records)
         successful_inferences = len(evaluation_records)
         failed_inferences = len(error_records)
@@ -462,8 +497,33 @@ class FieldEvaluator:
         successful_correct = sum(1 for r in evaluation_records if r.is_correct)
         failure_adjusted_accuracy = (successful_correct / inference_attempts) if inference_attempts > 0 else 0.0
 
+        unverified_excluded_count = (
+            sum(1 for r in evaluation_records if r.verification_status in UNVERIFIED_TIERS)
+            if exclude_unverified_from_primary
+            else 0
+        )
+        total_excluded_records = (
+            rejected_records_count
+            + split_excluded_count
+            + len(gate_only_records)
+            + failed_inferences
+            + unverified_excluded_count
+        )
+
+        exclusion_reasons = {
+            "schema_validation_rejections": [
+                {"row": err.split(":")[0] if ":" in err else "Unknown", "reason": err}
+                for err in validation_errors
+            ] if validation_errors else [],
+            "schema_validation_rejected_count": rejected_records_count,
+            "split_filter_excluded_count": split_excluded_count,
+            "gate_only_task_bypassed_count": len(gate_only_records),
+            "image_processing_failed_count": failed_inferences,
+            "unverified_annotations_excluded_count": unverified_excluded_count,
+        }
+
         accounting = InferenceAccounting(
-            total_records=total_manifest_records,
+            total_records=submitted_manifest_records,
             valid_records=disease_task_records,
             inference_attempts=inference_attempts,
             successful_inferences=successful_inferences,
@@ -472,7 +532,16 @@ class FieldEvaluator:
             failure_adjusted_accuracy=round(failure_adjusted_accuracy, 4),
         )
 
-        formal_passed = (len(error_records) == 0 and len(validation_errors) == 0)
+        formal_passed = (len(error_records) == 0 and len(validation_errors) == 0 and not allow_exploratory_subset)
+        if allow_exploratory_subset:
+            evaluation_status = "EXPLORATORY_SUBSET"
+            is_formal = False
+        elif formal_passed:
+            evaluation_status = "FORMAL_PASSED"
+            is_formal = True
+        else:
+            evaluation_status = "FAILED_INTEGRITY_VIOLATION"
+            is_formal = False
 
         # Convert to dictionaries for metrics calculation
         eval_dicts = [r.to_dict() for r in evaluation_records]
@@ -500,15 +569,24 @@ class FieldEvaluator:
                 "model_path": str(self.model_path),
                 "model_sha256": self.model_sha256,
                 "preprocessing_version": PREPROCESSING_VERSION,
-                "total_manifest_records": total_manifest_records,
+                "submitted_records": submitted_manifest_records,
+                "valid_records": valid_records_count,
+                "rejected_records": rejected_records_count,
+                "evaluated_records": successful_inferences,
+                "failed_records": failed_inferences,
+                "excluded_records": total_excluded_records,
+                "exclusion_reasons": exclusion_reasons,
+                "total_manifest_records": submitted_manifest_records,
                 "disease_task_records": disease_task_records,
                 "gate_only_records_bypassed": len(gate_only_records),
                 "successfully_evaluated": successful_inferences,
                 "failed_inferences": failed_inferences,
                 "inference_error_rate": round(failure_rate, 4),
                 "failure_adjusted_accuracy": round(failure_adjusted_accuracy, 4),
+                "is_formal_evaluation": is_formal,
                 "formal_evaluation_passed": formal_passed,
-                "evaluation_status": "PASSED" if formal_passed else "FAILED_INTEGRITY_VIOLATION",
+                "evaluation_status": evaluation_status,
+                "allow_exploratory_subset": allow_exploratory_subset,
                 "exclude_unverified_from_primary": exclude_unverified_from_primary,
                 "inference_accounting": accounting.to_dict(),
             },
@@ -556,15 +634,53 @@ class FieldEvaluator:
         meta = results["metadata"]
         metrics = results["metrics"]
 
+        is_exploratory = (
+            meta.get("evaluation_status") == "EXPLORATORY_SUBSET"
+            or not meta.get("is_formal_evaluation", True)
+            or meta.get("allow_exploratory_subset", False)
+        )
+        is_formal_failed = meta.get("evaluation_status") == "FAILED_INTEGRITY_VIOLATION"
+
         md = []
-        md.append("# Field Validation Evaluation Summary")
+        if is_exploratory:
+            md.append("# EXPLORATORY — NOT FOR FORMAL PERFORMANCE CLAIMS")
+            md.append("## Field Disease Evaluation Summary (Exploratory Subset)")
+            md.append("")
+            md.append("> [!WARNING]")
+            md.append("> **EXPLORATORY EVALUATION ACTIVE:** This evaluation was executed with `--allow-exploratory-subset`.")
+            md.append("> It evaluates a partial/exploratory subset and MUST NOT be used for formal performance claims,")
+            md.append("> production certification, or comparative baseline claims.")
+            md.append("")
+        elif is_formal_failed:
+            md.append("# FAILED FORMAL FIELD EVALUATION")
+            md.append("## Field Disease Evaluation Summary (Integrity Violations Detected)")
+            md.append("")
+            md.append("> [!CAUTION]")
+            md.append("> **FORMAL EVALUATION FAILED:** Integrity, path safety, or inference failures were detected.")
+            md.append("> Formal metrics are invalidated by schema or processing errors.")
+            md.append("")
+        else:
+            md.append("# Field Validation Evaluation Summary (Formal Evaluation)")
+
+        md.append(f"**Evaluation Status:** `{meta.get('evaluation_status', 'UNKNOWN')}`")
         md.append(f"**Evaluation Timestamp:** {meta['evaluation_timestamp']}")
         md.append(f"**Model Checkpoint SHA-256:** `{meta['model_sha256']}`")
         md.append(f"**Preprocessing Version:** `{meta['preprocessing_version']}`")
         md.append(f"**Manifest Evaluated:** `{meta['manifest_path']}`")
-        md.append(f"**Total Records:** {meta['total_manifest_records']}")
-        md.append(f"**Successfully Evaluated:** {meta['successfully_evaluated']}")
-        md.append(f"**Inference Errors:** {meta['failed_inferences']} ({meta['inference_error_rate'] * 100:.2f}%)")
+        md.append("")
+
+        # Dataset & Record Accounting (Phase 1 P0 requirement)
+        md.append("### Dataset & Record Accounting")
+        md.append("| Metric Category | Count | Accounting Description |")
+        md.append("| :--- | :---: | :--- |")
+        md.append(f"| **Submitted Manifest Records** | {meta.get('submitted_records', meta.get('total_manifest_records', 'N/A'))} | Raw rows in manifest input |")
+        md.append(f"| **Valid Manifest Records** | {meta.get('valid_records', 'N/A')} | Records passing strict schema validation |")
+        md.append(f"| **Rejected Records** | {meta.get('rejected_records', 0)} | Schema validation errors |")
+        md.append(f"| **Evaluated Inferences** | {meta.get('evaluated_records', meta.get('successfully_evaluated', 'N/A'))} | Successfully completed model inference |")
+        md.append(f"| **Failed Inferences** | {meta.get('failed_records', meta.get('failed_inferences', 0))} | Failed path / image processing |")
+        md.append(f"| **Excluded Records** | {meta.get('excluded_records', 'N/A')} | Total excluded from primary metrics |")
+        md.append(f"| **Inference Error Rate** | {meta.get('inference_error_rate', 0.0) * 100:.2f}% | Failures relative to attempts |")
+        md.append(f"| **Failure-Adjusted Accuracy** | {meta.get('failure_adjusted_accuracy', 0.0) * 100:.2f}% | Penalizing dropouts as incorrect |")
         md.append("")
 
         md.append("## Overall Metrics (95% Confidence Intervals)")

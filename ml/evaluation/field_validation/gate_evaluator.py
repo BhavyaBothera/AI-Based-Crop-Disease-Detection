@@ -46,7 +46,7 @@ from .manifest_schema import (
     VALID_GATE_CATEGORIES,
     VERIFIED_TIERS,
 )
-from .path_resolver import resolve_safe_image_path
+from .path_resolver import PathSecurityError, resolve_safe_image_path
 
 logger = logging.getLogger(__name__)
 
@@ -305,11 +305,14 @@ class LeafGateEvaluator:
         samples: List[GateSampleRecord],
         dataset_root: Optional[Union[Path, str]] = None,
         exclude_unverified: bool = True,
+        allow_exploratory_subset: bool = False,
     ) -> Dict[str, Any]:
         """
         Evaluates a set of gate sample records and returns aggregated metrics.
         Separates verified samples from unverified/suspected annotations (Phase 7).
         Calculates valid rates with support counts; denominators with 0 support return None (not 0.0).
+        Tracks full failed inference accounting and failure-adjusted rates (Phase 2).
+        Fails closed on security/path-integrity violations and reports ordinary per-image errors.
         """
         root_path = Path(dataset_root).resolve() if dataset_root else None
 
@@ -322,20 +325,38 @@ class LeafGateEvaluator:
             st = getattr(s, "verification_status", "unknown")
             unverified_breakdown[st] = unverified_breakdown.get(st, 0) + 1
 
-        def _evaluate_batch(batch: List[GateSampleRecord]) -> Tuple[List[GatePredictionResult], List[Dict[str, str]], Dict[str, Any]]:
+        def _evaluate_batch(batch: List[GateSampleRecord]) -> Tuple[List[GatePredictionResult], List[Dict[str, Any]], Dict[str, Any]]:
             batch_results: List[GatePredictionResult] = []
-            batch_errors: List[Dict[str, str]] = []
+            batch_errors: List[Dict[str, Any]] = []
 
             for sample in batch:
                 try:
                     res = self.evaluate_sample(sample, dataset_root=root_path)
                     batch_results.append(res)
+                except (PathSecurityError, GateIntegrityError) as sec_exc:
+                    # Security and structural integrity violations MUST abort evaluation immediately (Phase 2 P0)
+                    logger.critical("Security / integrity violation on gate sample '%s': %s", sample.sample_id, sec_exc)
+                    raise
                 except Exception as exc:
+                    # Ordinary per-image processing failure (e.g. corrupt bytes, unreadable format, missing file)
+                    logger.warning("Per-image processing failure on gate sample '%s': %s", sample.sample_id, exc)
                     batch_errors.append({
                         "sample_id": sample.sample_id,
                         "file_path": sample.file_path,
+                        "ground_truth_category": sample.ground_truth_category,
+                        "error_type": type(exc).__name__,
                         "error": str(exc),
                     })
+
+            # Submissions per category (for failure-adjusted denominators)
+            n_supp_submitted = sum(1 for s in batch if s.ground_truth_category == "supported_leaf")
+            n_other_submitted = sum(1 for s in batch if s.ground_truth_category == "other_plant")
+            n_non_leaf_submitted = sum(1 for s in batch if s.ground_truth_category == "non_leaf")
+
+            # Errors per category
+            n_supp_failed = sum(1 for e in batch_errors if e.get("ground_truth_category") == "supported_leaf")
+            n_other_failed = sum(1 for e in batch_errors if e.get("ground_truth_category") == "other_plant")
+            n_non_leaf_failed = sum(1 for e in batch_errors if e.get("ground_truth_category") == "non_leaf")
 
             supported_samples = [r for r in batch_results if r.ground_truth_category == "supported_leaf"]
             other_plant_samples = [r for r in batch_results if r.ground_truth_category == "other_plant"]
@@ -349,6 +370,8 @@ class LeafGateEvaluator:
             acceptance_rate = round(supp_accepted / n_supp, 4) if n_supp > 0 else None
             frr = round((supp_abstained + supp_rejected) / n_supp, 4) if n_supp > 0 else None
             strict_frr = round(supp_rejected / n_supp, 4) if n_supp > 0 else None
+            failure_adjusted_acceptance_rate = round(supp_accepted / n_supp_submitted, 4) if n_supp_submitted > 0 else None
+            failure_adjusted_frr = round((supp_abstained + supp_rejected + n_supp_failed) / n_supp_submitted, 4) if n_supp_submitted > 0 else None
 
             # Other plant metrics
             n_other = len(other_plant_samples)
@@ -357,6 +380,8 @@ class LeafGateEvaluator:
             other_rejected = sum(1 for r in other_plant_samples if r.decision == REJECTED)
             other_rejection_rate = round(other_rejected / n_other, 4) if n_other > 0 else None
             other_far = round(other_accepted / n_other, 4) if n_other > 0 else None
+            failure_adjusted_other_rejection_rate = round(other_rejected / n_other_submitted, 4) if n_other_submitted > 0 else None
+            failure_adjusted_other_far = round(other_accepted / n_other_submitted, 4) if n_other_submitted > 0 else None
 
             # Non-leaf metrics
             n_non_leaf = len(non_leaf_samples)
@@ -365,11 +390,15 @@ class LeafGateEvaluator:
             non_leaf_rejected = sum(1 for r in non_leaf_samples if r.decision == REJECTED)
             non_leaf_rejection_rate = round(non_leaf_rejected / n_non_leaf, 4) if n_non_leaf > 0 else None
             non_leaf_far = round(non_leaf_accepted / n_non_leaf, 4) if n_non_leaf > 0 else None
+            failure_adjusted_non_leaf_rejection_rate = round(non_leaf_rejected / n_non_leaf_submitted, 4) if n_non_leaf_submitted > 0 else None
+            failure_adjusted_non_leaf_far = round(non_leaf_accepted / n_non_leaf_submitted, 4) if n_non_leaf_submitted > 0 else None
 
             # Combined OOD (other_plant + non_leaf)
+            n_ood_submitted = n_other_submitted + n_non_leaf_submitted
             n_ood = n_other + n_non_leaf
             total_ood_accepted = other_accepted + non_leaf_accepted
             combined_far = round(total_ood_accepted / n_ood, 4) if n_ood > 0 else None
+            failure_adjusted_combined_far = round(total_ood_accepted / n_ood_submitted, 4) if n_ood_submitted > 0 else None
 
             # Breakdown by challenge condition
             challenges: Dict[str, Dict[str, Any]] = {}
@@ -386,34 +415,49 @@ class LeafGateEvaluator:
 
             metrics_dict = {
                 "supported_leaves": {
+                    "submitted": n_supp_submitted,
                     "support": n_supp,
+                    "failed": n_supp_failed,
                     "accepted": supp_accepted,
                     "abstained": supp_abstained,
                     "rejected": supp_rejected,
                     "acceptance_rate": acceptance_rate,
                     "false_rejection_rate": frr,
                     "strict_false_rejection_rate": strict_frr,
+                    "failure_adjusted_acceptance_rate": failure_adjusted_acceptance_rate,
+                    "failure_adjusted_false_rejection_rate": failure_adjusted_frr,
                 },
                 "other_plant_species": {
+                    "submitted": n_other_submitted,
                     "support": n_other,
+                    "failed": n_other_failed,
                     "accepted": other_accepted,
                     "abstained": other_abstained,
                     "rejected": other_rejected,
                     "rejection_rate": other_rejection_rate,
                     "false_acceptance_rate": other_far,
+                    "failure_adjusted_rejection_rate": failure_adjusted_other_rejection_rate,
+                    "failure_adjusted_false_acceptance_rate": failure_adjusted_other_far,
                 },
                 "non_leaf_objects": {
+                    "submitted": n_non_leaf_submitted,
                     "support": n_non_leaf,
+                    "failed": n_non_leaf_failed,
                     "accepted": non_leaf_accepted,
                     "abstained": non_leaf_abstained,
                     "rejected": non_leaf_rejected,
                     "rejection_rate": non_leaf_rejection_rate,
                     "false_acceptance_rate": non_leaf_far,
+                    "failure_adjusted_rejection_rate": failure_adjusted_non_leaf_rejection_rate,
+                    "failure_adjusted_false_acceptance_rate": failure_adjusted_non_leaf_far,
                 },
                 "overall_ood_summary": {
                     "total_unsupported_samples": n_ood,
+                    "total_unsupported_submitted": n_ood_submitted,
+                    "total_unsupported_evaluated": n_ood,
                     "total_falsely_accepted": total_ood_accepted,
                     "combined_false_acceptance_rate": combined_far,
+                    "failure_adjusted_combined_false_acceptance_rate": failure_adjusted_combined_far,
                 },
                 "challenge_conditions": challenges,
             }
@@ -430,6 +474,17 @@ class LeafGateEvaluator:
         all_results = primary_results
         all_errors = primary_errors
 
+        formal_gate_passed = (len(all_errors) == 0 and not allow_exploratory_subset)
+        if allow_exploratory_subset:
+            gate_status = "EXPLORATORY_SUBSET"
+            is_formal = False
+        elif formal_gate_passed:
+            gate_status = "FORMAL_PASSED"
+            is_formal = True
+        else:
+            gate_status = "FAILED_INTEGRITY_VIOLATION"
+            is_formal = False
+
         metadata: Dict[str, Any] = {
             "evaluation_timestamp": datetime.now(timezone.utc).isoformat(),
             "evaluation_type": self.evaluation_type,
@@ -445,8 +500,22 @@ class LeafGateEvaluator:
             "unverified_samples_count": len(unverified_samples),
             "unverified_breakdown": unverified_breakdown,
             "exclude_unverified_from_primary": exclude_unverified,
+            "submitted_samples": len(samples),
+            "attempted_samples": len(primary_batch),
             "evaluated_samples": len(all_results),
             "failed_samples": len(all_errors),
+            "formal_gate_evaluation_passed": formal_gate_passed,
+            "is_formal_evaluation": is_formal,
+            "gate_evaluation_status": gate_status,
+            "allow_exploratory_subset": allow_exploratory_subset,
+            "gate_inference_accounting": {
+                "total_submitted": len(samples),
+                "attempted": len(primary_batch),
+                "successful": len(all_results),
+                "failed": len(all_errors),
+                "excluded": len(unverified_samples) if exclude_unverified else 0,
+                "failure_rate": round(len(all_errors) / len(primary_batch), 4) if len(primary_batch) > 0 else 0.0,
+            },
         }
         if not self.is_trained_model:
             metadata["warning"] = "EVALUATION_PERFORMED_ON_DETERMINISTIC_FALLBACK_NOT_TRAINED_GATE_MODEL"
@@ -503,8 +572,34 @@ class LeafGateEvaluator:
                 return f"**{label}: N/A (support=0)**"
             return f"**{label}: {rate * 100:.2f}%**"
 
+        is_exploratory = (
+            meta.get("gate_evaluation_status") == "EXPLORATORY_SUBSET"
+            or not meta.get("is_formal_evaluation", True)
+            or meta.get("allow_exploratory_subset", False)
+        )
+        is_formal_failed = meta.get("gate_evaluation_status") == "FAILED_INTEGRITY_VIOLATION"
+
         md = []
-        md.append("# Leaf Acceptance Gate Field Evaluation Summary")
+        if is_exploratory:
+            md.append("# EXPLORATORY — NOT FOR FORMAL PERFORMANCE CLAIMS")
+            md.append("## Leaf Acceptance Gate Field Evaluation Summary (Exploratory Subset)")
+            md.append("")
+            md.append("> [!WARNING]")
+            md.append("> **EXPLORATORY GATE EVALUATION ACTIVE:** This evaluation was executed with `--allow-exploratory-subset`.")
+            md.append("> It reflects exploratory or partial gate assessments and MUST NOT be cited for formal compliance claims.")
+            md.append("")
+        elif is_formal_failed:
+            md.append("# FAILED FORMAL GATE EVALUATION")
+            md.append("## Leaf Acceptance Gate Field Evaluation Summary (Failures Detected)")
+            md.append("")
+            md.append("> [!CAUTION]")
+            md.append("> **FORMAL GATE EVALUATION FAILED:** Image processing or integrity failures were detected.")
+            md.append("> Formal gate metrics are invalidated by processing dropouts.")
+            md.append("")
+        else:
+            md.append("# Leaf Acceptance Gate Field Evaluation Summary (Formal Evaluation)")
+
+        md.append(f"**Gate Evaluation Status:** `{meta.get('gate_evaluation_status', 'UNKNOWN')}`")
         md.append(f"**Evaluation Timestamp:** {meta['evaluation_timestamp']}")
         md.append(f"**Evaluation Type:** `{meta.get('evaluation_type', 'trained_model_evaluation')}`")
         md.append(f"**Gate Backend:** `{gate_backend}`")
@@ -528,23 +623,27 @@ class LeafGateEvaluator:
             md.append("")
 
         md.append("## Core Gate Reliability Metrics")
-        md.append("| Target Domain | Support | Accepted | Abstained | Rejected | Key Metric |")
-        md.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
+        md.append("| Target Domain | Submitted | Evaluated | Failed | Accepted | Abstained | Rejected | Key Metric (Conditional) | Failure-Adjusted Metric |")
+        md.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
         md.append(
-            f"| **Supported Crop Leaves** | {supp['support']} | {supp['accepted']} | {supp['abstained']} | "
-            f"{supp['rejected']} | {_fmt(supp['false_rejection_rate'], 'FRR')} |"
+            f"| **Supported Crop Leaves** | {supp.get('submitted', supp['support'])} | {supp['support']} | {supp.get('failed', 0)} | "
+            f"{supp['accepted']} | {supp['abstained']} | {supp['rejected']} | "
+            f"{_fmt(supp['false_rejection_rate'], 'FRR')} | {_fmt(supp.get('failure_adjusted_false_rejection_rate'), 'Adj-FRR')} |"
         )
         md.append(
-            f"| **Other Plant Species** | {other['support']} | {other['accepted']} | {other['abstained']} | "
-            f"{other['rejected']} | {_fmt(other['false_acceptance_rate'], 'FAR')} |"
+            f"| **Other Plant Species** | {other.get('submitted', other['support'])} | {other['support']} | {other.get('failed', 0)} | "
+            f"{other['accepted']} | {other['abstained']} | {other['rejected']} | "
+            f"{_fmt(other['false_acceptance_rate'], 'FAR')} | {_fmt(other.get('failure_adjusted_false_acceptance_rate'), 'Adj-FAR')} |"
         )
         md.append(
-            f"| **Non-Leaf Objects / BG** | {non_leaf['support']} | {non_leaf['accepted']} | {non_leaf['abstained']} | "
-            f"{non_leaf['rejected']} | {_fmt(non_leaf['false_acceptance_rate'], 'FAR')} |"
+            f"| **Non-Leaf Objects / BG** | {non_leaf.get('submitted', non_leaf['support'])} | {non_leaf['support']} | {non_leaf.get('failed', 0)} | "
+            f"{non_leaf['accepted']} | {non_leaf['abstained']} | {non_leaf['rejected']} | "
+            f"{_fmt(non_leaf['false_acceptance_rate'], 'FAR')} | {_fmt(non_leaf.get('failure_adjusted_false_acceptance_rate'), 'Adj-FAR')} |"
         )
         md.append(
-            f"| **Combined OOD Pool** | {ood['total_unsupported_samples']} | {ood['total_falsely_accepted']} | - | "
-            f"- | {_fmt(ood['combined_false_acceptance_rate'], 'Combined FAR')} |"
+            f"| **Combined OOD Pool** | {ood.get('total_unsupported_submitted', ood['total_unsupported_samples'])} | "
+            f"{ood['total_unsupported_samples']} | - | {ood['total_falsely_accepted']} | - | - | "
+            f"{_fmt(ood['combined_false_acceptance_rate'], 'Combined FAR')} | {_fmt(ood.get('failure_adjusted_combined_false_acceptance_rate'), 'Adj-FAR')} |"
         )
         md.append("")
 

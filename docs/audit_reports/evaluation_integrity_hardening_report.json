@@ -1,7 +1,8 @@
 {
   "audit_name": "PHYTOSIGNAL Evaluation Integrity & Reliability Hardening (P0/P1)",
   "timestamp_utc": "2026-11-20T15:40:00Z",
-  "status": "PASSED",
+  "status": "FRAMEWORK_HARDENED_FIELD_VALIDATION_PENDING",
+  "field_validation_status": "GENUINE_FIELD_DATA_COLLECTION_PENDING",
   "modules_hardened": [
     "ml/evaluation/field_validation/manifest_schema.py",
     "ml/evaluation/field_validation/path_resolver.py",
@@ -72,13 +73,37 @@
       "severity": "P0",
       "status": "REMEDIATED",
       "mechanism": "InferenceAccounting tracks total, valid, attempted, successful, failed, failure rate, and failure-adjusted accuracy."
+    },
+    "FM-11": {
+      "name": "Exploratory Mode Security Bypass",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Security and path traversal checks fail closed immediately and cannot be bypassed via --allow-exploratory-subset."
+    },
+    "FM-12": {
+      "name": "Silent Gate Evaluation Dropout",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Gate evaluator re-raises PathSecurityError and GateIntegrityError; ordinary image errors are tracked in denominators with failure-adjusted metrics."
+    },
+    "FM-13": {
+      "name": "Ambiguous Baseline Provenance Acceptance",
+      "severity": "P0",
+      "status": "REMEDIATED",
+      "mechanism": "Strictly requires explicit split_evaluated == 'test' and model checkpoint identity; rejects exploratory baselines and ambiguous markdown."
+    },
+    "FM-14": {
+      "name": "Permissive Probability Range & Unbounded Logits",
+      "severity": "P1",
+      "status": "REMEDIATED",
+      "mechanism": "Strictly rejects negative probabilities and logits; bounds probabilities to [0.0, 1.0] with mathematically justified 0.01 sum tolerance for float32 accumulation."
     }
   },
   "verification_results": {
     "field_validation_test_suite": {
       "file": "ml/tests/test_field_validation.py",
-      "total_tests": 77,
-      "passed": 76,
+      "total_tests": 92,
+      "passed": 91,
       "skipped": 1,
       "failed": 0,
       "status": "OK"

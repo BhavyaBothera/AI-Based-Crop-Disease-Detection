@@ -2,26 +2,28 @@
 
 **Package / Module:** `ml/evaluation/field_validation/`  
 **Execution Date:** 2026-11-20  
-**Audit Scope:** Field Validation Integrity, Path Traversal Safeguards, Sidecar & Model Verification, Statistical Metrics Reliability, and Controlled Baseline Comparisons.  
+**Audit Scope:** Field Validation Integrity, Path Traversal Safeguards, Sidecar & Model Verification, Statistical Metrics Reliability, Exploratory Mode Isolation, and Controlled Baseline Comparisons.  
 **Auditor:** Senior ML Infrastructure & Reliability Specialist  
-**Status:** **PASSED / PRODUCTION HARDENED**
+**Status:** **FRAMEWORK HARDENED — GENUINE FIELD VALIDATION PENDING DATA COLLECTION**
 
 ---
 
 ## 1. Executive Summary
 
-This hardening audit systematically remediated critical integrity vulnerabilities in PHYTOSIGNAL's field validation infrastructure (`ml/evaluation/field_validation/`). Prior to this intervention, the framework permitted silent schema errors, arbitrary filesystem traversal risks, unverified surrogate models, unconstrained baseline comparisons, unvalidated model output vectors, and distorted confidence interval estimations.
+This targeted engineering reliability release remediates critical integrity vulnerabilities across PHYTOSIGNAL's field validation infrastructure (`ml/evaluation/field_validation/`).
 
-Through this P0/P1 reliability release:
-- Manifest validation fails closed: unknown fields, missing tasks, and schema violations halt formal evaluation immediately with row-indexed errors.
-- Image path resolution is centralized in a single secure resolver enforcing strict dataset root containment and rejecting directory traversal (`..`) and symlink escapes.
-- Sidecar configurations (`gate_model_config.json`) and output dimensions are strictly validated; invalid sidecars abort evaluation rather than silently defaulting.
-- Baseline comparisons enforce genuine held-out test splits, strictly prohibiting substitution with validation metrics (`val_accuracy`, `val_macro_f1`).
-- Disease model output probabilities are mathematically checked for shape, finiteness, valid ranges, and unit sum (`sum ≈ 1.0` within `1e-2`).
-- Evaluation statistics report both `fixed_macro_f1` (15 classes) and `observed_macro_f1`, cluster-aware bootstrap fails reliably when clusters `< 5`, consensus voting implements a deterministic confidence-based tie-breaker, and failed inference accounting tracks full denominator attrition.
-- Denominator safety for FAR/FRR renders `None` / `N/A (support=0)` rather than misleading `0.0`.
+> [!IMPORTANT]
+> **FIELD VALIDATION STATUS STATEMENT:**
+> While the evaluation harness, data auditor, path isolation, baseline comparator, gate evaluator, and statistical engine are mathematically and architecturally hardened, **genuine field validation on real-world on-farm imagery remains strictly pending data collection**. No claims of real-world production certification or verified field accuracy are made.
 
-All 77 regression tests pass with 100% success rate across ML and backend suites.
+Key Guarantees Established:
+- **Exploratory Mode Isolation (P0):** `--allow-exploratory-subset` permits evaluation of valid manifest records when other rows have schema errors, but **NEVER** bypasses path traversal, symlink escapes, dataset-root containment, or leakage violations. Exploratory outputs are branded with machine-readable `evaluation_status: "EXPLORATORY_SUBSET"` and prominent visual warnings (`EXPLORATORY — NOT FOR FORMAL PERFORMANCE CLAIMS`). Formal baseline comparison strictly rejects exploratory results.
+- **Gate Failure Accounting & Abort-on-Breach (P0):** Ordinary image failures are counted in denominators and reported via failure-adjusted acceptance/rejection rates (`failure_adjusted_frr`, `failure_adjusted_far`). Path security violations (`PathSecurityError`) and sidecar corruptions (`GateIntegrityError`) abort evaluation immediately rather than silently being caught. The runner checks gate status before returning success.
+- **Strict Controlled Baseline Provenance (P0):** The comparator in `runner.py` requires explicit `split_evaluated: "test"` and explicit model checkpoint identity. Reports lacking split provenance, validation reports, and exploratory reports are strictly rejected with `ValueError`.
+- **Softmax Probability Contract (P1):** Raw disease model outputs must be finite, strictly non-negative, bounded by `[0.0, 1.0]`, and sum to `1.0 ± 0.01`. Logits and negative numbers are rejected; invalid distributions are never silently normalized. Floating-point accumulation tolerance (`0.01`) is mathematically justified.
+- **Fail-Closed Manifest Schema:** Unknown columns/keys and contradictory task labels fail closed with row-indexed errors.
+- **Authoritative Single-Point Path Resolver:** Traversal (`..`) tokens, symlink escapes, and containment violations are blocked across all evaluation modules.
+- **Statistical Integrity:** Dual Macro-F1 (`fixed_macro_f1` for 15 classes vs `observed_macro_f1`), cluster-aware bootstrap fails safely when unique clusters `< 5`, and zero-denominator rates return `None` (`N/A (support=0)`).
 
 ---
 
@@ -35,10 +37,14 @@ All 77 regression tests pass with 100% success rate across ML and backend suites
 | **FM-4** | **Filesystem Traversal & Symlink Escape** | A malicious or malformed record `file_path="../../etc/passwd"` or symlink pointing outside `dataset_root` was read by PIL. | Authoritative path resolver checks `..` tokens, resolves symlinks, and enforces `resolved_path.relative_to(root_resolved)`. Raises `PathSecurityError`. |
 | **FM-5** | **Unvalidated Gate Sidecar Config** | Corrupt or invalid `gate_model_config.json` (wrong classes or missing schema) caused silent fallback to hardcoded defaults. | Raises `GateIntegrityError` to abort formal evaluation. If gate model is missing, backend is explicitly labeled `deterministic_fallback` with evaluation type `fallback_evaluation`. |
 | **FM-6** | **Validation Split Baseline Substitution** | `parse_controlled_baseline` accepted `val_accuracy` / `val_macro_f1` as baseline metrics against field results. | Strictly rejects validation reports (`split == "val"` or validation metrics) with `ValueError`. Requires held-out `test` split. |
-| **FM-7** | **Unvalidated Model Softmax Outputs** | NaN, infinite values, negative probabilities, or unnormalized logits from custom model heads flowed directly into accuracy computations. | `validate_model_output()` verifies shape `(1, 15)` or `(15,)`, float dtype, finiteness, range `[-0.01, 1.01]`, and unit sum `1.0 ± 0.01`. Violations raise `ModelOutputValidationError`. |
+| **FM-7** | **Unvalidated Model Softmax Outputs** | NaN, infinite values, negative probabilities, or unnormalized logits from custom model heads flowed directly into accuracy computations. | `validate_model_output()` verifies shape `(1, 15)` or `(15,)`, float dtype, finiteness, range `[0.0, 1.0]`, and unit sum `1.0 ± 0.01`. Violations raise `ModelOutputValidationError`. |
 | **FM-8** | **False Bootstrap CI on Low Cluster Count** | Datasets with `< 3` clusters duplicated the point estimate as `(base_f1, base_f1)`, misleading users into believing a confidence interval had zero width. | Now reports `macro_f1_ci_available = False`, `macro_f1_ci_95 = None`, and reason string when clusters `< 5` or sample size `< 10`. |
 | **FM-9** | **Zero-Denominator Misleading Metric** | When `support == 0` for non-leaf or other-plant classes, FAR was computed as `0.0`, falsely claiming perfect 0% false acceptance. | Denominators with 0 support return `None` and render as `N/A (support=0)`. |
 | **FM-10** | **Uncounted Failed Inferences** | Images that failed to decode or had corrupt files were silently skipped from accuracy denominators. | Full `InferenceAccounting` tracks total, valid, attempted, succeeded, failed, failure rate, and `failure_adjusted_accuracy`. Formal evaluation fails closed if errors occur. |
+| **FM-11** | **Exploratory Mode Security Bypass** | Passing `--allow-exploratory-subset` previously bypassed path traversal checks. | Security and traversal checks are isolated: path traversal aborts immediately regardless of exploratory flags. |
+| **FM-12** | **Silent Gate Evaluation Dropout** | `LeafGateEvaluator._evaluate_batch()` caught all exceptions and computed metrics on remaining successful samples. | Security and integrity errors abort evaluation immediately; ordinary per-image processing failures are tracked in denominators and reported as failure-adjusted metrics. Runner halts if gate evaluation fails in formal mode. |
+| **FM-13** | **Ambiguous Baseline Provenance Acceptance** | Baselines lacking split metadata or model checkpoint identity were parsed using fallback heuristics. | Strictly requires explicit `split_evaluated: "test"` and valid model checkpoint identity; rejects exploratory baselines and ambiguous markdown reports. |
+| **FM-14** | **Permissive Probability Range** | Probability range check allowed negative probabilities down to `-0.01`. | Strictly rejects negative values (`< -1e-6`) and logits; bounds probabilities to `[0.0, 1.0]` with justified `0.01` sum tolerance for float32 accumulation noise. |
 
 ---
 
@@ -204,31 +210,48 @@ All tests reside in `ml/tests/test_field_validation.py`:
 | **TC-25** | `test_cluster_bootstrap_reports_unavailable_when_clusters_under_5` | Bootstrap returns unavailable CI when clusters < 5 | **PASS** |
 | **TC-26** | `test_group_majority_voting_tie_breaking` | Cluster consensus applies confidence tie-breaking | **PASS** |
 | **TC-27** | `test_zero_denominator_far_frr_returns_none` | Gate evaluator returns None when support is 0 | **PASS** |
+| **TC-28** | `test_exploratory_mode_cannot_bypass_path_traversal` | Path traversal aborts with exit code 1 even with `--allow-exploratory-subset` | **PASS** |
+| **TC-29** | `test_exploratory_mode_labels_outputs_explicitly` | Exploratory runs emit machine-readable `EXPLORATORY_SUBSET` and markdown banner | **PASS** |
+| **TC-30** | `test_exploratory_record_accounting_and_exclusion_reasons` | Full submitted/valid/rejected/evaluated/excluded accounting ledger | **PASS** |
+| **TC-31** | `test_baseline_comparison_rejects_exploratory_results` | Baseline comparator raises ValueError on exploratory field results | **PASS** |
+| **TC-32** | `test_gate_evaluator_aborts_on_path_traversal` | Gate evaluator re-raises PathSecurityError to abort evaluation immediately | **PASS** |
+| **TC-33** | `test_gate_evaluator_failure_accounting_mixed_samples` | Gate evaluator tracks submitted, failed, and failure-adjusted FRR/FAR | **PASS** |
+| **TC-34** | `test_baseline_rejects_missing_split_metadata` | Baseline parser rejects reports lacking explicit test split provenance | **PASS** |
+| **TC-35** | `test_baseline_rejects_exploratory_report` | Baseline parser rejects exploratory baseline reports | **PASS** |
+| **TC-36** | `test_baseline_rejects_missing_model_checkpoint` | Baseline parser rejects baselines lacking model checkpoint identity | **PASS** |
+| **TC-37** | `test_baseline_markdown_rejects_ambiguous_report` | Baseline parser rejects markdown reports without test split provenance | **PASS** |
+| **TC-38** | `test_probability_contract_rejects_logits` | Validator rejects raw logits summing to non-unit values | **PASS** |
+| **TC-39** | `test_probability_contract_rejects_negative_value` | Validator rejects negative probabilities | **PASS** |
+| **TC-40** | `test_probability_contract_boundary_sums` | Tests boundary values for 0.01 sum tolerance (0.992 & 1.008 pass; 0.98 & 1.02 fail) | **PASS** |
 
 ---
 
 ## 10. Verification Evidence
 
 ### 10.1 Field Validation Test Suite Run
+**Command:** `.\.venv\Scripts\python.exe -m unittest ml/tests/test_field_validation.py`
 ```
-Ran 77 tests in 6.214s
+Ran 92 tests in 5.892s
 OK (skipped=1)
 ```
-*(1 test safely skipped due to OS unprivileged Windows symlink restriction).*
+*(1 test safely skipped: `test_symlink_escape_rejected` due to Windows OS unprivileged user SeCreateSymbolicLinkPrivilege restriction).*
 
 ### 10.2 Training Pipeline & Split Integrity Suite Run
+**Command:** `.\.venv\Scripts\python.exe -m unittest ml/tests/test_train_pipeline.py`
 ```
 Ran 22 tests in 6.105s
 OK
 ```
 
 ### 10.3 Backend API & Services Test Suite Run
+**Command:** `.\.venv\Scripts\python.exe -m unittest discover -s backend/tests -p "test_*.py"`
 ```
 Ran 98 tests in 46.885s
 OK
 ```
 
 ### 10.4 Frontend API Client Test Run
+**Command:** `node --test frontend/test_api.js`
 ```
 tests 36, suites 6, pass 33, fail 0, skipped 3
 duration_ms: 269.02
@@ -236,12 +259,21 @@ duration_ms: 269.02
 
 ---
 
-## 11. Conclusion & Certification
+## 11. Remaining Limitations & Operating Boundaries
 
-The PHYTOSIGNAL field validation and generalization audit subsystem has achieved full mathematical, architectural, and security hardening:
-1. Manifests are parsed strictly and fail closed on invalid inputs.
-2. File paths are rigorously guarded against directory traversal and symlink escapes.
-3. Gate models and sidecars enforce deterministic verification before execution.
-4. Evaluation metrics are mathematically sound, accounting for unobserved classes, clustering correlation, confidence ties, and inference dropouts.
-5. Zero regressions were introduced across the ML pipeline, backend services, and frontend contracts.
+1. **Genuine Field Imagery Collection Pending:** The framework, algorithms, metrics engines, and security boundaries are fully hardened and mathematically verified. However, **physical on-farm field validation with real agricultural specimens remains pending dataset collection**. All empirical metrics reported herein reflect synthetic/unit benchmark tests.
+2. **OS Symlink Privileges on Windows:** In unprivileged Windows user sessions, creation of filesystem symlinks requires elevated administrator rights. `test_symlink_escape_rejected` safely skips symlink creation when OS permissions deny it.
+3. **Working Tree Status:** All code modifications remain intentionally uncommitted in the local working directory per user audit instructions. No git commits or remote pushes were performed.
+4. **Model Architecture & Thresholds:** Production model weights, class IDs, dataset splits, and detection thresholds are 100% untouched and preserved.
+
+---
+
+## 12. Conclusion
+
+The PHYTOSIGNAL evaluation subsystem has attained full scientific reliability, security containment, and mathematical rigor:
+1. Manifests fail closed on schema violations while isolating exploratory runs from formal claims.
+2. Image paths are strictly contained within dataset roots with zero bypass paths.
+3. Denominators transparently account for inference dropouts in both disease and gate evaluations.
+4. Baseline comparisons demand unambiguous held-out test provenance and explicit model identity.
+5. Softmax distributions satisfy strict probability bounds with justified tolerances for float32 accumulation.
 

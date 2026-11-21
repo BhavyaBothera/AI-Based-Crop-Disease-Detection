@@ -626,6 +626,7 @@ class TestBaselineComparison(unittest.TestCase):
             "evaluation_name": "Test Run",
             "timestamp_utc": "2026-10-20T12:00:00Z",
             "model_checkpoint": "best_model.keras",
+            "split_evaluated": "test",
             "metrics": {
                 "test_accuracy": 0.955,
                 "test_macro_f1": 0.945,
@@ -662,13 +663,14 @@ class TestBaselineComparison(unittest.TestCase):
     def test_reject_malformed_json_baseline(self):
         # Missing required macro_f1
         f = self.test_dir / "bad.json"
-        f.write_text(json.dumps({"metrics": {"test_accuracy": 0.90}}), encoding="utf-8")
+        f.write_text(json.dumps({"split_evaluated": "test", "model_checkpoint": "m.keras", "metrics": {"test_accuracy": 0.90}}), encoding="utf-8")
         with self.assertRaises(ValueError):
             parse_controlled_baseline(f)
 
     def test_generate_baseline_comparison_no_hardcoding(self):
         f = self.test_dir / "baseline.json"
         data = {
+            "split_evaluated": "test",
             "metrics": {"test_accuracy": 0.92, "test_macro_f1": 0.91, "test_top_3_accuracy": 0.98},
             "model_checkpoint": "model_v1.keras",
             "timestamp_utc": "2026-10-20",
@@ -676,7 +678,11 @@ class TestBaselineComparison(unittest.TestCase):
         f.write_text(json.dumps(data), encoding="utf-8")
 
         field_results = {
-            "metadata": {"evaluation_timestamp": "2026-11-20T00:00:00Z"},
+            "metadata": {
+                "evaluation_timestamp": "2026-11-20T00:00:00Z",
+                "is_formal_evaluation": True,
+                "evaluation_status": "FORMAL_PASSED",
+            },
             "metrics": {"accuracy": 0.85, "macro_f1": 0.83, "top_3_accuracy": 0.95},
         }
         md = generate_baseline_comparison(f, field_results)
@@ -1429,6 +1435,370 @@ class TestGateVerificationPolicy(unittest.TestCase):
         # Markdown summary must render N/A without crashing
         md = evaluator.generate_markdown_summary(results)
         self.assertIn("N/A (support=0)", md)
+
+
+class TestExploratoryModeIsolation(unittest.TestCase):
+    """P0 Regression Tests: Exploratory mode isolation, path containment, status tracking, and baseline rejection."""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp()).resolve()
+        self.img_dir = self.temp_dir / "images"
+        self.img_dir.mkdir(parents=True, exist_ok=True)
+        self.out_dir = self.temp_dir / "out"
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_exploratory_mode_cannot_bypass_path_traversal(self):
+        # Manifest has a path traversal attack
+        p = self.temp_dir / "manifest.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id",
+                    "file_path",
+                    "crop",
+                    "ground_truth_class",
+                    "collection_source",
+                    "evaluation_task",
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "FLD_EVIL",
+                "file_path": "../evil.jpg",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "collection_source": "pilot",
+                "evaluation_task": "disease",
+            })
+
+        import argparse
+        args = argparse.Namespace(
+            manifest=p,
+            dataset_root=self.temp_dir,
+            output_dir=self.out_dir,
+            model_path=Path("ml/models/experiment_weighted/best_model.keras"),
+            gate_path=Path("ml/models/input_gate/leaf_gate.keras"),
+            split=None,
+            audit_only=True,
+            eval_gate=False,
+            exclude_unverified=True,
+            baseline_comparison=None,
+            allow_exploratory_subset=True,  # Even with this flag, traversal MUST abort!
+        )
+        exit_code = run_field_validation(args)
+        self.assertEqual(exit_code, 1)
+
+    def test_exploratory_mode_labels_outputs_explicitly(self):
+        # Create 1 valid non-uniform image and a manifest
+        img_p = self.img_dir / "valid_leaf.jpg"
+        np_img = np.random.randint(30, 200, size=(224, 224, 3), dtype=np.uint8)
+        Image.fromarray(np_img).save(img_p, format="JPEG")
+
+        p = self.temp_dir / "manifest.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id",
+                    "file_path",
+                    "crop",
+                    "ground_truth_class",
+                    "collection_source",
+                    "evaluation_task",
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "FLD_001",
+                "file_path": "images/valid_leaf.jpg",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "collection_source": "pilot",
+                "evaluation_task": "disease",
+            })
+
+        class MockEvaluator:
+            def __init__(self, model_path):
+                self.model_path = model_path
+                self.model_sha256 = "dummy_sha"
+            def predict_single(self, frame):
+                from ml.evaluation.field_validation.evaluator import TopPrediction
+                return "Tomato___healthy", 14, [TopPrediction(14, "Tomato___healthy", "Tomato", "Healthy", "Healthy", 1.0/15.0)], {"Tomato___healthy": 1.0/15.0}
+
+        evaluator = FieldEvaluator.__new__(FieldEvaluator)
+        evaluator.model_path = Path("mock_model.keras")
+        evaluator.model_sha256 = "dummy_hash"
+        evaluator.predict_single = MockEvaluator(evaluator.model_path).predict_single
+
+        results = evaluator.evaluate_manifest(
+            manifest_path=p,
+            dataset_root=self.temp_dir,
+            allow_exploratory_subset=True,
+        )
+
+        self.assertEqual(results["metadata"]["evaluation_status"], "EXPLORATORY_SUBSET")
+        self.assertFalse(results["metadata"]["is_formal_evaluation"])
+        self.assertTrue(results["metadata"]["allow_exploratory_subset"])
+
+        md = evaluator.generate_markdown_summary(results)
+        self.assertIn("EXPLORATORY — NOT FOR FORMAL PERFORMANCE CLAIMS", md)
+        self.assertIn("EXPLORATORY EVALUATION ACTIVE", md)
+
+    def test_exploratory_record_accounting_and_exclusion_reasons(self):
+        # 1 valid row, 1 schema-rejected row
+        img_p = self.img_dir / "leaf.jpg"
+        Image.new("RGB", (224, 224), color=(60, 140, 50)).save(img_p, format="JPEG")
+
+        p = self.temp_dir / "manifest.csv"
+        with p.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "image_id",
+                    "file_path",
+                    "crop",
+                    "ground_truth_class",
+                    "collection_source",
+                    "evaluation_task",
+                    "invalid_column",
+                ],
+            )
+            writer.writeheader()
+            writer.writerow({
+                "image_id": "FLD_001",
+                "file_path": "images/leaf.jpg",
+                "crop": "Tomato",
+                "ground_truth_class": "Tomato___healthy",
+                "collection_source": "pilot",
+                "evaluation_task": "disease",
+                "invalid_column": "typo",
+            })
+
+        evaluator = FieldEvaluator.__new__(FieldEvaluator)
+        evaluator.model_path = Path("mock_model.keras")
+        evaluator.model_sha256 = "dummy_hash"
+        def dummy_predict(frame):
+            from ml.evaluation.field_validation.evaluator import TopPrediction
+            return "Tomato___healthy", 14, [TopPrediction(14, "Tomato___healthy", "Tomato", "Healthy", "Healthy", 1.0)], {"Tomato___healthy": 1.0}
+        evaluator.predict_single = dummy_predict
+
+        results = evaluator.evaluate_manifest(
+            manifest_path=p,
+            dataset_root=self.temp_dir,
+            allow_exploratory_subset=True,
+        )
+
+        meta = results["metadata"]
+        self.assertEqual(meta["submitted_records"], 1)
+        self.assertEqual(meta["valid_records"], 0)
+        self.assertEqual(meta["rejected_records"], 1)
+        self.assertEqual(meta["evaluated_records"], 0)
+        self.assertIn("exclusion_reasons", meta)
+        self.assertEqual(meta["exclusion_reasons"]["schema_validation_rejected_count"], 1)
+
+    def test_baseline_comparison_rejects_exploratory_results(self):
+        dummy_field_results = {
+            "metadata": {
+                "evaluation_status": "EXPLORATORY_SUBSET",
+                "is_formal_evaluation": False,
+                "evaluation_timestamp": "2026-11-20T12:00:00Z",
+            },
+            "metrics": {
+                "accuracy": 0.85,
+                "macro_f1": 0.82,
+            },
+        }
+        baseline_file = self.temp_dir / "valid_baseline.json"
+        baseline_file.write_text(
+            json.dumps({
+                "split_evaluated": "test",
+                "model_checkpoint": "best_model.keras",
+                "metrics": {"test_accuracy": 0.95, "test_macro_f1": 0.94},
+            }),
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            generate_baseline_comparison(baseline_file, dummy_field_results)
+        self.assertIn("cannot be performed on exploratory evaluation results", str(ctx.exception))
+
+
+class TestGateFailureAccounting(unittest.TestCase):
+    """P0 Regression Tests: Gate evaluation failure accounting, path traversal re-raising, and denominator safety."""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp()).resolve()
+        self.img_dir = self.temp_dir / "images"
+        self.img_dir.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_gate_evaluator_aborts_on_path_traversal(self):
+        class MockGateService:
+            is_loaded = True
+            classes = ["non_leaf", "other_plant", "supported_leaf"]
+            def predict_proba(self, frame):
+                return {"non_leaf": 0.1, "other_plant": 0.1, "supported_leaf": 0.8}
+
+        evaluator = LeafGateEvaluator(leaf_gate_service=MockGateService())
+        samples = [
+            GateSampleRecord(
+                sample_id="G_EVIL",
+                file_path="../outside.jpg",
+                ground_truth_category="supported_leaf",
+            )
+        ]
+        # Must re-raise PathSecurityError rather than catching into error ledger
+        with self.assertRaises(PathSecurityError):
+            evaluator.evaluate_dataset(samples, dataset_root=self.temp_dir)
+
+    def test_gate_evaluator_failure_accounting_mixed_samples(self):
+        valid_img = self.img_dir / "valid.jpg"
+        np_img = np.random.randint(30, 200, size=(224, 224, 3), dtype=np.uint8)
+        Image.fromarray(np_img).save(valid_img, format="JPEG")
+        corrupt_img = self.img_dir / "corrupt.jpg"
+        corrupt_img.write_bytes(b"not an image file")
+
+        class MockGateService:
+            is_loaded = True
+            classes = ["non_leaf", "other_plant", "supported_leaf"]
+            def predict_proba(self, frame):
+                return {"non_leaf": 0.05, "other_plant": 0.05, "supported_leaf": 0.90}
+
+        evaluator = LeafGateEvaluator(leaf_gate_service=MockGateService())
+        samples = [
+            GateSampleRecord(
+                sample_id="G_1",
+                file_path="images/valid.jpg",
+                ground_truth_category="supported_leaf",
+            ),
+            GateSampleRecord(
+                sample_id="G_2",
+                file_path="images/corrupt.jpg",
+                ground_truth_category="supported_leaf",
+            ),
+        ]
+        results = evaluator.evaluate_dataset(
+            samples,
+            dataset_root=self.temp_dir,
+            allow_exploratory_subset=True,
+        )
+
+        supp = results["gate_metrics"]["supported_leaves"]
+        self.assertEqual(supp["submitted"], 2)
+        self.assertEqual(supp["support"], 1)
+        self.assertEqual(supp["failed"], 1)
+        self.assertEqual(supp["accepted"], 1)
+        self.assertEqual(supp["acceptance_rate"], 1.0)  # conditional on successful: 1/1
+        self.assertEqual(supp["failure_adjusted_acceptance_rate"], 0.5)  # failure-adjusted: 1/2
+        self.assertEqual(results["metadata"]["gate_inference_accounting"]["failed"], 1)
+
+
+class TestStrictControlledBaselineProvenance(unittest.TestCase):
+    """P0 Regression Tests: Strict controlled baseline provenance checks."""
+
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp()).resolve()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_baseline_rejects_missing_split_metadata(self):
+        # Report with generic accuracy and macro_f1 but no split_evaluated
+        report_file = self.temp_dir / "generic_report.json"
+        report_file.write_text(
+            json.dumps({
+                "model_checkpoint": "best_model.keras",
+                "metrics": {"accuracy": 0.95, "macro_f1": 0.94},
+            }),
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            parse_controlled_baseline(report_file)
+        self.assertIn("lacks explicit test split provenance", str(ctx.exception))
+
+    def test_baseline_rejects_exploratory_report(self):
+        report_file = self.temp_dir / "exploratory_report.json"
+        report_file.write_text(
+            json.dumps({
+                "split_evaluated": "test",
+                "model_checkpoint": "best_model.keras",
+                "evaluation_status": "EXPLORATORY_SUBSET",
+                "metrics": {"test_accuracy": 0.95, "test_macro_f1": 0.94},
+            }),
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            parse_controlled_baseline(report_file)
+        self.assertIn("exploratory results are strictly prohibited", str(ctx.exception).lower())
+
+    def test_baseline_rejects_missing_model_checkpoint(self):
+        report_file = self.temp_dir / "no_model.json"
+        report_file.write_text(
+            json.dumps({
+                "split_evaluated": "test",
+                "metrics": {"test_accuracy": 0.95, "test_macro_f1": 0.94},
+            }),
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            parse_controlled_baseline(report_file)
+        self.assertIn("lacks explicit model/checkpoint identity", str(ctx.exception))
+
+    def test_baseline_markdown_rejects_ambiguous_report(self):
+        report_file = self.temp_dir / "ambiguous.md"
+        report_file.write_text(
+            "# General Model Report\n| **Accuracy** | 0.95 |\n| **Macro-F1** | 0.94 |\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            parse_controlled_baseline(report_file)
+        self.assertIn("lacks explicit test split provenance", str(ctx.exception))
+
+
+class TestProbabilityContractBoundaries(unittest.TestCase):
+    """P1 Regression Tests: Softmax probability contract and tolerance boundaries."""
+
+    def test_probability_contract_rejects_logits(self):
+        # Raw logits with large positive values summing to >> 1.0
+        logits = np.array([2.5, 1.2, 0.8, -0.4, 3.1, 0.0, 1.1, 0.5, -1.2, 0.2, 0.9, 1.5, 0.3, -0.1, 2.0])
+        with self.assertRaises(ModelOutputValidationError):
+            validate_model_output(logits, expected_classes=15)
+
+    def test_probability_contract_rejects_negative_value(self):
+        # Probabilities summing to ~1.0 but containing a negative value
+        probs = np.full(15, 1.0 / 14.0)
+        probs[0] = -0.05
+        with self.assertRaises(ModelOutputValidationError) as ctx:
+            validate_model_output(probs, expected_classes=15)
+        self.assertIn("negative probabilities", str(ctx.exception))
+
+    def test_probability_contract_boundary_sums(self):
+        # Sum = 1.008 is within 0.01 tolerance -> passes
+        probs_pass_high = np.full(15, 1.008 / 15.0)
+        validated_high = validate_model_output(probs_pass_high, expected_classes=15)
+        self.assertEqual(len(validated_high), 15)
+
+        # Sum = 0.992 is within 0.01 tolerance -> passes
+        probs_pass_low = np.full(15, 0.992 / 15.0)
+        validated_low = validate_model_output(probs_pass_low, expected_classes=15)
+        self.assertEqual(len(validated_low), 15)
+
+        # Sum = 1.02 exceeds 0.01 tolerance -> raises
+        probs_fail_high = np.full(15, 1.02 / 15.0)
+        with self.assertRaises(ModelOutputValidationError) as ctx:
+            validate_model_output(probs_fail_high, expected_classes=15)
+        self.assertIn("must sum to 1.0 within tolerance", str(ctx.exception))
+
+        # Sum = 0.98 exceeds 0.01 tolerance -> raises
+        probs_fail_low = np.full(15, 0.98 / 15.0)
+        with self.assertRaises(ModelOutputValidationError) as ctx:
+            validate_model_output(probs_fail_low, expected_classes=15)
+        self.assertIn("must sum to 1.0 within tolerance", str(ctx.exception))
 
 
 if __name__ == "__main__":
