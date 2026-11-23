@@ -59,10 +59,19 @@ The dataset, training, and evaluation numbers can be regenerated from `ml/script
 
 # 6. Input-gate evaluation (real non-leaf photographs + post-hoc synthetic probes)
 .venv/Scripts/python.exe ml/scripts/evaluate_input_gate.py
+
+# 7. Field-validation evaluation framework tests (95 tests)
+.venv/Scripts/python.exe -m unittest ml.tests.test_field_validation
 ```
 
-The full suite is described in the top-level README: 75 backend tests, 22 ML pipeline tests,
-35 frontend API tests, and a headless Chrome end-to-end suite.
+The full automated test suite contains **251 discovered test cases** across three subsystems:
+98 backend tests, 117 ML tests (22 training pipeline + 95 field validation), and 36 frontend API
+client tests (33 passed, 3 skipped offline), plus an optional headless Chrome browser end-to-end suite.
+
+> [!NOTE]
+> **Field Validation Status**: The field-validation evaluation framework has been implemented and
+> tested (`ml/evaluation/field_validation/`). Empirical on-farm image collection and validation
+> remain future work under the documented collection protocol ([`field_validation/field_data_collection_protocol.md`](field_validation/field_data_collection_protocol.md)).
 
 ### A note on removed measurement scripts
 

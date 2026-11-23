@@ -5,6 +5,10 @@
 **Audit Date:** October 2026  
 **Status:** Verification Completed & Passed (Production-Minded Frontend Transformation)
 
+> [!NOTE]
+> **HISTORICAL ARCHIVE NOTICE (October 2026)**:
+> This document records an earlier single-page prototype iteration exploring an Acid Lime / Warm Ivory 7-color palette with 28 API and 47 backend tests. It has been superseded by the active PHYTOSIGNAL multi-page web architecture (`index.html`, `analyze.html`, `field-guide.html`, `about.html`), the three-color brand design system (Obsidian, Signal Coral, Mineral Ice), and the expanded 251 discovered test cases across the system. This report is preserved as a historical engineering audit of that intermediate prototype phase.
+
 ---
 
 ## Executive Summary

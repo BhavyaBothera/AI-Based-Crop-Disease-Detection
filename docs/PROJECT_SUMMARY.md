@@ -30,9 +30,10 @@ transfer learning on a deduplicated, leak-audited subset of the **PlantVillage**
 selection was frozen on validation data, and the final model achieves **macro-F1 0.9653** and
 **accuracy 96.89 %** (3,307 of 3,413 images). Around that model sits a **FastAPI** service
 with a deterministic input-safety ladder, bounded concurrency, and a startup-validated
-agronomic knowledge base, plus a no-build HTML/CSS/JavaScript front end. The system is
-verified by **99 automated tests** across the ML pipeline, the backend, and the front-end API
-client.
+agronomic knowledge base, plus a no-build HTML/CSS/JavaScript multi-page front end (landing page,
+diagnostic studio, field guide catalog, and technical architecture). The system is verified by
+**251 discovered test cases** across the backend (98), the ML pipeline and field validation (117),
+and the front-end API client (36, with 33 passed and 3 skipped offline).
 
 The distinguishing work of this project is not the classifier alone but the rigour around it:
 leakage was measured rather than assumed, the test set was touched once, an out-of-distribution
@@ -114,30 +115,30 @@ University of California Statewide IPM Program — rather than commercial produc
 
 ```text
         Browser (frontend/)
-        ┌──────────────────────────────────────────────┐
-        │ index.html + styles.css                      │
-        │ app.js  — upload, preview, render results    │
-        │ api.js  — fetch client, timeouts, error maps │
-        └───────────────────┬──────────────────────────┘
-                            │  HTTP/JSON  (CORS allow-list)
-                            ▼
+        ┌────────────────────────────────────────────────────────┐
+        │ index.html · analyze.html · field-guide.html · about   │
+        │ styles.css — shared three-color design system          │
+        │ app.js · api.js · nav.js · field-guide.js · data.js    │
+        └───────────────────────────┬────────────────────────────┘
+                                    │  HTTP/JSON  (CORS allow-list)
+                                    ▼
         FastAPI service (backend/app/)
-        ┌──────────────────────────────────────────────┐
-        │ main.py      lifespan: load model + KB once  │
-        │ api/         health · predict · knowledge    │
-        │ schemas/     Pydantic contracts              │
-        │ services/    inference · knowledge           │
-        └───────┬───────────────────────┬──────────────┘
-                │                       │
-                ▼                       ▼
-   ml/models/experiment_weighted/   backend/app/data/
-   best_model.keras  (28 MB)        disease_knowledge_base.json (72 KB)
-   MobileNetV2, 15-class softmax    15 validated agronomic records
+        ┌────────────────────────────────────────────────────────┐
+        │ main.py      lifespan: load model, gate + KB once      │
+        │ api/         health · ready · predict · knowledge      │
+        │ schemas/     Pydantic request & response contracts     │
+        │ services/    inference · leaf gate · knowledge         │
+        └───────────────┬────────────────────────┬───────────────┘
+                        │                        │
+                        ▼                        ▼
+     ml/models/experiment_weighted/          backend/app/data/
+     best_model.keras  (28 MB)               disease_knowledge_base.json (72 KB)
+     MobileNetV2, 15-class softmax           15 validated agronomic records
 ```
 
 **Request lifecycle for one diagnosis:**
 
-1. Browser validates type and size locally, then POSTs `multipart/form-data` to `/api/predict`.
+1. User opens the Diagnostic Studio (`analyze.html`); the browser validates file type and size locally, then POSTs `multipart/form-data` to `/api/predict`.
 2. The endpoint checks upload presence and model readiness, then enforces the declared MIME type.
 3. The body is streamed in 64 KB chunks with a hard 10 MB ceiling (HTTP 413 when exceeded).
 4. The declared MIME type is checked against the file's magic bytes (415 on mismatch).
@@ -145,9 +146,10 @@ University of California Statewide IPM Program — rather than commercial produc
    runs in a worker thread so the event loop never blocks.
 6. Preprocessing validates format, pixel ceiling, minimum dimension, converts to RGB, resizes to
    224×224 bilinear, and rejects blank canvases by luminance σ.
-7. Inference runs under a separate semaphore of 1 (serialised), then the response is built from
-   the Pydantic contract with the top-3 candidates and all 15 scores.
-8. The front end renders the primary diagnosis and, for whichever class the user selects, fetches
+7. Layer B leaf-acceptance gate assesses foliar suitability; non-leaf or unsupported species return a structured 422 rejection without running disease inference.
+8. If accepted, disease inference runs under a separate semaphore of 1 (serialised), and the response is built from
+   the Pydantic contract with the top-3 candidates, timings, and all 15 scores.
+9. The front end renders the primary diagnosis and, for whichever class the user selects, fetches
    `/api/knowledge/{class_id}` and renders the agronomic profile.
 
 **Startup behaviour.** The model and knowledge base load once in the FastAPI lifespan handler.
@@ -302,8 +304,10 @@ n = **3,413** images, evaluation time 19.04 s, selected model
 | Weighted-F1 | 0.969006 | 0.975168 | −0.006163 |
 | Compiled loss | 0.187019 | 0.174981 | +0.012037 |
 
-A validation-to-test drop of 0.0033 macro-F1 and 0.62 pp accuracy indicates the split held: the
-model was not tuned against the test data, and there is no evidence of leakage-driven optimism.
+A validation-to-test delta of −0.0033 Macro-F1 and −0.62 pp accuracy demonstrates consistent
+performance across partitions without test-tuning. Dataset split integrity and the absence of
+leakage are supported by the separate hash-based verification evidence (0 SHA-256 cross-split
+overlaps and content-hash group locking; see `docs/audit_reports/split_verification.json`).
 
 ### 8.2 Best and worst classes
 
@@ -488,49 +492,73 @@ that from a latent bug into a startup crash.
 
 ## 11. Front End
 
-No build step, no framework, no dependency: `index.html` + `styles.css` + two JavaScript modules.
+No build step, no framework, no third-party runtime dependencies: a multi-page vanilla web
+architecture comprising four dedicated pages, a shared three-color design system (`styles.css`),
+and modular JavaScript:
 
-- **`api.js`** — `fetch` client with request timeouts, structured error mapping, and readiness
-  probing.
-- **`app.js`** — UI state machine: idle → file selected → preview → analysing → result.
+- **`index.html`** — Product landing page providing system overview, foliar reticle preview,
+  architectural highlights, supported crop breakdown, and verified performance benchmarks.
+- **`analyze.html`** — Dedicated Diagnostic Studio featuring drag-and-drop ingestion, camera
+  capture, image preview with metadata, neural inference execution, and full clinical monographs.
+- **`field-guide.html`** — Standalone Solanaceae pathology catalog with instant client-side search,
+  crop/health facet filters, and slide-over monograph drawers.
+- **`about.html`** — Technical architecture monograph detailing the two-tier gate, closed-world
+  softmax limitations, held-out benchmarks, and responsible AI boundaries.
 
-Features: drag-and-drop or browse; client-side type/size pre-checks; preview with filename,
-dimensions and size; a live backend-readiness pill; dismissible alert banner; primary diagnosis
-with confidence and a health badge; top-3 candidates that are individually selectable to read
-*their* reference entry (labelled as reference material, not a second diagnosis); and a rendered
-agronomic profile with sections for symptoms, prevention, treatment, escalation and sources.
+Shared JavaScript modules:
+- **`api.js`** — `fetch` client with request timeouts, structured error mapping, and readiness probing.
+- **`app.js`** — UI controller for the Diagnostic Studio on `analyze.html` (drag-and-drop, preview, analysis, and results rendering).
+- **`nav.js`** — Shared header controller, live readiness telemetry polling, active route styling, and mobile drawer.
+- **`field-guide.js`** — Real-time search, multi-facet filtering, and accessible slide-over drawer on `field-guide.html`.
+- **`knowledge_data.js`** — Client-side mirror of the 15 validated disease knowledge records for zero-latency catalog browsing.
+
+Features: drag-and-drop or browse; camera photo capture; client-side type/size pre-checks; preview
+with filename, dimensions and size; a live backend-readiness pill; dismissible alert banner; primary
+diagnosis with confidence and a health badge; top-3 candidates that are individually selectable to read
+*their* reference entry (labelled as reference material, not a second diagnosis); and an agronomic
+monograph with sections for symptoms, prevention, treatment, escalation, regulatory constraints, and cited sources.
 
 **Safety in rendering:** all server-provided text is inserted with `textContent`, never
 `innerHTML`, and a citation only becomes a clickable link when `isValidHttpUrl()` passes.
 Object URLs for previews are revoked on reset to avoid leaks. The result view states explicitly
-that scores are not calibrated probabilities.
+that scores are relative softmax distributions, not calibrated diagnostic certainties.
 
 ---
 
 ## 12. Testing and Verification
 
-**132 automated tests**, all passing, plus a browser end-to-end suite:
+The repository contains **251 discovered test cases** across backend, ML pipeline, field validation, and frontend API client:
 
 | Layer | Tests | What is covered |
 |:--|--:|:--|
-| Backend unit | 75 | health/readiness (7), prediction + physical input safety (19), content gate and rejection contract (26), knowledge base validation and API contract (21), real-model integration (2) |
-| ML pipeline | 22 | class mapping, split isolation, class weights, tie-breaking, architecture specification |
-| Front-end API client | 35 | success paths, rejection/abstention parsing, invalid-upload and service-error distinction, contract validation, timeout behaviour, 3 live integration tests (skipped when no server is listening) |
-| Browser E2E | 2 viewports | desktop and mobile: rejection with no diagnosis/advisory/export, reset, valid prediction, stale-result clearing |
+| Backend unit & integration | 98 | health/readiness (7), prediction + physical input safety (19), content gate and rejection contract (26), knowledge base validation and API contract (21), leaf-gate integration (14), real-model integration (11) |
+| ML training pipeline | 22 | class mapping, split isolation, class weights, tie-breaking, architecture specification |
+| ML field validation | 95 | manifest schema validation (18), path traversal & security containment (12), gate sidecar evaluation (15), statistical metrics & bootstrap (22), exploratory isolation & baseline provenance (28) |
+| Front-end API client | 36 | export verification (1), client-side validation (15), network & error handling (6), regression tests (3), content gate contracts (8), 3 live integration tests (skipped offline) |
 
 ```bash
-# Backend
+# Backend (98 tests)
 .venv/Scripts/python.exe -m unittest discover -s backend/tests -p "test_*.py"
 
-# ML pipeline
+# ML training pipeline (22 tests)
 .venv/Scripts/python.exe -m unittest ml.tests.test_train_pipeline
 
-# Front end
+# ML field validation framework (95 tests)
+.venv/Scripts/python.exe -m unittest ml.tests.test_field_validation
+
+# Front end API client (36 tests: 33 passed, 3 skipped offline)
 node --test frontend/test_api.js
 
-# Browser (starts backend + static server + headless Chrome)
+# Browser E2E (starts backend + static server + headless Chrome, targeting analyze.html)
 .venv/Scripts/python.exe frontend/test_browser.py --static-port 5510
 ```
+
+> [!IMPORTANT]
+> **Field Validation Status**: The field-validation evaluation framework has been implemented and
+> tested (`ml/evaluation/field_validation/`). Empirical on-farm image collection and validation
+> remain future work under the documented collection protocol
+> ([`docs/field_validation/field_data_collection_protocol.md`](field_validation/field_data_collection_protocol.md)).
+> The model has not yet been benchmarked on authentic on-farm imagery.
 
 Beyond unit tests, the system was verified end to end: a cold start on a fresh port was
 confirmed to load both artifacts from disk (`/ready` → `model_loaded: true`,
@@ -551,6 +579,7 @@ during request) were driven in a browser and behaved correctly.
 | Safety thresholds reject no real leaf | `docs/audit_reports/phase5b_level_a_final_validation_audit.md` |
 | OOD gate was considered and rejected | `docs/audit_reports/phase5b_ood_policy_verification.md` |
 | Non-leaf inputs are rejected/abstained before inference | `docs/audit_reports/non_leaf_input_safety_report.md` (+ eval `.json`) |
+| Field validation framework & audit | `docs/audit_reports/evaluation_integrity_hardening_report.md` (+ protocol in `docs/field_validation/`) |
 | KB schema and sourcing | `docs/KNOWLEDGE_BASE.md` |
 
 ---
@@ -560,25 +589,30 @@ during request) were driven in a browser and behaved correctly.
 1. **Controlled-condition data.** PlantVillage images have uniform backgrounds. Field
    photography with soil, shadow, occlusion and clutter is out of distribution and will degrade
    accuracy in ways this project did not measure.
-2. **Unsupported-crop rejection is partial.** The model maps *any* leaf that reaches it into
+2. **Field-validation framework status.** The evaluation framework, path security, and metrics engine
+   have been implemented and tested (`ml/evaluation/field_validation/`), but empirical on-farm image
+   collection and validation remain future work under the documented collection protocol
+   ([`docs/field_validation/field_data_collection_protocol.md`](field_validation/field_data_collection_protocol.md)).
+   No real-world on-farm performance claims are asserted.
+3. **Unsupported-crop rejection is partial.** The model maps *any* leaf that reaches it into
    one of its 15 classes. An embedding-centroid OOD gate was implemented and audited as an
    experiment, then rejected (**56 % false-accept rate** on unsupported crops, **5.8–7.6 %**
    false rejection of valid diseased leaves). The shipped leaf-acceptance gate declines
    **97.8 %** of unsupported crop leaves from species it saw in training, but only **75.7 %** of
    Strawberry and **53.3 %** of Soybean leaves, which were held out entirely; what passes is
    still forced into a Solanaceae class.
-3. **The acceptance gate has a small negative corpus.** The learned gate blocks 100 % of 70 held-
+4. **The acceptance gate has a small negative corpus.** The learned gate blocks 100 % of 70 held-
    out real portraits, animals, buildings, documents, objects and graphics and 100 % of 193
    leaf-free field photographs, but those photographs number in the tens per category, so the
    rates carry wide uncertainty. It also declines **1.7 %** of valid leaves and treats
    illustrations and stylised drawings as non-plant.
-4. **Scores are not calibrated probabilities.** Softmax output is a relative distribution over
+5. **Scores are not calibrated probabilities.** Softmax output is a relative distribution over
    15 closed-world classes. The API and UI both say so; the UI labels it "Primary Model Score
    (Softmax)".
-5. **Not a prescription.** Guidance is educational; pesticide decisions require label
+6. **Not a prescription.** Guidance is educational; pesticide decisions require label
    compliance and confirmation by a qualified agronomist or extension service.
-6. **Five reviewed near-duplicate pairs remain.** Declared, not hidden.
-7. **Retrospective safety measurements.** The Phase 5B harnesses (σ sweep, aliasing fixtures,
+7. **Five reviewed near-duplicate pairs remain.** Declared, not hidden.
+8. **Retrospective safety measurements.** The Phase 5B harnesses (σ sweep, aliasing fixtures,
    upload benchmark, OOD experiment) were throwaway scripts and are no longer in the tree; their
    methodology and full result tables survive in the reports, so the conclusions are auditable
    by inspection but not re-runnable as-is.
@@ -607,7 +641,7 @@ The project delivers a complete, tested path from a leaf photograph to actionabl
 guidance: a MobileNetV2 classifier at **96.89 % accuracy / 0.9653 macro-F1** on a leak-audited
 held-out test set, wrapped in a FastAPI service with an empirically justified input-safety
 ladder and a startup-validated 15-record knowledge base, presented through a dependency-free
-browser interface and verified by 99 automated tests.
+multi-page browser interface and verified by 251 discovered test cases (248 passing, 3 skipped offline).
 
 Its main contribution is methodological rather than architectural: the dataset was certified
 before training, model selection was confined to validation, the test set was evaluated once and
@@ -717,16 +751,17 @@ chemicals. It is decision support, not a prescription.
 .venv/Scripts/python.exe -m http.server 5500 --directory frontend
 ```
 
-1. Open <http://127.0.0.1:5500> — point out the readiness pill showing the backend is live.
-2. Upload a leaf photo; show filename, dimensions, size, and the Analyse button.
-3. Analyse; show the primary diagnosis with confidence, the health badge, and the top-3
-   candidates. Switch to a runner-up to demonstrate that its reference entry loads on demand and
-   is labelled as reference, not diagnosis.
-4. Show the agronomic profile: symptoms, favourable conditions, prevention, IPM principles,
+1. Open <http://127.0.0.1:5500> — point out the readiness pill and product overview on the landing page.
+2. Navigate to the Diagnostic Studio (<http://127.0.0.1:5500/analyze.html>).
+3. Upload a leaf photo; show filename, dimensions, size, and the Run Neural Diagnostic button.
+4. Run neural diagnosis; show primary diagnosis with confidence, health badge, and top-3 candidates.
+   Switch to a runner-up candidate to demonstrate that its reference entry loads on demand and is
+   labelled as reference material, not a diagnosis.
+5. Show the agronomic profile: symptoms, favourable conditions, prevention, IPM principles,
    escalation triggers, citations.
-5. Demonstrate three rejections: a blank white image (422 blank canvas), a renamed `.png` that is
-   really a JPEG (415 signature mismatch), and an oversized file (413 at the stream gate).
-6. Show `/docs` for the contract and `/ready` for readiness.
+6. Demonstrate three rejections: a non-leaf photograph (422 leaf-gate rejection with structured signals),
+   a blank white image (422 blank canvas), and an oversized file (413 at the stream gate).
+7. Show `/docs` for the contract and `/ready` for readiness (`model_loaded`, `knowledge_loaded`, `gate_loaded`).
 
 ---
 
@@ -767,13 +802,15 @@ Project/
 │   ├── tests/                  98 tests
 │   └── README.md               full API contract
 ├── frontend/
-│   ├── index.html · css/styles.css
-│   ├── js/api.js · js/app.js
-│   ├── test_api.js             36 tests
+│   ├── index.html · analyze.html · field-guide.html · about.html
+│   ├── css/styles.css
+│   ├── js/api.js · js/app.js · js/nav.js · js/field-guide.js · js/knowledge_data.js
+│   ├── test_api.js             36 tests (33 pass, 3 offline skipped)
 │   └── test_browser.py         headless Chrome E2E (desktop + mobile)
 ├── ml/
 │   ├── scripts/                audit_dataset · prepare_dataset · train_model · evaluate_*
-│   ├── tests/                  22 tests
+│   ├── evaluation/             field_validation (data_auditor, path_resolver, evaluator, etc.)
+│   ├── tests/                  117 tests (22 pipeline + 95 field validation)
 │   ├── data/                   manifest + raw dataset (gitignored)
 │   └── models/                 experiment_weighted (served) · experiment_unweighted (baseline)
 ├── docs/

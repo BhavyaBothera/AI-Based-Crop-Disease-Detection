@@ -152,11 +152,58 @@ split is never read, and Strawberry + Soybean are held out of gate training enti
 rejection is measured on unseen species. `--train` alone refits from the cached embeddings
 (seconds) without re-extracting features.
 
-### Unit Test Suite (`ml/tests/test_train_pipeline.py`)
+---
 
-Run unit tests verifying class mappings, split isolation, class weight computation, tie-breaking, and MobileNetV2 architecture specifications:
+## Field-Validation Evaluation Subsystem (`ml/evaluation/field_validation/`)
 
+A hardened, fail-closed evaluation framework engineered to benchmark disease classification and leaf-gate performance on prospective real-world agricultural datasets.
+
+> [!IMPORTANT]
+> **Implementation vs. Field Collection Status**:  
+> The field-validation evaluation framework has been implemented and tested. Empirical on-farm image collection and validation remain future work under the documented collection protocol ([`docs/field_validation/field_data_collection_protocol.md`](../docs/field_validation/field_data_collection_protocol.md)). The model has not yet been evaluated on authentic on-farm imagery.
+
+### Core Modules & Responsibilities:
+1. **`manifest_schema.py`**: Strict manifest parser (`FieldSampleRecord`) enforcing known keys, task-class consistency, and structured error classification (`ManifestSecurityError`, `ManifestDuplicateIdError`, `ManifestSchemaError`).
+2. **`path_resolver.py`**: Authoritative single-point path resolver blocking traversal tokens (`..`), symlink escapes, and enforcing dataset root containment.
+3. **`data_auditor.py`**: Non-destructive data quality auditing, checking corrupt files, duplicate image IDs, cross-split group leakage, and controlled baseline hash collisions.
+4. **`evaluator.py`**: In-situ disease evaluation, strict model softmax validation (`validate_model_output()`, rejecting NaNs, infinities, logits, or probabilities outside `1.0 ± 0.01`), and failure-adjusted accuracy accounting.
+5. **`gate_evaluator.py`**: Leaf acceptance gate evaluation, sidecar integrity checking (`gate_model_config.json`), and failure-adjusted false rejection/acceptance rates.
+6. **`metrics.py`**: Statistical engine computing dual Macro-F1 (`fixed_macro_f1` across all 15 classes vs `observed_macro_f1`), group majority voting across repeated plant captures, and cluster-aware bootstrap confidence intervals.
+7. **`runner.py`**: Command-line orchestration tool supporting exploratory mode isolation (`--allow-exploratory-subset`) and strict controlled-baseline provenance comparison against held-out test baselines.
+
+### CLI Usage:
 ```powershell
-py -3.11 -m unittest ml/tests/test_train_pipeline.py
+# Display field validation runner options
+py -3.11 -m ml.evaluation.field_validation.runner --help
+
+# Run field validation evaluation
+py -3.11 -m ml.evaluation.field_validation.runner `
+  --manifest "path/to/field_manifest.csv" `
+  --dataset-root "path/to/images" `
+  --model-path "ml/models/experiment_weighted/best_model.keras" `
+  --output-dir "docs/audit_reports/field_eval"
+```
+
+---
+
+## Automated ML Test Suites (117 Discovered Tests)
+
+The ML subsystem includes 117 automated unit and regression tests:
+
+### 1. Training Pipeline Tests (22 tests)
+Verifies class mapping consistency, split isolation, class weight computation, tie-breaking, and MobileNetV2 architecture specifications:
+```powershell
+py -3.11 -m unittest ml.tests.test_train_pipeline
+```
+
+### 2. Field Validation Framework Tests (95 tests)
+Verifies manifest schema validation, security path isolation, gate sidecar validation, failure accounting, dual Macro-F1 calculations, cluster bootstrap, and exploratory isolation:
+```powershell
+py -3.11 -m unittest ml.tests.test_field_validation
+```
+
+### 3. Run All ML Tests:
+```powershell
+py -3.11 -m unittest discover -s ml/tests -p "test_*.py"
 ```
 

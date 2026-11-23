@@ -45,9 +45,10 @@ backend, and the knowledge base.
 - **Training:** two-stage transfer learning (frozen backbone, then layers 100-153
   unfrozen), balanced class weights, checkpoint selected by full-validation macro-F1.
 - **Data:** PlantVillage, deduplicated and split by content hash group so near-duplicates
-  never straddle splits. 15,942 train / 3,418 validation / 3,413 test images.
+  never straddle splits (0 SHA-256 cross-split overlaps). 15,942 train / 3,418 validation / 3,413 test images.
 - **Held-out test set (evaluated once):** **macro-F1 0.9653**, **accuracy 96.89 %**
-  (3,307 / 3,413). Validation macro-F1 was 0.9686.
+  (3,307 / 3,413). Validation macro-F1 was 0.9686. Dataset split integrity and the absence of
+  leakage are supported by separate hash-based verification evidence (`docs/audit_reports/split_verification.json`).
 - **Serving checkpoint:** `ml/models/experiment_weighted/best_model.keras`.
 
 Full per-class metrics, confusion matrices, and experimental comparisons are in
@@ -68,23 +69,32 @@ Project/
 │   │   ├── schemas/            # Pydantic request/response contracts
 │   │   ├── services/           # Model lifecycle + preprocessing; knowledge validation
 │   │   └── data/               # 15-record disease knowledge base (JSON)
-│   └── tests/                  # 75 backend tests
-├── frontend/                   # No-build vanilla HTML/CSS/JS single page
-│   ├── index.html
-│   ├── css/styles.css
+│   └── tests/                  # 98 backend tests across 7 test modules
+├── frontend/                   # No-build vanilla HTML/CSS/JS multi-page app
+│   ├── index.html              # Product landing page & system overview
+│   ├── analyze.html            # Diagnostic Studio & image analysis workspace
+│   ├── field-guide.html        # Solanaceae pathology catalog & monographs
+│   ├── about.html              # System architecture & responsible AI monograph
+│   ├── css/styles.css          # Unified design system & responsive styling
 │   ├── js/api.js               # API client (timeouts, error mapping)
-│   ├── js/app.js               # UI controller and safe DOM rendering
-│   ├── test_api.js             # Node test-runner suite
+│   ├── js/app.js               # Diagnostic studio UI & results rendering
+│   ├── js/nav.js               # Telemetry status, active routes, mobile drawer
+│   ├── js/field-guide.js       # Live search, filters, slide-over drawer
+│   ├── js/knowledge_data.js    # Client-side 15-class agronomic monograph cache
+│   ├── test_api.js             # Node test-runner suite (36 tests)
 │   └── test_browser.py         # Headless Chrome E2E (desktop + mobile)
 ├── ml/
 │   ├── scripts/                # audit_dataset, prepare_dataset, train_model, evaluate_*
-│   ├── tests/                  # 22 pipeline tests
+│   ├── evaluation/             # Field-validation evaluation framework
+│   │   └── field_validation/   # Data auditor, path resolver, gate eval, metrics, runner
+│   ├── tests/                  # 117 tests (22 pipeline + 95 field validation)
 │   ├── data/                   # dataset + manifest (gitignored)
 │   └── models/                 # checkpoints (gitignored)
 ├── docs/
 │   ├── PROJECT_SUMMARY.md      # Consolidated report for submission and viva
 │   ├── README.md               # Index of the evidence, and how to reproduce it
 │   ├── KNOWLEDGE_BASE.md       # Agronomic record schema and sourcing standard
+│   ├── field_validation/       # Field sampling SOP & data collection protocol
 │   └── audit_reports/          # Dataset, evaluation, safety and backend audit reports
 ├── .venv/                      # Local Python 3.11 environment (gitignored)
 ├── .gitignore
@@ -108,31 +118,33 @@ On startup the model and the knowledge base are loaded once and validated. If ei
 the process still starts, `/health` stays green, and `/ready` reports `503` with the reason.
 
 - Swagger UI: <http://127.0.0.1:8000/docs>
-- Readiness: `GET /ready` must return `model_loaded: true, knowledge_loaded: true`
+- Readiness: `GET /ready` must return `model_loaded: true, knowledge_loaded: true, gate_loaded: true`
 
 ### 2. Frontend
 
-Serve the folder statically (do not open `index.html` via `file://`):
+Serve the folder statically (do not open HTML files via `file://`):
 
 ```bash
 .venv/Scripts/python.exe -m http.server 5500 --directory frontend
 ```
 
-Open <http://127.0.0.1:5500>. The page targets `http://127.0.0.1:8000` by default; set
-`window.API_BASE_URL` before the scripts load to point elsewhere. That origin is already in
-the backend's CORS allow-list.
+Open <http://127.0.0.1:5500> to view the product landing page, or go directly to
+<http://127.0.0.1:5500/analyze.html> for the Diagnostic Studio. The frontend targets
+`http://127.0.0.1:8000` by default; set `window.API_BASE_URL` before scripts load to point
+elsewhere. That origin is already in the backend's CORS allow-list.
 
 ### 3. Using it
 
-Drop a leaf photo (JPEG/PNG/WEBP, ≤ 10 MB, ≤ 20 MP, ≥ 64×64) and press **Analyze**. The
-result shows the primary diagnosis, the top-3 candidates with scores, and the agronomic
-reference profile. Any top-3 candidate can be selected to read *its* reference entry - the
-UI labels that clearly as reference material, not a diagnosis.
+Navigate to the Diagnostic Studio (<http://127.0.0.1:5500/analyze.html> or click "Open Diagnostic
+Studio" from the homepage). Drop a leaf photo (JPEG/PNG/WEBP, ≤ 10 MB, ≤ 20 MP, ≥ 64×64) and
+press **Run Neural Diagnostic**. The result shows the primary diagnosis, the top-3 candidates with
+scores, and the agronomic reference profile. Any top-3 candidate can be selected to read *its*
+reference entry - the UI labels that clearly as reference material, not a diagnosis.
 
 If the image cannot be verified as plant material, the app shows a dedicated rejection state
 instead: no diagnosis, no candidates, no treatment guidance and no advisory export. It
 explains "We couldn't verify that this image contains a supported crop leaf" and offers
-**Upload another image**.
+**Change Image**.
 
 ---
 
@@ -142,10 +154,13 @@ explains "We couldn't verify that this image contains a supported crop leaf" and
 # Backend: 98 tests (health, prediction + input safety gate, knowledge base, real model)
 .venv/Scripts/python.exe -m unittest discover -s backend/tests -p "test_*.py"
 
-# ML pipeline: 22 tests (class mapping, split isolation, class weights, architecture)
+# ML training pipeline: 22 tests (class mapping, split isolation, class weights, architecture)
 .venv/Scripts/python.exe -m unittest ml.tests.test_train_pipeline
 
-# Frontend API client: 36 tests
+# ML field validation: 95 tests (manifest validation, path traversal, failure accounting, metrics)
+.venv/Scripts/python.exe -m unittest ml.tests.test_field_validation
+
+# Frontend API client: 36 tests (33 passed, 3 skipped offline)
 node --test frontend/test_api.js
 
 # Leaf-gate training and held-out evaluation (see ml/README.md)
@@ -156,9 +171,10 @@ node --test frontend/test_api.js
 .venv/Scripts/python.exe frontend/test_browser.py --static-port 5510
 ```
 
-The frontend API suite includes three live integration tests against a running backend; they
-report as **skipped** when nothing is listening on the configured base URL. The browser suite
-requires Chrome and the trained model, and writes screenshots to
+The test suites discover **251 total test cases** across backend (98), ML pipeline and field
+validation (117), and frontend API client (36, where 33 pass and 3 live-backend integration
+tests report as skipped when no live server is listening). The browser suite requires Chrome and
+the trained model, targeting `analyze.html` and writing screenshots to
 `docs/audit_reports/non_leaf_safety_screenshots/`.
 
 ---
@@ -211,6 +227,10 @@ remaining risks are in
 
 ## Known Limitations
 
+- **Field-validation framework status.** The field-validation evaluation framework has been
+  implemented and tested (`ml/evaluation/field_validation/`). Empirical on-farm image collection
+  and validation remain future work under the documented collection protocol
+  ([`docs/field_validation/field_data_collection_protocol.md`](docs/field_validation/field_data_collection_protocol.md)).
 - **Controlled-condition data.** PlantVillage images were captured on uniform backgrounds.
   Field photography with soil, shadows, and clutter is out of distribution.
 - **Unsupported-crop rejection is good, not complete.** The gate declines 97.8 % of

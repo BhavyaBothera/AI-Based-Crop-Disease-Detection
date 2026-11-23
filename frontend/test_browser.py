@@ -163,7 +163,7 @@ def start_services(backend_port: int, static_port: int, log_dir: Path):
         stdout=static_log,
         stderr=subprocess.STDOUT,
     )
-    wait_for_http(f"http://127.0.0.1:{static_port}/index.html", timeout=30)
+    wait_for_http(f"http://127.0.0.1:{static_port}/analyze.html", timeout=30)
     wait_for_http(f"http://127.0.0.1:{backend_port}/health", timeout=120)
     # Model load happens in the lifespan hook; /ready is 503 until it finishes.
     deadline = time.time() + 180
@@ -441,7 +441,7 @@ def main() -> int:
             {"source": f"window.API_BASE_URL='http://127.0.0.1:{args.backend_port}';"},
         )
         devtools.send(
-            "Page.navigate", {"url": f"http://127.0.0.1:{args.static_port}/index.html"}
+            "Page.navigate", {"url": f"http://127.0.0.1:{args.static_port}/analyze.html"}
         )
         devtools.wait_for("document.readyState === 'complete'", timeout=30)
 

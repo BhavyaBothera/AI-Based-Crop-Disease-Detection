@@ -17,7 +17,7 @@ The brand positioning:
 
 The platform now operates as a true multi-page application with four distinct URL routes, a shared telemetry-enabled navigation system, a dedicated diagnostic studio, a searchable foliar pathology field guide with slide-over clinical monographs, and an honest technical monograph detailing model capabilities and real-world boundaries.
 
-Every backend endpoint contract, machine-learning safety gate, two-tier leaf acceptance pipeline, and regression test has been preserved with zero regressions across 156 automated test suites.
+Every backend endpoint contract, machine-learning safety gate, two-tier leaf acceptance pipeline, and regression test has been preserved with zero regressions across 251 discovered automated test cases (98 backend, 117 ML, 36 frontend).
 
 ---
 
@@ -58,7 +58,7 @@ Rather than a single-page anchor hack, PHYTOSIGNAL is structured as four distinc
 
 ```
 PHYTOSIGNAL/
-├── / (index.html)             Flagship Editorial Introduction & Live Quick Scanner
+├── / (index.html)             Flagship Editorial Introduction & Product Overview
 ├── /analyze (analyze.html)    Dedicated Diagnostic Studio & Full Clinical Monograph
 ├── /field-guide (field-guide.html) Pathology Encyclopedia & Interactive Monograph Drawer
 └── /about (about.html)        Architecture, Two-Tier Gate, & Responsible AI Monograph
@@ -66,11 +66,11 @@ PHYTOSIGNAL/
 
 ### Page 01: Home (`/` or `index.html`)
 The product's editorial front door introduces agronomists and researchers to the platform:
-- **Editorial Hero Composition:** Asymmetric layout featuring bold headlines (*"Every leaf signals distress before a crop fails."*), product descriptor, primary CTA (*"Analyze a Leaf"*), secondary link (*"Explore Field Guide"*), and quick diagnostic metrics (`15` classes, `96.86%` test macro-F1, `< 100ms` inference).
-- **Art-Directed Specimen Showcase:** High-resolution botanical specimen photograph (`frontend/samples/hero_specimen.jpg`) framed in an instrument viewfinder with real-time target reticle and species taxonomy tag (*Solanaceae: Solanum tuberosum*).
+- **Editorial Hero Composition:** Asymmetric layout featuring bold headlines (*"Every leaf signals distress before a crop fails."*), product descriptor, primary CTA (*"Analyze a Leaf"* &rarr; `analyze.html`), secondary link (*"Explore Field Guide"* &rarr; `field-guide.html`), and quick diagnostic metrics (`15` classes, `0.9653` / `96.53%` held-out test Macro-F1, `< 100ms` inference).
+- **Art-Directed Specimen Showcase:** High-resolution botanical specimen photograph framed in an instrument viewfinder with real-time target reticle and species taxonomy tag (*Solanaceae: Solanum tuberosum*).
 - **Operational Workflow:** 3-step scientific protocol: (1) Standardized Foliar Ingestion, (2) Dual-Gate Validation (Leaf & Species Gate), and (3) Differential Inference & Agronomic Guidance.
-- **Crop Scope Matrix:** Visual cards detailing coverage for Tomato (9 conditions), Potato (3 conditions), and Bell Pepper (2 conditions + healthy state).
-- **Embedded Diagnostic Scanner:** Complete working upload dropzone and sample presets embedded directly on the homepage for immediate laboratory testing.
+- **Crop Scope Matrix:** Visual cards detailing coverage for Tomato (10 classes), Potato (3 classes), and Bell Pepper (2 classes).
+- **Dedicated Diagnostic Workspace Routing:** Clear directional CTAs directing users to the Dedicated Diagnostic Studio (`analyze.html`) with an interactive foliar specimen reticle preview (the Phase 2B redesign decoupled the landing overview from the live analyzer workspace).
 
 ### Page 02: Dedicated Diagnostic Studio (`/analyze` or `analyze.html`)
 The operational core of the product designed as a scientific scanning station:
@@ -94,7 +94,7 @@ An interactive Solanaceae pathology catalog powered by `frontend/js/knowledge_da
 An honest, peer-review-grade technical monograph documenting the system architecture:
 - **Diagnostic Engine:** MobileNetV2 convolutional backbone fine-tuned across 15 Solanaceae conditions.
 - **Two-Tier Safety Gate:** Detailed explanation of why unconstrained softmax networks cannot be deployed in open fields. Documents the Level-A OOD input gate that intercepts human portraits, non-plant objects, and unsupported plant species before reaching the disease model.
-- **Evaluation Integrity:** Reports held-out test set performance (`96.86%` Macro-F1 across 3,506 verified images) while explicitly noting that controlled-dataset accuracy does not guarantee open-field performance.
+- **Evaluation Integrity:** Reports held-out test set performance (`0.9653` / `96.53%` Macro-F1 and `96.89%` top-1 accuracy across 3,413 verified test images; validation Macro-F1 was `0.9686` across 3,418 images) while explicitly noting that controlled-dataset accuracy does not guarantee open-field performance.
 - **Responsible AI Boundaries:** Documents four critical operational limitations: single-leaf constraint, laboratory background bias, closed-world assumption, and non-authoritative advisory status.
 
 ---
