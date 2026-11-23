@@ -48,6 +48,9 @@ scratch/
 test_synthetic_data/
 .browser_test_tmp/
 
+# Academic Submission Package
+/PHYTOSIGNAL_Project_Submission/
+
 # IDE & OS Files
 .vscode/
 .idea/
