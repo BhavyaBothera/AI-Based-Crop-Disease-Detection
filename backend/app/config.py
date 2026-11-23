@@ -76,13 +76,14 @@ MIN_IMAGE_DIMENSION: int = _parse_int_env("MIN_IMAGE_DIMENSION", 64, min_val=1)
 # Population standard deviation threshold on 224x224 luminance (sigma <= threshold rejects uniform/blank canvas)
 UNIFORM_CANVAS_STD_THRESHOLD: float = _parse_float_env("UNIFORM_CANVAS_STD_THRESHOLD", 2.0, min_val=0.0)
 
-# Content-Level Input Suitability Gate (Level B)
-# Deterministic plant-tissue evidence and image-quality gate. This runs AFTER physical
-# integrity checks and BEFORE model inference. It is a *necessary-condition* screen:
-# it can establish that an image contains no plant pigmentation, but it does NOT verify
-# that the subject is a supported Solanum/Capsicum leaf. Those limits are documented in
-# docs/audit_reports/non_leaf_input_safety_report.md.
-# Thresholds were calibrated on non-test data (see ml/scripts/evaluate_input_gate.py).
+# Content-Level Input Suitability Gate (Level B Master Switch)
+# Master switch controlling the entire Level B content-screening layer (both the learned
+# leaf-acceptance gate and the deterministic plant-pigmentation fallback screen).
+# When ENABLE_INPUT_GATE is True, images are screened before disease inference.
+# When ENABLE_INPUT_GATE is False, the entire Level B content-screening layer is bypassed,
+# immediately returning ACCEPTED so all decodable images proceed to disease classification.
+# CAUTION: Setting ENABLE_INPUT_GATE=False is an emergency rollback switch for operational
+# diagnosis or pipeline recovery; it is NOT a recommended normal operating configuration.
 ENABLE_INPUT_GATE: bool = _parse_bool_env("ENABLE_INPUT_GATE", True)
 
 # Broad plant-pigmentation mask: HSV hue 40-170 deg, saturation >= 0.12, value >= 0.08.
@@ -119,12 +120,14 @@ INPUT_GATE_MIN_DETAIL_VARIANCE: float = _parse_float_env(
     "INPUT_GATE_MIN_DETAIL_VARIANCE", 0.0001, min_val=0.0
 )
 
-# Trained Leaf-Acceptance Gate (Level B content classifier)
+# Trained Leaf-Acceptance Gate (Level B learned 3-class classifier)
 # A 3-class model (supported_leaf / other_plant / non_leaf) built on frozen ImageNet
-# MobileNetV2 features and trained by ml/scripts/train_input_gate.py. It is the content
-# authority when it is loaded; the deterministic screen below is the fallback. Its
-# validation-only operating point and measured error rates are recorded in
-# docs/audit_reports/non_leaf_input_safety_report.md.
+# MobileNetV2 features and trained by ml/scripts/train_input_gate.py.
+# When ENABLE_LEAF_GATE=True and the model artefact is present, it acts as the primary
+# content authority.
+# When ENABLE_LEAF_GATE=False (or when the gate artefact is missing), the learned gate is
+# disabled, and assess_image() automatically falls back to the deterministic plant-pigmentation
+# screen (as long as ENABLE_INPUT_GATE=True).
 DEFAULT_LEAF_GATE_REL_PATH = "ml/models/input_gate/leaf_gate.keras"
 DEFAULT_LEAF_GATE_PATH = PROJECT_ROOT / DEFAULT_LEAF_GATE_REL_PATH
 LEAF_GATE_MODEL_PATH = Path(os.getenv("LEAF_GATE_MODEL_PATH", str(DEFAULT_LEAF_GATE_PATH)))

@@ -27,11 +27,17 @@ datasets/
 *.7z
 
 # Model Weights, Large Checkpoints & Training Outputs
-ml/models/*.keras
-ml/models/*.h5
-ml/models/*.savedmodel/
-ml/models/*.tflite
-ml/models/*.onnx
+# By default, ignore all model binary weights in ml/models/ and subdirectories:
+ml/models/**/*.keras
+ml/models/**/*.h5
+ml/models/**/*.savedmodel/
+ml/models/**/*.tflite
+ml/models/**/*.onnx
+# Whitelist canonical serving and baseline evaluation checkpoints:
+!ml/models/experiment_weighted/best_model.keras
+!ml/models/experiment_unweighted/best_model.keras
+!ml/models/input_gate/leaf_gate.keras
+# Ignore intermediate training checkpoints and logs:
 ml/models/checkpoints/
 ml/checkpoints/
 ml/logs/

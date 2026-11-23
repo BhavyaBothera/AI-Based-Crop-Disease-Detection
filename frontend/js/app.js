@@ -1655,7 +1655,12 @@
       const meta = document.createElement('div');
       meta.className = 'recent-scan-meta';
       const scoreStr = typeof scan.score === 'number' ? `${(scan.score * 100).toFixed(1)}%` : '';
-      meta.innerHTML = `<span>${scoreStr}</span><span>${scan.timestamp}</span>`;
+      const scoreSpan = document.createElement('span');
+      scoreSpan.textContent = scoreStr;
+      const timeSpan = document.createElement('span');
+      timeSpan.textContent = scan.timestamp || '';
+      meta.appendChild(scoreSpan);
+      meta.appendChild(timeSpan);
 
       card.appendChild(thumb);
       card.appendChild(title);

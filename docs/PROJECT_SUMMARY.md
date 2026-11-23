@@ -405,7 +405,11 @@ ImageNet MobileNetV2 features, trained by `ml/scripts/train_input_gate.py` on 25
 (PlantVillage leaves plus a licence-cleared real-photo corpus of people, animals, buildings,
 documents, objects and graphics) and shipped as a single Keras artefact the backend loads like
 any other model. A deterministic plant-pigmentation screen stays in the same module as a
-fallback when the model file is missing. Rejected/abstained images receive a structured HTTP
+fallback when the model file is missing or `ENABLE_LEAF_GATE=false`. (Setting
+`ENABLE_INPUT_GATE=false` is an emergency rollback switch that completely bypasses
+all Level B content screening, allowing any decodable image to proceed to disease
+classification; this is strictly for operational recovery and not a normal configuration).
+Rejected/abstained images receive a structured HTTP
 422 with `status`, `code` and `category` - never a diagnosis - and the UI shows a dedicated
 rejection state with no candidates, guidance or advisory export.
 
@@ -761,7 +765,7 @@ chemicals. It is decision support, not a prescription.
    escalation triggers, citations.
 6. Demonstrate three rejections: a non-leaf photograph (422 leaf-gate rejection with structured signals),
    a blank white image (422 blank canvas), and an oversized file (413 at the stream gate).
-7. Show `/docs` for the contract and `/ready` for readiness (`model_loaded`, `knowledge_loaded`, `gate_loaded`).
+7. Show `/docs` for the contract and `/ready` for readiness (`model_loaded` and `knowledge_loaded` required for 200 OK, with `gate_loaded` reporting learned gate status).
 
 ---
 

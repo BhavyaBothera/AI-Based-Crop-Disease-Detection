@@ -75,9 +75,9 @@ All configuration settings are defined in [`backend/app/config.py`](app/config.p
 | `MODEL_PATH` | `ml/models/experiment_weighted/best_model.keras` | Absolute or relative path to the trained `.keras` disease model |
 | `KNOWLEDGE_BASE_PATH` | `backend/app/data/disease_knowledge_base.json` | Path to the curated disease knowledge base JSON file |
 | `LEAF_GATE_MODEL_PATH` | `ml/models/input_gate/leaf_gate.keras` | Path to the trained 3-class leaf acceptance gate model |
-| `ENABLE_LEAF_GATE` | `true` | Enables the learned Level B leaf-acceptance gate |
+| `ENABLE_LEAF_GATE` | `true` | Enables the learned Level B 3-class leaf gate; if `false`, deterministic screening remains active |
 | `LEAF_GATE_MIN_CONFIDENCE` | `0.60` | Minimum confidence floor to accept or reject an image (below this, the gate abstains) |
-| `ENABLE_INPUT_GATE` | `true` | Enables the deterministic plant-pigmentation fallback screen |
+| `ENABLE_INPUT_GATE` | `true` | Master switch for Level B content screening. When `false`, all content screening is bypassed and all decodable images proceed directly to classification (emergency rollback switch only; not recommended for normal operation) |
 | `INPUT_GATE_REJECT_BELOW_PLANT_EVIDENCE` | `0.01` | Minimum plant pigmentation fraction; below this, image is rejected as non-plant |
 | `INPUT_GATE_ACCEPT_AT_PLANT_EVIDENCE` | `0.08` | Threshold above which plant pigmentation is considered clearly evident |
 | `INPUT_GATE_MIN_DOMINANT_REGION` | `0.02` | Minimum dominant contiguous plant region fraction |
@@ -123,8 +123,9 @@ Returns process operational status.
 ```
 
 ### `GET /ready`
-Reports whether the ML model, agronomic knowledge base, and leaf-acceptance gate are loaded and ready to serve requests.
-- **Status Code**: `200 OK` (all loaded) or `503 Service Unavailable` (uninitialized components)
+Reports whether the core services (disease classification model and agronomic knowledge base) are loaded and ready to serve requests.
+- **Status Code**: `200 OK` (when both `model_loaded` and `knowledge_loaded` are `true`) or `503 Service Unavailable` (if either core component failed to initialize)
+- **Note on `gate_loaded`**: Reports whether the learned Level B leaf gate is active (`true`). If `false` (e.g. gate artifact missing or `ENABLE_LEAF_GATE=false`), the service remains ready (`200 OK`) and automatically falls back to the deterministic plant-pigmentation screen.
 - **Response (Ready)**:
 ```json
 {

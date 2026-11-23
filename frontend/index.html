@@ -282,7 +282,7 @@
           <div class="kicker">Empirical Benchmarking</div>
           <h2 class="section-title">Verified Model Performance</h2>
           <p class="section-subtitle">
-            Rigorously evaluated across 4,124 strictly held-out test specimens from the PlantVillage dataset across all 15 Solanaceae classes.
+            Rigorously evaluated across 3,413 strictly held-out test specimens (3,307 correct predictions) from the PlantVillage dataset across all 15 Solanaceae classes.
           </p>
         </div>
 
@@ -291,21 +291,21 @@
           <div class="metric-card">
             <div class="metric-card-number">96.89%</div>
             <div class="metric-card-caption">Held-Out Test Accuracy</div>
-            <p class="metric-card-desc">Overall classification accuracy across 4,124 strictly isolated evaluation images.</p>
+            <p class="metric-card-desc">Overall classification accuracy (96.8942%) across 3,413 strictly isolated evaluation images (3,307 correct).</p>
           </div>
 
           <!-- Metric 2: Macro F1 -->
           <div class="metric-card">
             <div class="metric-card-number">0.9653</div>
             <div class="metric-card-caption">Held-Out Macro-F1 Score</div>
-            <p class="metric-card-desc">Unweighted mean of class F1 scores, reflecting balanced performance across rare and common conditions.</p>
+            <p class="metric-card-desc">Unweighted mean of class F1 scores (0.965288), reflecting balanced performance across rare and common conditions.</p>
           </div>
 
           <!-- Metric 3: Macro Recall -->
           <div class="metric-card">
             <div class="metric-card-number">0.9679</div>
             <div class="metric-card-caption">Held-Out Macro Recall</div>
-            <p class="metric-card-desc">Average diagnostic sensitivity across all 15 classes, minimizing false-negative diagnostic misses.</p>
+            <p class="metric-card-desc">Average diagnostic sensitivity (0.967902) across all 15 classes, minimizing false-negative diagnostic misses.</p>
           </div>
         </div>
 
@@ -316,7 +316,7 @@
             <span class="disclaimer-title">Scientific Integrity & Dataset Context</span>
           </div>
           <p class="disclaimer-text">
-            <strong>Evaluation Methodology:</strong> Metrics reflect benchmark evaluation on strictly held-out laboratory photographs with uniform backgrounds from the PlantVillage dataset (20% test partition, completely isolated from all model training and validation phases). While these figures demonstrate high neural convergence under controlled backgrounds, performance in real-world agricultural environments may vary due to complex canopy backgrounds, variable natural lighting, leaf occlusions, or multi-pathogen co-infections. The Level B suitability gate is engineered to reject ambiguous inputs rather than force an ungrounded classification.
+            <strong>Evaluation Methodology:</strong> Metrics reflect benchmark evaluation on strictly held-out laboratory photographs with uniform backgrounds from the PlantVillage dataset (70% train / 15% validation / 15% test partition; 3,413 test images completely isolated from all model training and validation phases, with validation Macro-F1 at 0.9686 across 3,418 images). While these figures demonstrate high neural convergence under controlled backgrounds, performance in real-world agricultural environments may vary due to complex canopy backgrounds, variable natural lighting, leaf occlusions, or multi-pathogen co-infections. The Level B suitability gate is engineered to reject ambiguous inputs rather than force an ungrounded classification.
           </p>
         </div>
       </div>

@@ -89,7 +89,7 @@ Project/
 │   │   └── field_validation/   # Data auditor, path resolver, gate eval, metrics, runner
 │   ├── tests/                  # 117 tests (22 pipeline + 95 field validation)
 │   ├── data/                   # dataset + manifest (gitignored)
-│   └── models/                 # checkpoints (gitignored)
+│   └── models/                 # Tracked serving & baseline checkpoints + metadata
 ├── docs/
 │   ├── PROJECT_SUMMARY.md      # Consolidated report for submission and viva
 │   ├── README.md               # Index of the evidence, and how to reproduce it
@@ -101,8 +101,10 @@ Project/
 └── README.md
 ```
 
-Large artifacts - the dataset, the raw archive, and `.keras` checkpoints - are excluded by
-`.gitignore` and must exist locally to train or serve.
+Large raw data artifacts — the raw PlantVillage dataset and archive files — are excluded by
+`.gitignore`. The canonical model checkpoints required for serving and academic evaluation
+(`ml/models/experiment_weighted/best_model.keras`, `ml/models/experiment_unweighted/best_model.keras`,
+and `ml/models/input_gate/leaf_gate.keras`) are tracked directly in Git for reproducibility.
 
 ---
 
@@ -118,7 +120,9 @@ On startup the model and the knowledge base are loaded once and validated. If ei
 the process still starts, `/health` stays green, and `/ready` reports `503` with the reason.
 
 - Swagger UI: <http://127.0.0.1:8000/docs>
-- Readiness: `GET /ready` must return `model_loaded: true, knowledge_loaded: true, gate_loaded: true`
+- Readiness: `GET /ready` returns `200 OK` when `model_loaded: true` and `knowledge_loaded: true`.
+  It also reports `gate_loaded` (`true` when the learned leaf gate is loaded; if `false`, the
+  deterministic fallback screen is active).
 
 ### 2. Frontend
 
@@ -199,7 +203,9 @@ Rejected and abstained inputs never reach the disease model; they return a struc
 whose `detail` carries `status` (`rejected`/`abstained`), `code`, `category`, a user message and
 the measured signals - and no diagnosis fields. Successful `200` responses keep the existing
 contract. A deterministic plant-pigmentation screen remains in the same module as a fallback
-for the case where the model file is missing or `ENABLE_LEAF_GATE=false`.
+for the case where the model file is missing or `ENABLE_LEAF_GATE=false`. (Note: setting
+`ENABLE_INPUT_GATE=false` is an emergency rollback switch that bypasses all Level B content
+screening entirely; it is not recommended for normal operation).
 
 Measured on a disjoint held-out split (never trained on, disease `test` split never opened):
 
