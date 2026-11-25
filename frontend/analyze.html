@@ -7,7 +7,7 @@
   <meta name="description" content="Precision foliar specimen evaluation workspace. Two-tier leaf acceptance gate and class-weighted MobileNetV2 neural pathology for tomato, potato, and bell pepper.">
   <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
+<body class="analyze-page">
 
   <!-- Site Header -->
   <header class="site-header app-header">
@@ -67,7 +67,7 @@
   <div id="alert-banner" class="alert-banner hidden" role="alert">
     <div class="container flex-between">
       <div style="display:flex; align-items:center; gap:0.75rem;">
-        <span aria-hidden="true">⚠️</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <strong id="alert-title">Notice</strong>:
         <span id="alert-message" class="alert-message-text"></span>
       </div>
@@ -77,14 +77,18 @@
 
   <main class="container container-wide" style="padding-top: 2rem;">
     <!-- Page Header -->
-    <div style="margin-bottom: 2rem;">
-      <div class="kicker">Diagnostic Workspace // Solanaceae Laboratory</div>
-      <h1 style="font-size: clamp(2rem, 3.5vw, 2.75rem); margin-bottom: 0.5rem;">Foliar Specimen Studio</h1>
-      <p style="color: var(--text-secondary); max-width: 48rem;">
-        Screening calibrated Solanaceae leaf tissue. All inputs pass through Layer A (physical integrity check) 
-        and Layer B (learned leaf-acceptance gate) before 15-class closed-world inference.
+    <header class="analyze-page-header">
+      <div class="kicker"><span class="kicker-pulse"></span>DIAGNOSTIC WORKSPACE &bull; SOLANACEAE PATHOLOGY</div>
+      <h1 class="analyze-page-title">Foliar Specimen Studio</h1>
+      <p class="analyze-page-desc">
+        Screening calibrated Solanaceae foliage with two-tier rejection gating (Layer A physical integrity + Layer B leaf acceptance) and 15-class MobileNetV2 neural pathology.
       </p>
-    </div>
+      <div class="scope-tags-bar" aria-label="Supported Botanical Taxa">
+        <span class="scope-tag"><span class="tag-dot"></span>Tomato (<em>Solanum lycopersicum</em>)</span>
+        <span class="scope-tag"><span class="tag-dot"></span>Potato (<em>Solanum tuberosum</em>)</span>
+        <span class="scope-tag"><span class="tag-dot"></span>Bell Pepper (<em>Capsicum annuum</em>)</span>
+      </div>
+    </header>
 
     <!-- Analyze Studio Layout -->
     <div class="analyze-layout">
@@ -199,12 +203,15 @@
           </div>
           <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
             <button type="button" id="copy-guidance-btn" class="btn btn-secondary btn-sm hidden" aria-label="Copy IPM advisory to clipboard">
-              <span>📋 Copy Advisory</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy Advisory</span>
             </button>
-            <button type="button" id="print-advisory-btn" class="btn btn-secondary btn-sm hidden" aria-label="Print advisory report">
-              <span>🖨️ Print</span>
+            <button type="button" id="print-advisory-btn" class="btn btn-secondary btn-sm hidden" aria-label="Print diagnostic laboratory report">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              <span>Print Report</span>
             </button>
             <button type="button" id="new-scan-btn" class="btn btn-secondary btn-sm hidden" aria-label="Start a new analysis">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
               <span>New Scan</span>
             </button>
           </div>
@@ -225,26 +232,26 @@
           <p class="empty-placeholder-text">Upload a foliar photograph or select a calibrated test preset to evaluate pathology vectors against our 15-class Solanaceae neural model.</p>
 
           <div class="empty-specs-strip" aria-label="System diagnostic parameters">
-            <span class="spec-pill">🔬 MobileNetV2</span>
-            <span class="spec-pill">🍃 Solanaceae Scope</span>
-            <span class="spec-pill">🛡️ Gate Guarded</span>
-            <span class="spec-pill">⚡ &lt;100ms Inference</span>
+            <span class="spec-pill"><span class="spec-dot"></span>MobileNetV2</span>
+            <span class="spec-pill"><span class="spec-dot"></span>Solanaceae Scope</span>
+            <span class="spec-pill"><span class="spec-dot"></span>Two-Tier Gate</span>
+            <span class="spec-pill"><span class="spec-dot"></span>&lt;100ms Inference</span>
           </div>
 
           <div class="empty-steps-container">
             <div class="empty-step">
-              <span class="empty-step-icon">📸</span>
-              <strong class="empty-step-title">1. Capture Specimen</strong>
+              <span class="empty-step-num">01</span>
+              <strong class="empty-step-title">Capture Specimen</strong>
               <span class="empty-step-desc">Clear single-leaf image under uniform natural daylight</span>
             </div>
             <div class="empty-step">
-              <span class="empty-step-icon">⚡</span>
-              <strong class="empty-step-title">2. Neural Analysis</strong>
+              <span class="empty-step-num">02</span>
+              <strong class="empty-step-title">Neural Analysis</strong>
               <span class="empty-step-desc">Class-weighted MobileNetV2 evaluates foliar lesion vectors in &lt;100ms</span>
             </div>
             <div class="empty-step">
-              <span class="empty-step-icon">📋</span>
-              <strong class="empty-step-title">3. Actionable IPM</strong>
+              <span class="empty-step-num">03</span>
+              <strong class="empty-step-title">Actionable IPM</strong>
               <span class="empty-step-desc">Access non-chemical, cultural, and chemical management principles</span>
             </div>
           </div>
@@ -292,7 +299,7 @@
               <span id="result-crop" class="diagnosis-crop">Tomato</span>
               <h3 id="result-condition" class="diagnosis-condition">Late Blight</h3>
               <div class="diagnosis-badges">
-                <span id="result-health-badge" class="badge badge-diseased">⚠️ Diseased</span>
+                <span id="result-health-badge" class="badge badge-diseased">Diseased</span>
                 <span id="confidence-band-badge" class="badge badge-confidence-high">High Confidence</span>
                 <span class="badge badge-mineral">Closed-World Softmax</span>
               </div>
@@ -306,9 +313,9 @@
 
           <!-- Execution Telemetry Strip -->
           <div id="diagnosis-telemetry" class="diagnosis-telemetry-strip hidden" aria-label="Inference execution telemetry">
-            <span id="telemetry-total" class="telemetry-item">⚡ Latency: --ms</span>
-            <span id="telemetry-breakdown" class="telemetry-item">🛡️ Gate: --ms · 🧠 Neural: --ms</span>
-            <span id="telemetry-model" class="telemetry-item">🔬 MobileNetV2 (balanced)</span>
+            <span id="telemetry-total" class="telemetry-item">Latency: --ms</span>
+            <span id="telemetry-breakdown" class="telemetry-item">Gate: --ms &bull; Neural: --ms</span>
+            <span id="telemetry-model" class="telemetry-item">MobileNetV2 (balanced)</span>
           </div>
 
           <!-- Top 3 Candidate Predictions -->
@@ -405,6 +412,9 @@
     <span id="toast-icon">✓</span>
     <span id="toast-message">Action completed successfully</span>
   </div>
+
+  <!-- Dedicated Laboratory Print Advisory Report (Hidden on screen, populated dynamically upon Print click) -->
+  <section id="print-report-container" class="print-only-report" aria-hidden="true"></section>
 
   <!-- Scripts -->
   <script src="js/api.js"></script>

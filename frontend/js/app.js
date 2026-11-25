@@ -108,6 +108,7 @@
     cameraInput: document.getElementById('camera-input'),
     printAdvisoryBtn: document.getElementById('print-advisory-btn'),
     copyGuidanceBtn: document.getElementById('copy-guidance-btn'),
+    printReportContainer: document.getElementById('print-report-container'),
 
     // Toast Notification Elements
     toast: document.getElementById('toast'),
@@ -850,7 +851,11 @@
       const iconSpan = document.createElement('span');
       iconSpan.className = 'accordion-icon';
       iconSpan.setAttribute('aria-hidden', 'true');
-      iconSpan.textContent = iconText;
+      if (typeof iconText === 'string' && iconText.startsWith('<svg')) {
+        iconSpan.innerHTML = iconText;
+      } else {
+        iconSpan.textContent = iconText;
+      }
       left.appendChild(iconSpan);
     }
 
@@ -953,7 +958,7 @@
     const statusPill = document.createElement('div');
     statusPill.className = 'monograph-context-pill';
     statusPill.textContent = meta?.isPrimary
-      ? `★ Primary Diagnostic Monograph (${data.crop || 'Crop'} \u2014 ${data.condition || 'Condition'})`
+      ? `Primary Diagnostic Monograph (${data.crop || 'Crop'} \u2014 ${data.condition || 'Condition'})`
       : `Differential Candidate Monograph (${data.crop || 'Crop'} \u2014 ${data.condition || 'Condition'})`;
     controlsBar.appendChild(statusPill);
 
@@ -984,7 +989,8 @@
     // ------------------------------------------------------------------------
     // 1. Overview & Pathogen Identification
     // ------------------------------------------------------------------------
-    const overview = createKnowledgeBlock('Agronomic Overview & Pathogen Biology', '📋', 'Verified Taxonomy', true);
+    const svgOverview = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
+    const overview = createKnowledgeBlock('Agronomic Overview & Pathogen Biology', svgOverview, 'Verified Taxonomy', true);
 
     const metaSummaryRow = document.createElement('div');
     metaSummaryRow.style.display = 'flex';
@@ -1001,7 +1007,7 @@
 
     const healthBadge = document.createElement('span');
     healthBadge.className = `badge ${isHealthy ? 'badge-healthy' : 'badge-diseased'}`;
-    healthBadge.textContent = isHealthy ? '\u2713 Healthy Crop' : '\u26A0 Diseased Crop';
+    healthBadge.textContent = isHealthy ? 'Healthy Crop' : 'Diseased Crop';
     metaSummaryRow.appendChild(healthBadge);
 
     overview.body.appendChild(metaSummaryRow);
@@ -1031,7 +1037,8 @@
     // 2. Diagnostic Visual Symptoms
     // ------------------------------------------------------------------------
     if (data.symptoms) {
-      const symBlock = createKnowledgeBlock('Diagnostic Visual Symptoms & Signs', '🔍', 'Clinical Signs', true);
+      const svgSymptoms = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+      const symBlock = createKnowledgeBlock('Diagnostic Visual Symptoms & Signs', svgSymptoms, 'Clinical Signs', true);
 
       if (data.symptoms.summary) {
         symBlock.body.appendChild(createText(data.symptoms.summary));
@@ -1059,7 +1066,8 @@
     // 3. Favorable Environmental Conditions & Transmission
     // ------------------------------------------------------------------------
     if (data.favorable_conditions) {
-      const envBlock = createKnowledgeBlock('Favorable Environmental Conditions & Transmission', '🌦️', 'Disease Cycle', false);
+      const svgEnv = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>';
+      const envBlock = createKnowledgeBlock('Favorable Environmental Conditions & Transmission', svgEnv, 'Disease Cycle', false);
 
       if (data.favorable_conditions.environmental_factors) {
         envBlock.body.appendChild(createSubtitle('Environmental Drivers'));
@@ -1081,7 +1089,8 @@
     // 4. Cultural Prevention & Field Hygiene
     // ------------------------------------------------------------------------
     if (data.prevention_and_cultural) {
-      const prevBlock = createKnowledgeBlock('Cultural Prevention & Agronomic Practices', '🛡️', 'Field Hygiene', false);
+      const svgPrev = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+      const prevBlock = createKnowledgeBlock('Cultural Prevention & Agronomic Practices', svgPrev, 'Field Hygiene', false);
 
       if (Array.isArray(data.prevention_and_cultural.sanitation) && data.prevention_and_cultural.sanitation.length > 0) {
         prevBlock.body.appendChild(createSubtitle('Field Sanitation & Hygiene'));
@@ -1119,7 +1128,9 @@
       const treatmentTitle = isHealthy
         ? 'Crop Health Maintenance (No Treatment Required)'
         : 'Integrated Pest & Disease Management (IPM)';
-      const treatmentIcon = isHealthy ? '🌱' : '💊';
+      const treatmentIcon = isHealthy
+        ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12A10 10 0 0 1 12 2z"/><path d="M12 6v12"/></svg>'
+        : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>';
       const treatmentBadge = isHealthy ? 'Routine Care' : 'Action Protocol';
 
       const treatBlock = createKnowledgeBlock(treatmentTitle, treatmentIcon, treatmentBadge, false);
@@ -1152,9 +1163,10 @@
         Array.isArray(data.treatment.safety_and_regulatory_constraints) &&
         data.treatment.safety_and_regulatory_constraints.length > 0
       ) {
+        const svgSafety = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
         const safetyBlock = createKnowledgeBlock(
           'Safety, PHI & Regulatory Constraints',
-          '⚠️',
+          svgSafety,
           'Mandatory Safeguards',
           false
         );
@@ -1170,7 +1182,8 @@
     // 7. Agricultural Extension Consultation
     // ------------------------------------------------------------------------
     if (data.extension_consultation) {
-      const extBlock = createKnowledgeBlock('Agricultural Extension & Specialist Referral', '📞', 'Extension Referral', false);
+      const svgExt = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+      const extBlock = createKnowledgeBlock('Agricultural Extension & Specialist Referral', svgExt, 'Extension Referral', false);
 
       if (data.extension_consultation.local_specialist) {
         extBlock.body.appendChild(createSubtitle('Recommended Extension Authority'));
@@ -1192,9 +1205,10 @@
     // 8. Scientific & Extension References (Untrusted Data & Safe URLs)
     // ------------------------------------------------------------------------
     if (Array.isArray(data.sources) && data.sources.length > 0) {
+      const svgSources = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
       const sourcesBlock = createKnowledgeBlock(
         'Scientific Sources & Extension Citations',
-        '📚',
+        svgSources,
         `${data.sources.length} Verified Sources`,
         false
       );
@@ -1277,6 +1291,403 @@
   }
 
   // ==========================================================================
+  // Dedicated Laboratory Diagnostic Print Report Builder
+  // ==========================================================================
+
+  function buildPrintReport(prediction, knowledgeData, candidateMeta) {
+    const container = elements.printReportContainer || document.getElementById('print-report-container');
+    if (!container || !prediction) {
+      console.warn('PhytoReport buildPrintReport skipped:', { container: !!container, prediction: !!prediction });
+      return;
+    }
+
+    const now = new Date();
+    const dateFormatted = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timeFormatted = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const isoDateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const randSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const reportRef = `PHY-${isoDateStr}-${randSuffix}`;
+
+    // Diagnostic target evaluation (Candidate exploration vs primary prediction)
+    const isDiffExploration = candidateMeta && !candidateMeta.isPrimary;
+    const targetCrop = isDiffExploration ? candidateMeta.crop : prediction.crop;
+    const targetCondition = isDiffExploration ? candidateMeta.condition : prediction.condition;
+    const targetScore = isDiffExploration ? candidateMeta.score : prediction.score;
+    const targetRank = isDiffExploration ? candidateMeta.rank : 1;
+    const primaryCrop = prediction.crop;
+    const primaryCondition = prediction.condition;
+    const primaryScore = prediction.score;
+
+    // Health state
+    const kd = knowledgeData;
+    const targetHealth = (kd && kd.health_status) ? kd.health_status : (prediction.health || 'Diseased');
+    const isHealthy = targetHealth.toLowerCase() === 'healthy';
+
+    // Confidence Band
+    let confidenceBand = 'High Diagnostic Confidence';
+    if (targetScore < 0.60) {
+      confidenceBand = 'Low Diagnostic Confidence (Field Scouting Required)';
+    } else if (targetScore < 0.85) {
+      confidenceBand = 'Moderate Diagnostic Confidence';
+    }
+
+    // Specimen image and metadata
+    const specimenSrc = (elements.imagePreview && elements.imagePreview.src) ? elements.imagePreview.src : '';
+    const filename = elements.metaFilename ? elements.metaFilename.textContent : 'foliar_specimen.jpg';
+    const dimensions = elements.metaDimensions ? elements.metaDimensions.textContent : 'Standard Image';
+    const filesize = elements.metaFilesize ? elements.metaFilesize.textContent : 'Validated';
+    const latencyMs = (prediction.timing && prediction.timing.total_ms)
+      ? `${prediction.timing.total_ms.toFixed(1)} ms`
+      : '<100 ms';
+
+    // Top-3 differential candidate table rows
+    let candidatesTableRows = '';
+    if (Array.isArray(prediction.top_predictions)) {
+      prediction.top_predictions.forEach((cand) => {
+        const isCurrentActive = (isDiffExploration && cand.rank === targetRank) || (!isDiffExploration && cand.rank === 1);
+        const candPercent = (cand.score * 100).toFixed(2);
+        const candBarWidth = Math.min(100, Math.max(0, cand.score * 100)).toFixed(1);
+        const rowClass = isCurrentActive ? 'active-row' : '';
+        const activeLabel = isCurrentActive ? ' <span style="font-size:7pt; color:#14382A; font-weight:700;">[SELECTED]</span>' : '';
+
+        candidatesTableRows += `
+          <tr class="${rowClass}">
+            <td style="text-align:center; font-family:'JetBrains Mono', monospace; font-weight:700;">#${cand.rank}</td>
+            <td><strong>${escapeHtml(cand.crop)}</strong> &mdash; ${escapeHtml(cand.condition)}${activeLabel}</td>
+            <td style="text-align:center;"><span style="font-size:7.5pt; font-weight:600; color:${cand.health === 'Healthy' ? '#15803D' : '#B91C1C'};">${escapeHtml(cand.health)}</span></td>
+            <td style="text-align:right; font-family:'JetBrains Mono', monospace; font-weight:700;">${candPercent}%</td>
+            <td style="width:25%;">
+              <div class="print-bar-track">
+                <div class="print-bar-fill ${cand.rank === 1 ? '' : 'secondary'}" style="width:${candBarWidth}%;"></div>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    // Cultural Controls List
+    let culturalListHtml = '';
+    const culturalItems = (kd && kd.treatment && Array.isArray(kd.treatment.non_chemical_controls) && kd.treatment.non_chemical_controls.length > 0)
+      ? kd.treatment.non_chemical_controls
+      : (kd && kd.prevention_and_cultural && Array.isArray(kd.prevention_and_cultural.sanitation) ? kd.prevention_and_cultural.sanitation : []);
+    if (culturalItems.length > 0) {
+      culturalListHtml = `<ul class="print-bullet-list">${culturalItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+    } else {
+      culturalListHtml = `<p class="print-prose">${isHealthy ? 'Maintain balanced irrigation and routine scouting.' : 'Sanitize cutting tools and isolate symptomatic foliage.'}</p>`;
+    }
+
+    // Chemical IPM Principles List
+    let chemicalListHtml = '';
+    const chemItems = (kd && kd.treatment && Array.isArray(kd.treatment.ipm_chemical_principles) && kd.treatment.ipm_chemical_principles.length > 0)
+      ? kd.treatment.ipm_chemical_principles
+      : [];
+    if (chemItems.length > 0) {
+      chemicalListHtml = `<ul class="print-bullet-list">${chemItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+    } else {
+      chemicalListHtml = `<p class="print-prose">${isHealthy ? 'Zero synthetic pesticide or bactericide application indicated for healthy foliage.' : 'Follow agricultural extension fungicide spray schedules based on local weather forecasts.'}</p>`;
+    }
+
+    // Safety & Regulatory List
+    let safetyListHtml = '';
+    const safetyItems = (kd && kd.treatment && Array.isArray(kd.treatment.safety_and_regulatory_constraints) && kd.treatment.safety_and_regulatory_constraints.length > 0)
+      ? kd.treatment.safety_and_regulatory_constraints
+      : [
+          'Strictly follow product label guidelines and local pesticide regulations.',
+          'Observe mandatory Pre-Harvest Intervals (PHI) and worker Re-Entry Intervals (REI).',
+          'Avoid chemical spraying during active bee foraging to safeguard pollinators.'
+        ];
+    safetyListHtml = `<ul class="print-bullet-list">${safetyItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+
+    // Symptoms summary & list
+    let symptomsSummary = (kd && kd.symptoms && kd.symptoms.summary) ? kd.symptoms.summary : 'Characteristic Solanaceae lesion morphology with foliar chlorosis or necrosis.';
+    let foliarSymptomsHtml = '';
+    if (kd && kd.symptoms && Array.isArray(kd.symptoms.foliar_symptoms) && kd.symptoms.foliar_symptoms.length > 0) {
+      foliarSymptomsHtml = `<ul class="print-bullet-list">${kd.symptoms.foliar_symptoms.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>`;
+    }
+
+    // Favorable conditions & transmission
+    let envFactors = (kd && kd.favorable_conditions && kd.favorable_conditions.environmental_factors)
+      ? kd.favorable_conditions.environmental_factors
+      : 'Moderate to high relative humidity (>80%) with extended leaf wetness duration.';
+    let transmissionHtml = '';
+    if (kd && kd.favorable_conditions && Array.isArray(kd.favorable_conditions.transmission_routes) && kd.favorable_conditions.transmission_routes.length > 0) {
+      transmissionHtml = `<ul class="print-bullet-list">${kd.favorable_conditions.transmission_routes.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
+    }
+
+    // Extension authority & triggers
+    let extensionSpecialist = (kd && kd.extension_consultation && kd.extension_consultation.local_specialist)
+      ? kd.extension_consultation.local_specialist
+      : 'State Agricultural University Extension / ICAR Krishi Vigyan Kendra (KVK) Specialist.';
+    let triggersHtml = '';
+    if (kd && kd.extension_consultation && Array.isArray(kd.extension_consultation.escalation_triggers) && kd.extension_consultation.escalation_triggers.length > 0) {
+      triggersHtml = `<ul class="print-bullet-list">${kd.extension_consultation.escalation_triggers.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>`;
+    }
+
+    // Causal agent text
+    const causalAgentText = (kd && kd.causal_agent)
+      ? kd.causal_agent
+      : (isHealthy ? 'None (Physiologically Normal Tissue)' : 'Pathogen profile detailed in institutional field catalog');
+
+    // Urgency text
+    const urgencyText = (kd && kd.treatment && kd.treatment.urgency)
+      ? kd.treatment.urgency
+      : (isHealthy ? 'ROUTINE SURVEILLANCE: Normal crop health maintained. No therapeutic intervention required.' : 'MONITOR & MANAGE: Implement immediate sanitary measures and scout neighboring plants.');
+
+    // Build complete 2-page laboratory report HTML
+    container.innerHTML = `
+      <!-- ================================================================= -->
+      <!-- PAGE 1: DIAGNOSTIC SUMMARY & FOLIAR PATHOLOGY CHARACTERIZATION     -->
+      <!-- ================================================================= -->
+      <article class="print-page">
+        <div>
+          <!-- Header -->
+          <header class="print-header">
+            <div class="print-header-top">
+              <div class="print-brand">
+                <div class="print-brand-symbol">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12A10 10 0 0 1 12 2z"/>
+                    <path d="M12 6v12"/>
+                    <path d="M8 10l4-4 4 4"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="print-brand-title"><span class="phyto">PHYTO</span><span class="signal">SIGNAL</span></div>
+                  <div class="print-brand-sub">Clinical Foliar Pathology Laboratory // Diagnostic Intelligence</div>
+                </div>
+              </div>
+              <div class="print-meta-box">
+                <div class="print-ref-pill">REF: ${reportRef}</div>
+                <div>Date & Time: <strong>${dateFormatted}, ${timeFormatted}</strong></div>
+                <div>Model Backbone: <strong>MobileNetV2-Balanced v1.0.0</strong></div>
+              </div>
+            </div>
+          </header>
+
+          <!-- Report Title Banner -->
+          <div class="print-report-title-banner">
+            <h1 class="print-report-h1">Foliar Pathology Diagnostic Report</h1>
+            <span class="print-report-sub">Solanaceae Screening Protocol &bull; Closed-World Diagnostic Distribution</span>
+          </div>
+
+          <!-- Specimen & Primary Diagnosis 2-Column Grid -->
+          <div class="print-grid-2col">
+            <!-- Left: Specimen Ingestion -->
+            <div class="print-card">
+              <div class="print-card-title">Verified Specimen Ingestion</div>
+              <div class="print-specimen-frame">
+                ${specimenSrc ? `<img id="print-specimen-img" class="print-specimen-img" src="${specimenSrc}" alt="Verified Specimen Photo">` : '<span style="font-size:8pt; color:#9CA3AF;">No Specimen Photo Loaded</span>'}
+              </div>
+              <table class="print-meta-table">
+                <tr><td>Specimen Name:</td><td>${escapeHtml(filename)}</td></tr>
+                <tr><td>Resolution:</td><td>${escapeHtml(dimensions)}</td></tr>
+                <tr><td>File Size:</td><td>${escapeHtml(filesize)}</td></tr>
+                <tr><td>Physical Integrity:</td><td>Layer A Passed</td></tr>
+                <tr><td>Learned Leaf Gate:</td><td>Layer B Verified</td></tr>
+              </table>
+            </div>
+
+            <!-- Right: Diagnostic Evaluation -->
+            <div class="print-card">
+              <div class="print-card-title">Diagnostic Evaluation & Assessment</div>
+              <div class="print-diagnosis-box">
+                <div class="print-crop-kicker">Botanical Host: ${escapeHtml(targetCrop)}</div>
+                <h2 class="print-condition-title">${escapeHtml(targetCondition)}</h2>
+                <div class="print-metrics-row">
+                  <div class="print-metric-chip">
+                    <div class="print-metric-label">Neural Score</div>
+                    <div class="print-metric-val">${(targetScore * 100).toFixed(2)}%</div>
+                  </div>
+                  <div class="print-metric-chip">
+                    <div class="print-metric-label">Health Status</div>
+                    <div class="print-metric-val ${isHealthy ? 'healthy' : 'diseased'}">${escapeHtml(targetHealth.toUpperCase())}</div>
+                  </div>
+                  <div class="print-metric-chip">
+                    <div class="print-metric-label">Confidence Band</div>
+                    <div class="print-metric-val" style="font-size:7.5pt;">${confidenceBand.includes('High') ? 'HIGH' : (confidenceBand.includes('Mod') ? 'MODERATE' : 'LOW')}</div>
+                  </div>
+                </div>
+
+                ${isDiffExploration ? `
+                  <div class="print-diff-notice">
+                    <strong>Differential Investigation Review:</strong> The primary model prediction for this specimen is <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (${(primaryScore * 100).toFixed(2)}%)</strong>. This report has been formatted to reflect candidate #${targetRank} (${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}) for comparative agronomic review.
+                  </div>
+                ` : `
+                  <div style="font-size:7pt; color:#4B5563; margin-top:6pt;">
+                    Closed-world softmax output distribution across 15 trained Solanaceae categories.
+                  </div>
+                `}
+              </div>
+
+              <!-- Ingestion Gate Summary -->
+              <div class="print-gate-strip">
+                <span class="print-gate-item"><strong>Layer A:</strong> Integrity Pass</span>
+                <span class="print-gate-item"><strong>Layer B:</strong> Foliar Verified</span>
+                <span class="print-gate-item"><strong>Latency:</strong> ${escapeHtml(latencyMs)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top-3 Differential Candidates Table -->
+          <div class="print-table-container">
+            <div class="print-card-title">Top-3 Differential Candidates (Softmax Probability Distribution)</div>
+            <table class="print-candidates-table">
+              <thead>
+                <tr>
+                  <th style="width:7%; text-align:center;">Rank</th>
+                  <th style="width:40%;">Taxon & Condition</th>
+                  <th style="width:16%; text-align:center;">Status</th>
+                  <th style="width:17%; text-align:right;">Model Score</th>
+                  <th style="width:20%;">Probability Vector</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${candidatesTableRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Page 1 Footer -->
+        <footer class="print-footer">
+          <span class="print-footer-brand">PHYTOSIGNAL Clinical Foliar Intelligence</span>
+          <span>Confidential Agronomic Diagnostic Document &bull; Ref: ${reportRef}</span>
+          <span>Page 1 of 2</span>
+        </footer>
+      </article>
+
+      <!-- ================================================================= -->
+      <!-- PAGE 2: AGRONOMIC CLINICAL ADVISORY & IPM MANAGEMENT PROTOCOLS     -->
+      <!-- ================================================================= -->
+      <article class="print-page print-page-break">
+        <div>
+          <!-- Header -->
+          <header class="print-header">
+            <div class="print-header-top">
+              <div class="print-brand">
+                <div class="print-brand-symbol">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a10 10 0 0 1 10 10c0 5.5-4.5 10-10 10S2 17.5 2 12A10 10 0 0 1 12 2z"/>
+                    <path d="M12 6v12"/>
+                    <path d="M8 10l4-4 4 4"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="print-brand-title"><span class="phyto">PHYTO</span><span class="signal">SIGNAL</span></div>
+                  <div class="print-brand-sub">Clinical Agronomic Advisory // Treatment & Management Protocols</div>
+                </div>
+              </div>
+              <div class="print-meta-box">
+                <div class="print-ref-pill">REF: ${reportRef}</div>
+                <div>Target: <strong>${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}</strong></div>
+                <div>Scope: <strong>Integrated Pest Management (IPM)</strong></div>
+              </div>
+            </div>
+          </header>
+
+          <!-- Target Diagnostic Banner -->
+          <div class="print-target-banner">
+            <h3>Target Pathology: ${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}</h3>
+            <p><strong>Causal Pathogen / Biotic Factor:</strong> <em>${escapeHtml(causalAgentText)}</em></p>
+          </div>
+
+          ${isDiffExploration ? `
+            <div class="print-diff-notice" style="margin-bottom:8pt;">
+              <strong>Differential Advisory Mode:</strong> Protocols on this page correspond to candidate #${targetRank} (${escapeHtml(targetCrop)} ${escapeHtml(targetCondition)}). The primary model diagnostic output remains <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (${(primaryScore * 100).toFixed(2)}%)</strong>.
+            </div>
+          ` : ''}
+
+          <!-- Section 1: Pathogen Profile & Foliar Morphology -->
+          <section class="print-section">
+            <h4 class="print-section-h4">
+              <span>1. Pathogen Biology & Diagnostic Foliar Signs</span>
+              <span style="font-size:7pt; color:#6B7280; text-transform:none;">Morphological Identification</span>
+            </h4>
+            <p class="print-prose">${escapeHtml(symptomsSummary)}</p>
+            ${foliarSymptomsHtml}
+            <p class="print-prose" style="margin-top:4pt;"><strong>Favorable Environmental Conditions:</strong> ${escapeHtml(envFactors)}</p>
+            ${transmissionHtml}
+          </section>
+
+          <!-- Section 2: Integrated Pest Management (IPM) Protocols -->
+          <section class="print-section">
+            <h4 class="print-section-h4">
+              <span>2. Integrated Pest Management (IPM) & Crop Care</span>
+              <span style="font-size:7pt; color:#6B7280; text-transform:none;">${isHealthy ? 'Routine Maintenance' : 'Intervention Protocol'}</span>
+            </h4>
+            <div class="print-urgency-box ${isHealthy ? 'healthy' : ''}">
+              ${escapeHtml(urgencyText)}
+            </div>
+            <p class="print-prose"><strong>Cultural Controls & Field Sanitation:</strong></p>
+            ${culturalListHtml}
+            <p class="print-prose" style="margin-top:4pt;"><strong>Chemical Application Principles & Active Ingredient Rotation:</strong></p>
+            ${chemicalListHtml}
+            <p class="print-prose" style="margin-top:4pt;"><strong>Mandatory Safety, PHI & Environmental Safeguards:</strong></p>
+            ${safetyListHtml}
+          </section>
+
+          <!-- Section 3: Extension Consultation & Escalation -->
+          <section class="print-section">
+            <h4 class="print-section-h4">
+              <span>3. Agricultural Extension Authority & Verification Triggers</span>
+              <span style="font-size:7pt; color:#6B7280; text-transform:none;">Specialist Escalation</span>
+            </h4>
+            <p class="print-prose"><strong>Recommended Extension Authority:</strong> ${escapeHtml(extensionSpecialist)}</p>
+            ${triggersHtml ? `<p class="print-prose" style="margin-top:3pt;"><strong>Field Escalation Triggers:</strong></p>${triggersHtml}` : ''}
+          </section>
+
+          <!-- Section 4: Responsible AI & Regulatory Disclaimer -->
+          <div class="print-disclaimer-box">
+            <strong>Responsible AI & Regulatory Compliance Disclaimer:</strong>
+            ${escapeHtml(prediction.disclaimer || 'This automated advisory report is generated by a closed-world deep learning computer vision model (MobileNetV2). Classification outputs represent relative probability distributions across 15 trained classes and do not substitute for official on-site laboratory culture assays or professional extension verification. Always consult certified agronomic extension officers before purchasing or applying regulated chemical crop protection products.')}
+          </div>
+        </div>
+
+        <!-- Page 2 Footer -->
+        <footer class="print-footer">
+          <span class="print-footer-brand">PHYTOSIGNAL Clinical Foliar Intelligence</span>
+          <span>Verified Clinical Monograph &bull; Ref: ${reportRef}</span>
+          <span>Page 2 of 2 &bull; End of Report</span>
+        </footer>
+      </article>
+    `;
+  }
+
+  /**
+   * Prepares and triggers the dedicated laboratory print report.
+   * Ensures the specimen photograph is decoded before opening the print dialog.
+   */
+  async function prepareAndTriggerPrint() {
+    if (!lastPrediction) {
+      showAlert('No diagnostic results available to print. Please run an analysis first.', 'Notice', 'info');
+      return;
+    }
+
+    try {
+      // 1. Build dedicated report DOM
+      buildPrintReport(lastPrediction, currentActiveKnowledgeData, activeCandidateMeta);
+
+      // 2. Wait for specimen image to decode
+      const printImg = document.getElementById('print-specimen-img');
+      if (printImg && printImg.src && !printImg.complete) {
+        await Promise.race([
+          printImg.decode(),
+          new Promise((resolve) => setTimeout(resolve, 800)),
+        ]);
+      }
+
+      // 3. Small timeout for layout pass before triggering print
+      setTimeout(() => {
+        window.print();
+      }, 100);
+    } catch (err) {
+      // Fallback: trigger print even if decode times out
+      window.print();
+    }
+  }
+
+  // ==========================================================================
   // Event Listeners Setup
   // ==========================================================================
   function setupEventListeners() {
@@ -1355,11 +1766,11 @@
       });
     }
 
-    // Print advisory handler
+    // Print advisory handler (Dedicated Professional Laboratory Report)
     if (elements.printAdvisoryBtn) {
       elements.printAdvisoryBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        window.print();
+        prepareAndTriggerPrint();
       });
     }
 
@@ -1795,6 +2206,16 @@
       updateReadinessUI(false, 'Backend Offline');
     }
   }
+
+  // Expose print report hooks for testing and headless verification
+  window.PhytoReport = {
+    buildPrintReport: (p, k, c) => buildPrintReport(p || lastPrediction, k || currentActiveKnowledgeData, c || activeCandidateMeta),
+    prepareAndTriggerPrint: prepareAndTriggerPrint,
+    getLastPrediction: () => lastPrediction,
+    getActiveKnowledge: () => currentActiveKnowledgeData,
+    getActiveCandidate: () => activeCandidateMeta,
+    handleSelectedFile: handleSelectedFile,
+  };
 
   // Run on DOM load
   if (document.readyState === 'loading') {
