@@ -23,6 +23,7 @@
   let isModelReady = false;
 
   // Prediction & Knowledge Base State
+  let lastReadyState = null;
   let lastPrediction = null;
   let activeCandidateClassId = null;
   let activeCandidateMeta = null;
@@ -218,11 +219,11 @@
       elements.resultHealthBadge.className = 'badge';
     }
     if (elements.confidenceBandBadge) {
-      elements.confidenceBandBadge.textContent = 'Confidence \u2014';
+      elements.confidenceBandBadge.textContent = 'Score \u2014';
       elements.confidenceBandBadge.className = 'badge';
     }
     if (elements.confidenceGuidanceText) {
-      elements.confidenceGuidanceText.textContent = 'Closed-world relative confidence';
+      elements.confidenceGuidanceText.textContent = 'Relative softmax score across 15 trained classes';
     }
     if (elements.diagnosisTelemetry) {
       elements.diagnosisTelemetry.classList.add('hidden');
@@ -493,26 +494,26 @@
     const scorePercent = (data.score * 100).toFixed(2);
     elements.resultScore.textContent = `${scorePercent}%`;
 
-    // Confidence Band Evaluation (Materializes that softmax scores are not calibrated probabilities)
+    // Relative Softmax Evaluation (Softmax scores are not calibrated diagnostic probabilities)
     const scoreVal = typeof data.score === 'number' ? data.score : 0;
     if (elements.confidenceBandBadge) {
       if (scoreVal >= 0.90) {
-        elements.confidenceBandBadge.textContent = 'High Confidence';
+        elements.confidenceBandBadge.textContent = 'Top Candidate';
         elements.confidenceBandBadge.className = 'badge badge-confidence-high';
         if (elements.confidenceGuidanceText) {
-          elements.confidenceGuidanceText.textContent = 'Strong neural convergence on characteristic foliar lesions';
+          elements.confidenceGuidanceText.textContent = 'Dominant relative softmax score across 15 trained classes';
         }
       } else if (scoreVal >= 0.70) {
-        elements.confidenceBandBadge.textContent = 'Moderate Confidence';
+        elements.confidenceBandBadge.textContent = 'Primary Candidate';
         elements.confidenceBandBadge.className = 'badge badge-confidence-moderate';
         if (elements.confidenceGuidanceText) {
           elements.confidenceGuidanceText.textContent = 'Review differential candidate classes below before action';
         }
       } else {
-        elements.confidenceBandBadge.textContent = 'Low Confidence';
+        elements.confidenceBandBadge.textContent = 'Diffuse Score Distribution';
         elements.confidenceBandBadge.className = 'badge badge-confidence-low';
         if (elements.confidenceGuidanceText) {
-          elements.confidenceGuidanceText.textContent = 'Atypical symptoms or look-alike presentation; inspect candidate monographs';
+          elements.confidenceGuidanceText.textContent = 'Scores distributed across candidates; inspect differential monographs';
         }
       }
     }
@@ -1323,22 +1324,49 @@
     const targetHealth = (kd && kd.health_status) ? kd.health_status : (prediction.health || 'Diseased');
     const isHealthy = targetHealth.toLowerCase() === 'healthy';
 
-    // Confidence Band
-    let confidenceBand = 'High Diagnostic Confidence';
-    if (targetScore < 0.60) {
-      confidenceBand = 'Low Diagnostic Confidence (Field Scouting Required)';
-    } else if (targetScore < 0.85) {
-      confidenceBand = 'Moderate Diagnostic Confidence';
+    // Specimen image and metadata (actual uploaded specimen values)
+    const specimenSrc = (elements.imagePreview && elements.imagePreview.src) ? elements.imagePreview.src : '';
+    const filename = (currentFile && currentFile.name)
+      ? currentFile.name
+      : ((elements.metaFilename && elements.metaFilename.textContent !== '\u2014')
+          ? elements.metaFilename.textContent
+          : 'Not recorded');
+    const dimensions = (elements.metaDimensions && elements.metaDimensions.textContent !== '\u2014' && elements.metaDimensions.textContent !== 'Calculating...' && elements.metaDimensions.textContent !== 'Unknown (failed to decode)')
+      ? elements.metaDimensions.textContent
+      : 'Not recorded';
+    const filesize = (currentFile && currentFile.size)
+      ? formatFileSize(currentFile.size)
+      : ((elements.metaFilesize && elements.metaFilesize.textContent !== '\u2014')
+          ? elements.metaFilesize.textContent
+          : 'Not recorded');
+
+    // Runtime Gate Verification & Pipeline Latency
+    let layerAStatus = 'Verification status unavailable';
+    if (prediction.timing && typeof prediction.timing.decode_ms === 'number') {
+      layerAStatus = `Passed (${prediction.timing.decode_ms.toFixed(1)} ms)`;
+    } else if (currentFile) {
+      layerAStatus = 'Passed';
     }
 
-    // Specimen image and metadata
-    const specimenSrc = (elements.imagePreview && elements.imagePreview.src) ? elements.imagePreview.src : '';
-    const filename = elements.metaFilename ? elements.metaFilename.textContent : 'foliar_specimen.jpg';
-    const dimensions = elements.metaDimensions ? elements.metaDimensions.textContent : 'Standard Image';
-    const filesize = elements.metaFilesize ? elements.metaFilesize.textContent : 'Validated';
-    const latencyMs = (prediction.timing && prediction.timing.total_ms)
-      ? `${prediction.timing.total_ms.toFixed(1)} ms`
-      : '<100 ms';
+    let layerBStatus = 'Verification status unavailable';
+    if (prediction.timing && typeof prediction.timing.gate_ms === 'number') {
+      if (prediction.timing.gate_ms > 0) {
+        if (lastReadyState && lastReadyState.gateLoaded === true) {
+          layerBStatus = `Learned Gate Passed (${prediction.timing.gate_ms.toFixed(1)} ms)`;
+        } else if (lastReadyState && lastReadyState.gateLoaded === false) {
+          layerBStatus = `Heuristic Screen Passed (${prediction.timing.gate_ms.toFixed(1)} ms)`;
+        } else {
+          layerBStatus = `Passed (${prediction.timing.gate_ms.toFixed(1)} ms)`;
+        }
+      } else {
+        layerBStatus = 'Disabled / Bypassed';
+      }
+    }
+
+    let latencyMs = 'Not recorded';
+    if (prediction.timing && typeof prediction.timing.total_ms === 'number') {
+      latencyMs = `${prediction.timing.total_ms.toFixed(1)} ms`;
+    }
 
     // Top-3 differential candidate table rows
     let candidatesTableRows = '';
@@ -1373,8 +1401,10 @@
       : (kd && kd.prevention_and_cultural && Array.isArray(kd.prevention_and_cultural.sanitation) ? kd.prevention_and_cultural.sanitation : []);
     if (culturalItems.length > 0) {
       culturalListHtml = `<ul class="print-bullet-list">${culturalItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+    } else if (isHealthy) {
+      culturalListHtml = `<p class="print-prose">Maintain balanced irrigation, soil nutrition, and routine crop surveillance.</p>`;
     } else {
-      culturalListHtml = `<p class="print-prose">${isHealthy ? 'Maintain balanced irrigation and routine scouting.' : 'Sanitize cutting tools and isolate symptomatic foliage.'}</p>`;
+      culturalListHtml = `<p class="print-prose">Not available in the current knowledge base.</p>`;
     }
 
     // Chemical IPM Principles List
@@ -1384,23 +1414,32 @@
       : [];
     if (chemItems.length > 0) {
       chemicalListHtml = `<ul class="print-bullet-list">${chemItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+    } else if (isHealthy) {
+      chemicalListHtml = `<p class="print-prose">Zero synthetic pesticide or bactericide application indicated for healthy foliage. Prophylactic spraying violates IPM stewardship.</p>`;
     } else {
-      chemicalListHtml = `<p class="print-prose">${isHealthy ? 'Zero synthetic pesticide or bactericide application indicated for healthy foliage.' : 'Follow agricultural extension fungicide spray schedules based on local weather forecasts.'}</p>`;
+      chemicalListHtml = `<p class="print-prose">Not available in the current knowledge base.</p>`;
     }
 
-    // Safety & Regulatory List
+    // Safety & Regulatory List (clearly distinguished as General Safety Guidance if not specific in KB)
     let safetyListHtml = '';
     const safetyItems = (kd && kd.treatment && Array.isArray(kd.treatment.safety_and_regulatory_constraints) && kd.treatment.safety_and_regulatory_constraints.length > 0)
       ? kd.treatment.safety_and_regulatory_constraints
-      : [
-          'Strictly follow product label guidelines and local pesticide regulations.',
-          'Observe mandatory Pre-Harvest Intervals (PHI) and worker Re-Entry Intervals (REI).',
-          'Avoid chemical spraying during active bee foraging to safeguard pollinators.'
-        ];
-    safetyListHtml = `<ul class="print-bullet-list">${safetyItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+      : [];
+    if (safetyItems.length > 0) {
+      safetyListHtml = `<ul class="print-bullet-list">${safetyItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+    } else {
+      safetyListHtml = `
+        <p class="print-prose" style="font-size:7.5pt; color:#4B5563;">
+          <strong>General Safety Guidance:</strong> Specific regulatory constraints not available in the current knowledge base. Strictly observe official product labels, worker Re-Entry Intervals (REI), Pre-Harvest Intervals (PHI), and pollinator safeguards in accordance with local pesticide regulatory authorities.
+        </p>`;
+    }
 
     // Symptoms summary & list
-    let symptomsSummary = (kd && kd.symptoms && kd.symptoms.summary) ? kd.symptoms.summary : 'Characteristic Solanaceae lesion morphology with foliar chlorosis or necrosis.';
+    let symptomsSummary = (kd && kd.symptoms && kd.symptoms.summary)
+      ? kd.symptoms.summary
+      : (isHealthy
+          ? 'Foliage exhibits uniform coloration, firm turgidity, and normal morphology without foliar lesions or chlorosis.'
+          : 'Not available in the current knowledge base.');
     let foliarSymptomsHtml = '';
     if (kd && kd.symptoms && Array.isArray(kd.symptoms.foliar_symptoms) && kd.symptoms.foliar_symptoms.length > 0) {
       foliarSymptomsHtml = `<ul class="print-bullet-list">${kd.symptoms.foliar_symptoms.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>`;
@@ -1409,7 +1448,7 @@
     // Favorable conditions & transmission
     let envFactors = (kd && kd.favorable_conditions && kd.favorable_conditions.environmental_factors)
       ? kd.favorable_conditions.environmental_factors
-      : 'Moderate to high relative humidity (>80%) with extended leaf wetness duration.';
+      : (isHealthy ? 'Standard agronomic growing conditions for host crop.' : 'Not available in the current knowledge base.');
     let transmissionHtml = '';
     if (kd && kd.favorable_conditions && Array.isArray(kd.favorable_conditions.transmission_routes) && kd.favorable_conditions.transmission_routes.length > 0) {
       transmissionHtml = `<ul class="print-bullet-list">${kd.favorable_conditions.transmission_routes.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
@@ -1418,7 +1457,7 @@
     // Extension authority & triggers
     let extensionSpecialist = (kd && kd.extension_consultation && kd.extension_consultation.local_specialist)
       ? kd.extension_consultation.local_specialist
-      : 'State Agricultural University Extension / ICAR Krishi Vigyan Kendra (KVK) Specialist.';
+      : 'Not available in the current knowledge base.';
     let triggersHtml = '';
     if (kd && kd.extension_consultation && Array.isArray(kd.extension_consultation.escalation_triggers) && kd.extension_consultation.escalation_triggers.length > 0) {
       triggersHtml = `<ul class="print-bullet-list">${kd.extension_consultation.escalation_triggers.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>`;
@@ -1427,14 +1466,16 @@
     // Causal agent text
     const causalAgentText = (kd && kd.causal_agent)
       ? kd.causal_agent
-      : (isHealthy ? 'None (Physiologically Normal Tissue)' : 'Pathogen profile detailed in institutional field catalog');
+      : (isHealthy ? 'None (Physiologically Normal Tissue)' : 'Not available in the current knowledge base.');
 
     // Urgency text
     const urgencyText = (kd && kd.treatment && kd.treatment.urgency)
       ? kd.treatment.urgency
-      : (isHealthy ? 'ROUTINE SURVEILLANCE: Normal crop health maintained. No therapeutic intervention required.' : 'MONITOR & MANAGE: Implement immediate sanitary measures and scout neighboring plants.');
+      : (isHealthy
+          ? 'ROUTINE SURVEILLANCE: Normal crop health maintained. No therapeutic intervention required.'
+          : 'Not available in the current knowledge base.');
 
-    // Build complete 2-page laboratory report HTML
+    // Build complete laboratory report HTML
     container.innerHTML = `
       <!-- ================================================================= -->
       <!-- PAGE 1: DIAGNOSTIC SUMMARY & FOLIAR PATHOLOGY CHARACTERIZATION     -->
@@ -1480,11 +1521,11 @@
                 ${specimenSrc ? `<img id="print-specimen-img" class="print-specimen-img" src="${specimenSrc}" alt="Verified Specimen Photo">` : '<span style="font-size:8pt; color:#9CA3AF;">No Specimen Photo Loaded</span>'}
               </div>
               <table class="print-meta-table">
-                <tr><td>Specimen Name:</td><td>${escapeHtml(filename)}</td></tr>
-                <tr><td>Resolution:</td><td>${escapeHtml(dimensions)}</td></tr>
-                <tr><td>File Size:</td><td>${escapeHtml(filesize)}</td></tr>
-                <tr><td>Physical Integrity:</td><td>Layer A Passed</td></tr>
-                <tr><td>Learned Leaf Gate:</td><td>Layer B Verified</td></tr>
+                <tr><td>Specimen File:</td><td>${escapeHtml(filename)}</td></tr>
+                <tr><td>Spatial Resolution:</td><td>${escapeHtml(dimensions)}</td></tr>
+                <tr><td>Payload Size:</td><td>${escapeHtml(filesize)}</td></tr>
+                <tr><td>Physical Integrity (Layer A):</td><td>${escapeHtml(layerAStatus)}</td></tr>
+                <tr><td>Leaf Verification (Layer B):</td><td>${escapeHtml(layerBStatus)}</td></tr>
               </table>
             </div>
 
@@ -1496,50 +1537,50 @@
                 <h2 class="print-condition-title">${escapeHtml(targetCondition)}</h2>
                 <div class="print-metrics-row">
                   <div class="print-metric-chip">
-                    <div class="print-metric-label">Neural Score</div>
+                    <div class="print-metric-label">Model Score</div>
                     <div class="print-metric-val">${(targetScore * 100).toFixed(2)}%</div>
                   </div>
                   <div class="print-metric-chip">
-                    <div class="print-metric-label">Health Status</div>
+                    <div class="print-metric-label">Health State</div>
                     <div class="print-metric-val ${isHealthy ? 'healthy' : 'diseased'}">${escapeHtml(targetHealth.toUpperCase())}</div>
                   </div>
                   <div class="print-metric-chip">
-                    <div class="print-metric-label">Confidence Band</div>
-                    <div class="print-metric-val" style="font-size:7.5pt;">${confidenceBand.includes('High') ? 'HIGH' : (confidenceBand.includes('Mod') ? 'MODERATE' : 'LOW')}</div>
+                    <div class="print-metric-label">Candidate Order</div>
+                    <div class="print-metric-val" style="font-size:7.5pt;">${isDiffExploration ? `RANK #${targetRank} (DIFF)` : 'RANK #1 (TOP)'}</div>
                   </div>
                 </div>
 
                 ${isDiffExploration ? `
                   <div class="print-diff-notice">
-                    <strong>Differential Investigation Review:</strong> The primary model prediction for this specimen is <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (${(primaryScore * 100).toFixed(2)}%)</strong>. This report has been formatted to reflect candidate #${targetRank} (${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}) for comparative agronomic review.
+                    <strong>Differential Investigation Review:</strong> The primary model prediction for this specimen is <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (Model Score: ${(primaryScore * 100).toFixed(2)}%)</strong>. This report reflects alternative candidate #${targetRank} (${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}) for comparative agronomic review.
                   </div>
                 ` : `
                   <div style="font-size:7pt; color:#4B5563; margin-top:6pt;">
-                    Closed-world softmax output distribution across 15 trained Solanaceae categories.
+                    Closed-world relative softmax score across 15 trained Solanaceae categories. Softmax scores represent relative model output distributions, not calibrated disease probabilities or diagnostic certainty.
                   </div>
                 `}
               </div>
 
               <!-- Ingestion Gate Summary -->
               <div class="print-gate-strip">
-                <span class="print-gate-item"><strong>Layer A:</strong> Integrity Pass</span>
-                <span class="print-gate-item"><strong>Layer B:</strong> Foliar Verified</span>
-                <span class="print-gate-item"><strong>Latency:</strong> ${escapeHtml(latencyMs)}</span>
+                <span class="print-gate-item"><strong>Layer A (Physical):</strong> ${escapeHtml(layerAStatus)}</span>
+                <span class="print-gate-item"><strong>Layer B (Leaf Gate):</strong> ${escapeHtml(layerBStatus)}</span>
+                <span class="print-gate-item"><strong>Pipeline Latency:</strong> ${escapeHtml(latencyMs)}</span>
               </div>
             </div>
           </div>
 
           <!-- Top-3 Differential Candidates Table -->
           <div class="print-table-container">
-            <div class="print-card-title">Top-3 Differential Candidates (Softmax Probability Distribution)</div>
+            <div class="print-card-title">Top-3 Candidate Output Classes (Relative Softmax Score Distribution)</div>
             <table class="print-candidates-table">
               <thead>
                 <tr>
                   <th style="width:7%; text-align:center;">Rank</th>
                   <th style="width:40%;">Taxon & Condition</th>
-                  <th style="width:16%; text-align:center;">Status</th>
+                  <th style="width:16%; text-align:center;">Health State</th>
                   <th style="width:17%; text-align:right;">Model Score</th>
-                  <th style="width:20%;">Probability Vector</th>
+                  <th style="width:20%;">Relative Softmax Distribution</th>
                 </tr>
               </thead>
               <tbody>
@@ -1553,7 +1594,7 @@
         <footer class="print-footer">
           <span class="print-footer-brand">PHYTOSIGNAL Clinical Foliar Intelligence</span>
           <span>Confidential Agronomic Diagnostic Document &bull; Ref: ${reportRef}</span>
-          <span>Page 1 of 2</span>
+          <span>Page 1 &bull; Diagnostic Summary</span>
         </footer>
       </article>
 
@@ -1594,7 +1635,7 @@
 
           ${isDiffExploration ? `
             <div class="print-diff-notice" style="margin-bottom:8pt;">
-              <strong>Differential Advisory Mode:</strong> Protocols on this page correspond to candidate #${targetRank} (${escapeHtml(targetCrop)} ${escapeHtml(targetCondition)}). The primary model diagnostic output remains <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (${(primaryScore * 100).toFixed(2)}%)</strong>.
+              <strong>Differential Advisory Mode:</strong> Protocols on this page correspond to candidate #${targetRank} (${escapeHtml(targetCrop)} ${escapeHtml(targetCondition)}). The primary model diagnostic output remains <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (Model Score: ${(primaryScore * 100).toFixed(2)}%)</strong>.
             </div>
           ` : ''}
 
@@ -1648,7 +1689,7 @@
         <footer class="print-footer">
           <span class="print-footer-brand">PHYTOSIGNAL Clinical Foliar Intelligence</span>
           <span>Verified Clinical Monograph &bull; Ref: ${reportRef}</span>
-          <span>Page 2 of 2 &bull; End of Report</span>
+          <span>Page 2 &bull; End of Monograph</span>
         </footer>
       </article>
     `;
@@ -2089,26 +2130,26 @@
         const scorePercent = typeof scan.score === 'number' ? (scan.score * 100).toFixed(2) : '--';
         elements.resultScore.textContent = `${scorePercent}%`;
 
-        // 2. Restore Confidence Band
+        // 2. Restore Relative Score Evaluation
         const scoreVal = typeof scan.score === 'number' ? scan.score : 0;
         if (elements.confidenceBandBadge) {
           if (scoreVal >= 0.90) {
-            elements.confidenceBandBadge.textContent = 'High Confidence';
+            elements.confidenceBandBadge.textContent = 'Top Candidate';
             elements.confidenceBandBadge.className = 'badge badge-confidence-high';
             if (elements.confidenceGuidanceText) {
-              elements.confidenceGuidanceText.textContent = 'Strong neural convergence on characteristic foliar lesions';
+              elements.confidenceGuidanceText.textContent = 'Dominant relative softmax score across 15 trained classes';
             }
           } else if (scoreVal >= 0.70) {
-            elements.confidenceBandBadge.textContent = 'Moderate Confidence';
+            elements.confidenceBandBadge.textContent = 'Primary Candidate';
             elements.confidenceBandBadge.className = 'badge badge-confidence-moderate';
             if (elements.confidenceGuidanceText) {
               elements.confidenceGuidanceText.textContent = 'Review differential candidate classes below before action';
             }
           } else {
-            elements.confidenceBandBadge.textContent = 'Low Confidence';
+            elements.confidenceBandBadge.textContent = 'Diffuse Score Distribution';
             elements.confidenceBandBadge.className = 'badge badge-confidence-low';
             if (elements.confidenceGuidanceText) {
-              elements.confidenceGuidanceText.textContent = 'Atypical symptoms or look-alike presentation; inspect candidate monographs';
+              elements.confidenceGuidanceText.textContent = 'Scores distributed across candidates; inspect differential monographs';
             }
           }
         }
@@ -2195,6 +2236,7 @@
     // Initial readiness probe
     try {
       const readyStatus = await window.CropDiseaseApi.checkReady();
+      lastReadyState = readyStatus;
       if (readyStatus.ready) {
         updateReadinessUI(true, 'Model Ready');
       } else if (readyStatus.status === 'not_ready') {
@@ -2214,6 +2256,8 @@
     getLastPrediction: () => lastPrediction,
     getActiveKnowledge: () => currentActiveKnowledgeData,
     getActiveCandidate: () => activeCandidateMeta,
+    getReadyState: () => lastReadyState,
+    setReadyState: (s) => { lastReadyState = s; },
     handleSelectedFile: handleSelectedFile,
   };
 

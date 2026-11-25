@@ -3467,12 +3467,19 @@ body.analyze-page .telemetry-item {
   .print-page {
     box-sizing: border-box !important;
     width: 100% !important;
-    height: 272mm !important;
-    max-height: 272mm !important;
-    overflow: hidden !important;
+    min-height: 250mm !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .print-section,
+  .print-header,
+  .print-card-title,
+  .print-urgency-box,
+  .print-disclaimer-box {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }

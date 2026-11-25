@@ -205,6 +205,7 @@ async function checkReady() {
         ready: true,
         status: data.status,
         modelPath: data.model_path || '',
+        gateLoaded: data.gate_loaded === true,
       };
     }
 
