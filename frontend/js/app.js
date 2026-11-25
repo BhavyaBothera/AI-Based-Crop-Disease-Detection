@@ -614,7 +614,7 @@
       const isValidClassId = Number.isInteger(cand.class_id) && cand.class_id >= 0 && cand.class_id <= 14;
       const rank = Number.isInteger(cand.rank) ? cand.rank : idx + 1;
       const scoreVal = typeof cand.score === 'number' && !isNaN(cand.score) ? cand.score : 0;
-      const candPercent = (scoreVal * 100).toFixed(2);
+      const candPercent = formatModelScore(scoreVal, false);
       const isCandHealthy = (cand.health || '').toLowerCase() === 'healthy';
       const isPrimaryRank = rank === 1 || cand.class_id === lastPrediction.predicted_class_id;
       const isActiveSelection = isValidClassId && cand.class_id === activeCandidateClassId;
@@ -661,7 +661,7 @@
 
       const scoreEl = document.createElement('span');
       scoreEl.className = 'candidate-score';
-      scoreEl.textContent = `${candPercent}%`;
+      scoreEl.textContent = candPercent;
       headerEl.appendChild(scoreEl);
 
       itemEl.appendChild(headerEl);
@@ -670,7 +670,7 @@
       const trackEl = document.createElement('div');
       trackEl.className = 'progress-track';
       trackEl.setAttribute('role', 'progressbar');
-      trackEl.setAttribute('aria-valuenow', candPercent);
+      trackEl.setAttribute('aria-valuenow', (scoreVal * 100).toFixed(2));
       trackEl.setAttribute('aria-valuemin', '0');
       trackEl.setAttribute('aria-valuemax', '100');
       trackEl.setAttribute('aria-label', `${cand.condition || 'Condition'} score`);
@@ -1295,6 +1295,16 @@
   // Dedicated Laboratory Diagnostic Print Report Builder
   // ==========================================================================
 
+  function formatModelScore(score, isHtml = true) {
+    if (typeof score !== 'number' || isNaN(score)) return 'Not recorded';
+    const pct = score * 100;
+    if (pct === 0) return '0.00%';
+    if (pct > 0 && pct < 0.01) {
+      return isHtml ? '&lt; 0.01%' : '< 0.01%';
+    }
+    return `${pct.toFixed(2)}%`;
+  }
+
   function buildPrintReport(prediction, knowledgeData, candidateMeta) {
     const container = elements.printReportContainer || document.getElementById('print-report-container');
     if (!container || !prediction) {
@@ -1341,12 +1351,15 @@
           : 'Not recorded');
 
     // Runtime Gate Verification & Pipeline Latency
+    // Layer A strictly reflects backend physical integrity verification metadata
     let layerAStatus = 'Verification status unavailable';
     if (prediction.timing && typeof prediction.timing.decode_ms === 'number') {
       layerAStatus = `Passed (${prediction.timing.decode_ms.toFixed(1)} ms)`;
-    } else if (currentFile) {
-      layerAStatus = 'Passed';
     }
+
+    const clientPrecheck = (currentFile && currentFile.size > 0)
+      ? 'Passed (Client decode & format validated)'
+      : 'Not recorded';
 
     let layerBStatus = 'Verification status unavailable';
     if (prediction.timing && typeof prediction.timing.gate_ms === 'number') {
@@ -1373,7 +1386,7 @@
     if (Array.isArray(prediction.top_predictions)) {
       prediction.top_predictions.forEach((cand) => {
         const isCurrentActive = (isDiffExploration && cand.rank === targetRank) || (!isDiffExploration && cand.rank === 1);
-        const candPercent = (cand.score * 100).toFixed(2);
+        const candPercent = formatModelScore(cand.score);
         const candBarWidth = Math.min(100, Math.max(0, cand.score * 100)).toFixed(1);
         const rowClass = isCurrentActive ? 'active-row' : '';
         const activeLabel = isCurrentActive ? ' <span style="font-size:7pt; color:#14382A; font-weight:700;">[SELECTED]</span>' : '';
@@ -1383,7 +1396,7 @@
             <td style="text-align:center; font-family:'JetBrains Mono', monospace; font-weight:700;">#${cand.rank}</td>
             <td><strong>${escapeHtml(cand.crop)}</strong> &mdash; ${escapeHtml(cand.condition)}${activeLabel}</td>
             <td style="text-align:center;"><span style="font-size:7.5pt; font-weight:600; color:${cand.health === 'Healthy' ? '#15803D' : '#B91C1C'};">${escapeHtml(cand.health)}</span></td>
-            <td style="text-align:right; font-family:'JetBrains Mono', monospace; font-weight:700;">${candPercent}%</td>
+            <td style="text-align:right; font-family:'JetBrains Mono', monospace; font-weight:700;">${candPercent}</td>
             <td style="width:25%;">
               <div class="print-bar-track">
                 <div class="print-bar-fill ${cand.rank === 1 ? '' : 'secondary'}" style="width:${candBarWidth}%;"></div>
@@ -1402,7 +1415,7 @@
     if (culturalItems.length > 0) {
       culturalListHtml = `<ul class="print-bullet-list">${culturalItems.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
     } else if (isHealthy) {
-      culturalListHtml = `<p class="print-prose">Maintain balanced irrigation, soil nutrition, and routine crop surveillance.</p>`;
+      culturalListHtml = `<p class="print-prose">Maintain balanced irrigation, soil nutrition, and routine crop surveillance. (Specific cultural guidelines not available in the current knowledge base.)</p>`;
     } else {
       culturalListHtml = `<p class="print-prose">Not available in the current knowledge base.</p>`;
     }
@@ -1437,9 +1450,7 @@
     // Symptoms summary & list
     let symptomsSummary = (kd && kd.symptoms && kd.symptoms.summary)
       ? kd.symptoms.summary
-      : (isHealthy
-          ? 'Foliage exhibits uniform coloration, firm turgidity, and normal morphology without foliar lesions or chlorosis.'
-          : 'Not available in the current knowledge base.');
+      : 'Not available in the current knowledge base.';
     let foliarSymptomsHtml = '';
     if (kd && kd.symptoms && Array.isArray(kd.symptoms.foliar_symptoms) && kd.symptoms.foliar_symptoms.length > 0) {
       foliarSymptomsHtml = `<ul class="print-bullet-list">${kd.symptoms.foliar_symptoms.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>`;
@@ -1448,7 +1459,7 @@
     // Favorable conditions & transmission
     let envFactors = (kd && kd.favorable_conditions && kd.favorable_conditions.environmental_factors)
       ? kd.favorable_conditions.environmental_factors
-      : (isHealthy ? 'Standard agronomic growing conditions for host crop.' : 'Not available in the current knowledge base.');
+      : 'Not available in the current knowledge base.';
     let transmissionHtml = '';
     if (kd && kd.favorable_conditions && Array.isArray(kd.favorable_conditions.transmission_routes) && kd.favorable_conditions.transmission_routes.length > 0) {
       transmissionHtml = `<ul class="print-bullet-list">${kd.favorable_conditions.transmission_routes.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
@@ -1508,8 +1519,8 @@
 
           <!-- Report Title Banner -->
           <div class="print-report-title-banner">
-            <h1 class="print-report-h1">Foliar Pathology Diagnostic Report</h1>
-            <span class="print-report-sub">Solanaceae Screening Protocol &bull; Closed-World Diagnostic Distribution</span>
+            <h1 class="print-report-h1">${isDiffExploration ? 'Differential Monograph &amp; Look-Alike Reference' : 'Foliar Pathology Diagnostic Report'}</h1>
+            <span class="print-report-sub">${isDiffExploration ? 'Exploratory Botanical Reference &bull; Model Primary Diagnosis Unaltered' : 'Solanaceae Screening Protocol &bull; Closed-World Diagnostic Distribution'}</span>
           </div>
 
           <!-- Specimen & Primary Diagnosis 2-Column Grid -->
@@ -1524,6 +1535,7 @@
                 <tr><td>Specimen File:</td><td>${escapeHtml(filename)}</td></tr>
                 <tr><td>Spatial Resolution:</td><td>${escapeHtml(dimensions)}</td></tr>
                 <tr><td>Payload Size:</td><td>${escapeHtml(filesize)}</td></tr>
+                <tr><td>Client Upload Pre-Check:</td><td>${escapeHtml(clientPrecheck)}</td></tr>
                 <tr><td>Physical Integrity (Layer A):</td><td>${escapeHtml(layerAStatus)}</td></tr>
                 <tr><td>Leaf Verification (Layer B):</td><td>${escapeHtml(layerBStatus)}</td></tr>
               </table>
@@ -1538,21 +1550,32 @@
                 <div class="print-metrics-row">
                   <div class="print-metric-chip">
                     <div class="print-metric-label">Model Score</div>
-                    <div class="print-metric-val">${(targetScore * 100).toFixed(2)}%</div>
+                    <div class="print-metric-val">${formatModelScore(targetScore)}</div>
                   </div>
                   <div class="print-metric-chip">
                     <div class="print-metric-label">Health State</div>
                     <div class="print-metric-val ${isHealthy ? 'healthy' : 'diseased'}">${escapeHtml(targetHealth.toUpperCase())}</div>
                   </div>
                   <div class="print-metric-chip">
-                    <div class="print-metric-label">Candidate Order</div>
-                    <div class="print-metric-val" style="font-size:7.5pt;">${isDiffExploration ? `RANK #${targetRank} (DIFF)` : 'RANK #1 (TOP)'}</div>
+                    <div class="print-metric-label">Evaluation Mode</div>
+                    <div class="print-metric-val" style="font-size:7pt;">${isDiffExploration ? `EXPLORATORY (#${targetRank})` : 'PRIMARY (#1)'}</div>
                   </div>
                 </div>
 
                 ${isDiffExploration ? `
                   <div class="print-diff-notice">
-                    <strong>Differential Investigation Review:</strong> The primary model prediction for this specimen is <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (Model Score: ${(primaryScore * 100).toFixed(2)}%)</strong>. This report reflects alternative candidate #${targetRank} (${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}) for comparative agronomic review.
+                    <div style="font-weight:700; margin-bottom:2pt; text-transform:uppercase; letter-spacing:0.04em;">
+                      ⚠ Exploratory Reference Review &mdash; Not Confirmed Diagnosis
+                    </div>
+                    <div>
+                      The model's confirmed primary prediction for this specimen remains <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (${formatModelScore(primaryScore)})</strong>.
+                      Selecting alternative candidate #${targetRank} (${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}) does <em>not</em> alter or override the primary prediction.
+                      ${(targetScore * 100 < 0.01) ? `
+                        The relative model score for this candidate is <strong>${formatModelScore(targetScore)}</strong>, which represents negligible neural alignment and provides <strong>no diagnostic support</strong>. This monograph is presented solely for educational comparison and look-alike reference.
+                      ` : `
+                        This monograph is presented solely for educational comparison and differential look-alike reference.
+                      `}
+                    </div>
                   </div>
                 ` : `
                   <div style="font-size:7pt; color:#4B5563; margin-top:6pt;">
@@ -1629,13 +1652,13 @@
 
           <!-- Target Diagnostic Banner -->
           <div class="print-target-banner">
-            <h3>Target Pathology: ${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}</h3>
+            <h3>${isDiffExploration ? 'Exploratory Target Reference:' : 'Target Pathology:'} ${escapeHtml(targetCrop)} &mdash; ${escapeHtml(targetCondition)}</h3>
             <p><strong>Causal Pathogen / Biotic Factor:</strong> <em>${escapeHtml(causalAgentText)}</em></p>
           </div>
 
           ${isDiffExploration ? `
             <div class="print-diff-notice" style="margin-bottom:8pt;">
-              <strong>Differential Advisory Mode:</strong> Protocols on this page correspond to candidate #${targetRank} (${escapeHtml(targetCrop)} ${escapeHtml(targetCondition)}). The primary model diagnostic output remains <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (Model Score: ${(primaryScore * 100).toFixed(2)}%)</strong>.
+              <strong>Exploratory Reference Monograph (Not Confirmed Diagnosis):</strong> Protocols below correspond to alternative candidate #${targetRank} (${escapeHtml(targetCrop)} ${escapeHtml(targetCondition)}). The primary model diagnostic output remains <strong>${escapeHtml(primaryCrop)} &mdash; ${escapeHtml(primaryCondition)} (Model Score: ${formatModelScore(primaryScore)})</strong> and is unaltered. ${(targetScore * 100 < 0.01) ? 'The near-zero model score (' + formatModelScore(targetScore) + ') indicates negligible statistical probability and provides no diagnostic support.' : ''}
             </div>
           ` : ''}
 
@@ -1688,7 +1711,7 @@
         <!-- Page 2 Footer -->
         <footer class="print-footer">
           <span class="print-footer-brand">PHYTOSIGNAL Clinical Foliar Intelligence</span>
-          <span>Verified Clinical Monograph &bull; Ref: ${reportRef}</span>
+          <span>Confidential Agronomic Diagnostic Document &bull; Ref: ${reportRef}</span>
           <span>Page 2 &bull; End of Monograph</span>
         </footer>
       </article>
@@ -1888,15 +1911,15 @@
       `Host Crop: ${lastPrediction.crop || 'Unknown Crop'}`,
       `Predicted Condition: ${lastPrediction.condition || 'Unknown Condition'}`,
       `Health Status: ${lastPrediction.health || 'Unknown'}`,
-      `Classification Score: ${(lastPrediction.score * 100).toFixed(2)}%`,
+      `Classification Score: ${formatModelScore(lastPrediction.score)}`,
       '',
       'TOP CANDIDATES DISTRIBUTION:',
     ];
 
     if (Array.isArray(lastPrediction.top_predictions)) {
       lastPrediction.top_predictions.forEach((cand, idx) => {
-        const scorePercent = (cand.score * 100).toFixed(2);
-        lines.push(`  ${idx + 1}. [${cand.crop}] ${cand.condition}: ${scorePercent}% (${cand.health})`);
+        const scorePercent = formatModelScore(cand.score);
+        lines.push(`  ${idx + 1}. [${cand.crop}] ${cand.condition}: ${scorePercent} (${cand.health})`);
       });
     }
 
