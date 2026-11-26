@@ -198,11 +198,20 @@ async def predict(
         gate_probs = leaf_gate_service.predict_proba(frame)
         assessment = assess_image(frame, gate_probs)
         gate_ms = round((time.perf_counter() - t_gate_start) * 1000.0, 2)
-        return tensor, assessment, decode_ms, gate_ms
+
+        from ..config import ENABLE_INPUT_GATE
+        if not ENABLE_INPUT_GATE:
+            gate_type = "bypassed"
+        elif gate_probs is not None:
+            gate_type = "learned"
+        else:
+            gate_type = "heuristic"
+
+        return tensor, assessment, decode_ms, gate_ms, gate_type
 
     try:
         async with get_decode_semaphore():
-            input_tensor, assessment, decode_ms, gate_ms = await asyncio.to_thread(_decode_and_assess, image_bytes)
+            input_tensor, assessment, decode_ms, gate_ms, gate_type = await asyncio.to_thread(_decode_and_assess, image_bytes)
     except ImageValidationError as exc:
         raise HTTPException(
             status_code=exc.status_code,
@@ -227,9 +236,11 @@ async def predict(
             assessment.code,
             assessment.signals,
         )
+        detail = assessment.to_error_detail()
+        detail["gate_type"] = gate_type
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=assessment.to_error_detail(),
+            detail=detail,
         )
 
     # 9. Execute inference and construct structured response via worker thread offloading
@@ -245,6 +256,11 @@ async def predict(
             "gate_ms": gate_ms,
             "inference_ms": inference_ms,
             "total_ms": total_ms,
+        }
+        result["validation_metadata"] = {
+            "physical_integrity_verified": True,
+            "gate_type": gate_type,
+            "gate_decision": assessment.decision,
         }
         result["model_metadata"] = model_service.model_metadata
         return PredictionResponse(**result)

@@ -1351,29 +1351,73 @@
           : 'Not recorded');
 
     // Runtime Gate Verification & Pipeline Latency
-    // Layer A strictly reflects backend physical integrity verification metadata
+    // Layer A strictly reflects explicit backend physical integrity verification metadata
+    const vm = prediction.validation_metadata;
+    const hasDecodeTiming = prediction.timing && typeof prediction.timing.decode_ms === 'number';
+    const decodeMsStr = hasDecodeTiming ? `${prediction.timing.decode_ms.toFixed(1)} ms` : '';
+
+    let layerALabel = 'Physical Integrity (Layer A)';
     let layerAStatus = 'Verification status unavailable';
-    if (prediction.timing && typeof prediction.timing.decode_ms === 'number') {
-      layerAStatus = `Passed (${prediction.timing.decode_ms.toFixed(1)} ms)`;
+    let layerAGateStripLabel = 'Layer A (Physical)';
+
+    if (vm && vm.physical_integrity_verified === true) {
+      layerALabel = 'Physical Integrity (Layer A)';
+      layerAStatus = hasDecodeTiming ? `Passed (${decodeMsStr})` : 'Passed';
+      layerAGateStripLabel = 'Layer A (Physical)';
+    } else if (hasDecodeTiming) {
+      layerALabel = 'Backend Image Decode';
+      layerAStatus = `${decodeMsStr} (Physical integrity not reported)`;
+      layerAGateStripLabel = 'Layer A (Decode)';
+    } else {
+      layerALabel = 'Physical Integrity (Layer A)';
+      layerAStatus = 'Verification status unavailable';
+      layerAGateStripLabel = 'Layer A (Physical)';
     }
 
     const clientPrecheck = (currentFile && currentFile.size > 0)
       ? 'Passed (Client decode & format validated)'
       : 'Not recorded';
 
-    let layerBStatus = 'Verification status unavailable';
-    if (prediction.timing && typeof prediction.timing.gate_ms === 'number') {
-      if (prediction.timing.gate_ms > 0) {
-        if (lastReadyState && lastReadyState.gateLoaded === true) {
-          layerBStatus = `Learned Gate Passed (${prediction.timing.gate_ms.toFixed(1)} ms)`;
-        } else if (lastReadyState && lastReadyState.gateLoaded === false) {
-          layerBStatus = `Heuristic Screen Passed (${prediction.timing.gate_ms.toFixed(1)} ms)`;
+    // Layer B: determined STRICTLY from per-request metadata, never derived from /ready readiness state
+    const hasGateTiming = prediction.timing && typeof prediction.timing.gate_ms === 'number';
+    const gateMsStr = hasGateTiming ? `${prediction.timing.gate_ms.toFixed(1)} ms` : '';
+
+    let layerBStatus = 'Gate verification unavailable';
+
+    if (vm && typeof vm.gate_type === 'string') {
+      const gType = vm.gate_type.toLowerCase();
+      const gDecision = (vm.gate_decision || '').toLowerCase();
+
+      if (gType === 'learned') {
+        if (gDecision === 'accepted') {
+          layerBStatus = hasGateTiming ? `Learned Gate Passed (${gateMsStr})` : 'Learned Gate Passed';
+        } else if (gDecision === 'rejected' || gDecision === 'abstained') {
+          layerBStatus = `Learned Gate Rejected (${gDecision})`;
         } else {
-          layerBStatus = `Passed (${prediction.timing.gate_ms.toFixed(1)} ms)`;
+          layerBStatus = `Learned Gate: ${escapeHtml(vm.gate_decision || 'Evaluated')}`;
         }
-      } else {
+      } else if (gType === 'heuristic') {
+        if (gDecision === 'accepted') {
+          layerBStatus = hasGateTiming ? `Heuristic Screen Passed (${gateMsStr})` : 'Heuristic Screen Passed';
+        } else if (gDecision === 'rejected' || gDecision === 'abstained') {
+          layerBStatus = `Heuristic Screen Rejected (${gDecision})`;
+        } else {
+          layerBStatus = `Heuristic Screen: ${escapeHtml(vm.gate_decision || 'Evaluated')}`;
+        }
+      } else if (gType === 'bypassed') {
         layerBStatus = 'Disabled / Bypassed';
+      } else {
+        layerBStatus = 'Gate verification unavailable';
       }
+    } else if (hasGateTiming) {
+      if (prediction.timing.gate_ms === 0) {
+        layerBStatus = 'Disabled / Bypassed';
+      } else {
+        // Timing recorded but no per-request gate outcome metadata
+        layerBStatus = 'Gate processing recorded — outcome unavailable';
+      }
+    } else {
+      layerBStatus = 'Gate verification unavailable';
     }
 
     let latencyMs = 'Not recorded';
@@ -1536,7 +1580,7 @@
                 <tr><td>Spatial Resolution:</td><td>${escapeHtml(dimensions)}</td></tr>
                 <tr><td>Payload Size:</td><td>${escapeHtml(filesize)}</td></tr>
                 <tr><td>Client Upload Pre-Check:</td><td>${escapeHtml(clientPrecheck)}</td></tr>
-                <tr><td>Physical Integrity (Layer A):</td><td>${escapeHtml(layerAStatus)}</td></tr>
+                <tr><td>${escapeHtml(layerALabel)}:</td><td>${escapeHtml(layerAStatus)}</td></tr>
                 <tr><td>Leaf Verification (Layer B):</td><td>${escapeHtml(layerBStatus)}</td></tr>
               </table>
             </div>
@@ -1586,7 +1630,7 @@
 
               <!-- Ingestion Gate Summary -->
               <div class="print-gate-strip">
-                <span class="print-gate-item"><strong>Layer A (Physical):</strong> ${escapeHtml(layerAStatus)}</span>
+                <span class="print-gate-item"><strong>${escapeHtml(layerAGateStripLabel)}:</strong> ${escapeHtml(layerAStatus)}</span>
                 <span class="print-gate-item"><strong>Layer B (Leaf Gate):</strong> ${escapeHtml(layerBStatus)}</span>
                 <span class="print-gate-item"><strong>Pipeline Latency:</strong> ${escapeHtml(latencyMs)}</span>
               </div>

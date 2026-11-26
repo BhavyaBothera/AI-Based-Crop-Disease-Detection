@@ -52,6 +52,10 @@ class PredictionResponse(BaseModel):
         None,
         description="Pipeline execution latency in milliseconds: decode_ms, gate_ms, inference_ms, total_ms."
     )
+    validation_metadata: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Explicit per-request image pre-validation and gate assessment metadata: physical_integrity_verified, gate_type, gate_decision."
+    )
     model_metadata: Optional[Dict[str, Any]] = Field(
         None,
         description="Metadata describing the active model architecture, checkpoint provenance, and validation metrics."
